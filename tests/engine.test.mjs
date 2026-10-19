@@ -223,3 +223,80 @@ test('parseParams é tolerante a lixo', () => {
   const p = Engine.parseParams({p_pw:'abc', p_dpw:'99', p_gm:'200', p_startmode:'x', p_lang:'xx'});
   assert.equal(p.pw, 2); assert.equal(p.dpw, 7); assert.ok(p.gm <= 0.95); assert.equal(p.startMode, 'date'); assert.equal(p.lang, 'en');
 });
+
+test('desconto em %: aplicado sobre o preço de lista; contingência vem antes', () => {
+  const m = mkModel();
+  const R = Engine.compute(m, params({p_cont:10, p_disc:10}), {});
+  assert.ok(Math.abs(R.T.listNet - 640 * 200 * 1.10) < 1e-6);
+  assert.ok(Math.abs(R.T.net - R.T.listNet * 0.9) < 1e-6);
+  assert.ok(Math.abs(R.T.discPct - 0.10) < 1e-9);
+});
+
+test('desconto por fase: exceção ignora o geral e entra no total', () => {
+  const m = mkModel();
+  const p = Engine.parseParams({p_start:'2026-11-02', p_hol:false, p_disc:10}, {phaseDisc:{Assessment:100}});
+  const R = Engine.compute(m, p, {});
+  assert.equal(R.rows.find(r => r.phase === 'Assessment').net, 0);
+  const build = R.rows.find(r => r.phase === 'Build');
+  assert.ok(Math.abs(build.net - build.listNet * 0.9) < 1e-6);
+  assert.ok(R.T.discPct > 0.1);
+});
+
+test('desconto em valor fixo e preço-alvo (valores COM impostos)', () => {
+  const m = mkModel(), tax = [{name:'I', pct:10}];
+  const base = Engine.compute(m, Engine.parseParams({p_start:'2026-11-02', p_hol:false}, {taxes:tax}), {});
+  const amt = Engine.compute(m, Engine.parseParams({p_start:'2026-11-02', p_hol:false, p_discmode:'amount', p_discamt:10000}, {taxes:tax}), {});
+  assert.ok(Math.abs((base.T.gross - amt.T.gross) - 10000) < 1e-6, 'desconto em valor');
+  const tgt = Engine.compute(m, Engine.parseParams({p_start:'2026-11-02', p_hol:false, p_discmode:'target', p_disctarget:100000}, {taxes:tax}), {});
+  assert.ok(Math.abs(tgt.T.gross - 100000) < 1e-6, 'preço-alvo');
+  const above = Engine.compute(m, Engine.parseParams({p_start:'2026-11-02', p_hol:false, p_discmode:'target', p_disctarget:9e9}, {taxes:tax}), {});
+  assert.equal(above.T.discNet, 0); assert.ok(above.issues.some(i => i.code === 'target_above_list'));
+});
+
+test('desconto máximo preserva o GM mínimo', () => {
+  const m = mkModel();
+  const R = Engine.compute(m, params({p_gmmin:30}), {});
+  assert.ok(R.maxDisc > 0 && R.maxDisc < 1);
+  const at = Engine.compute(m, params({p_gmmin:30, p_disc: R.maxDisc * 100}), {});
+  assert.ok(Math.abs(at.T.gm - 0.30) < 1e-6, 'GM no limite: ' + at.T.gm);
+  const over = Engine.compute(m, params({p_gmmin:30, p_disc: R.maxDisc * 100 + 3}), {});
+  assert.ok(over.issues.some(i => i.code === 'gm_below_min'));
+});
+
+test('sensibilidade ignora o modo de desconto configurado', () => {
+  const m = mkModel();
+  const g = Engine.sensitivity(m, params({p_discmode:'amount', p_discamt:99999}), {}, [0, 0.1], [0]);
+  assert.ok(g[1].cells[0].gross < g[0].cells[0].gross);
+});
+
+test('linhas sem perfil e fases sem alocação não entram no cálculo; perfis não usados não exigem taxa', () => {
+  const m = mkModel();
+  m.rows.push({phase:'Vazia', activity:'', role:'', level:'', location:'', optional:false, alloc:new Array(6).fill(0)});
+  m.rows.push({phase:'Zerada', activity:'', role:'Arq', level:'Q5', location:'Brazil', optional:false, alloc:new Array(6).fill(0)});
+  m.rates['Sobra|Q1|Brazil'] = {role:'Sobra', level:'Q1', location:'Brazil', cost:'', rate:''};
+  const R = Engine.compute(m, params(), {});
+  assert.equal(R.T.H, 640);
+  assert.ok(!R.phases.some(f => f.name === 'Vazia' || f.name === 'Zerada'));
+  assert.equal(R.missing.length, 0);
+  assert.equal(R.rowByIndex.size, 4); // 3 originais + a linha com perfil e sem alocação
+});
+
+test('timeline só com linhas sem perfil: compute devolve null', () => {
+  const m = mkModel(); m.rows = [{phase:'A', activity:'', role:'', level:'', location:'', optional:false, alloc:new Array(6).fill(0)}];
+  assert.equal(Engine.compute(m, params(), {}), null);
+});
+
+test('parseTimeline com keepEmpty mantém linhas sem perfil e sem alocação', () => {
+  const aoa = [['Phase','Role','Level','Location','Optional','SP1','SP2'], ['A','PM','Q4','BR','',0,0], ['B','','','','',0,0]];
+  const t = Engine.parseTimeline(aoa, {keepEmpty:true});
+  assert.equal(t.rows.length, 2); assert.equal(t.rows[1].role, '');
+  assert.throws(() => Engine.parseTimeline(aoa), /nenhuma linha/);
+});
+
+test('ensureRates preserva o catálogo (prune só se pedido)', () => {
+  const rates = {'Sobra|Q1|Brazil': {role:'Sobra', level:'Q1', location:'Brazil', cost:1, rate:2}};
+  Engine.ensureRates(rates, [{role:'PM', level:'Q4', location:'BR'}, {role:'', level:'', location:''}]);
+  assert.ok(rates['Sobra|Q1|Brazil'] && rates['PM|Q4|BR'] && Object.keys(rates).length === 2);
+  Engine.ensureRates(rates, [{role:'PM', level:'Q4', location:'BR'}], true);
+  assert.equal(Object.keys(rates).length, 1);
+});

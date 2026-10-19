@@ -10,12 +10,13 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 /* ---------------- estado ---------------- */
 const S = {
-  rows: [], nPeriods: 0, unit: 'SP', unitAuto: 'SP', rates: {}, fileName: '',
-  taxes: [{name: 'PIS/COFINS/ISS', pct: 5.65}], edits: {},
+  rows: [], nPeriods: 0, unit: 'SP', rates: {}, fileName: '', fileLabel: '', saveText: '', saveKind: 'dirty',
+  taxes: [{name: 'PIS/COFINS/ISS', pct: 5.65}], phaseDisc: {}, edits: {},
   result: null, handle: null, autoFile: false, dirty: false
 };
 const LIB = {dir: null, files: [], cache: new Map()};
 const charts = {};
+let ED = null; // editor de timeline (criado no init)
 
 /* ---------------- utilidades de interface ---------------- */
 const nfPT = (v, d = 0) => new Intl.NumberFormat('pt-BR', {minimumFractionDigits: d, maximumFractionDigits: d}).format(v);
@@ -73,9 +74,9 @@ function setRaw(o){
   });
   syncStartUI();
 }
-const P = () => E.parseParams(raw(), {taxes: S.taxes});
+const P = () => E.parseParams(raw(), {taxes: S.taxes, phaseDisc: S.phaseDisc});
 const model = () => ({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates});
-const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, unitAuto: S.unitAuto, rates: S.rates, edits: S.edits, fileName: S.fileName});
+const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName});
 
 function syncStartUI(){
   const m = $('p_startmode').value;
@@ -86,13 +87,14 @@ function syncStartUI(){
 /* ---------------- abas ---------------- */
 const TABS = ['tl', 'par', 'ana', 'doc'];
 function goTab(t){
-  if ((t === 'ana' || t === 'doc') && !S.result) recalc(false);
+  if ((t === 'ana' || t === 'doc') && !S.result && !recalc(false)) return;
   TABS.forEach(x => {
     const b = $('tabbtn-' + x), on = x === t;
     b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
     $('tab-' + x).classList.toggle('active', on);
   });
   if (t === 'ana') drawCharts();
+  if (t === 'par') renderDiscount();
   window.scrollTo(0, 0);
 }
 function enableTabs(n){ TABS.forEach((x, i) => { $('tabbtn-' + x).disabled = i > n; }); }
@@ -133,29 +135,59 @@ async function netCheck(){
   toast('Recursos online indisponíveis: ' + bad.map(k => lab[k]).join(', ') + '. O app continua funcionando offline.', 'warn', 9000);
 }
 
+/* ---------------- identificação da proposta (barra superior) ---------------- */
+function safeCompute(){ try { return S.rows.length ? E.compute(model(), P(), {today: new Date()}) : null; } catch(e){ return null; } }
+function updateIdent(){
+  const has = S.rows.length > 0;
+  const client = $('p_client').value.trim(), project = $('p_project').value.trim(), ref = $('p_ref').value.trim(), vendor = $('p_vendor').value.trim();
+  const title = !has ? 'Nenhuma proposta aberta' : ([client, project].filter(Boolean).join(' — ') || 'Proposta sem nome');
+  $('pbTitle').textContent = title;
+  document.title = has ? `${title} · Proposta` : 'Gerador de Proposta Comercial';
+  const parts = [];
+  if (has){
+    if (ref) parts.push(`<span>Ref. ${esc(ref)}</span>`);
+    if (vendor) parts.push(`<span>${esc(vendor)}</span>`);
+    parts.push(S.handle ? `<span title="Arquivo onde a proposta é gravada">📄 ${esc(S.handle.name)}</span>` : (S.fileLabel ? `<span title="O arquivo original não é alterado">📂 origem: ${esc(S.fileLabel)}</span>` : '<span>📄 sem arquivo</span>'));
+    const R = safeCompute();
+    if (R && R.T.gross > 0) parts.push(`<b title="Preço total com impostos">${esc(curPT(R.T.gross, R.p.cur))}</b>${R.T.cost ? `<span title="Margem bruta estimada">GM ${nfPT(R.T.gm * 100, 1)}%</span>` : ''}`);
+    if (R && R.issues.some(i => i.level === 'err')) parts.push('<span class="pbwarn" title="Há alertas críticos na análise financeira">⛔ alertas</span>');
+  }
+  const st = has && S.saveText ? `<span class="st ${S.saveKind}">${esc(S.saveText)}</span>` : '';
+  $('pbSub').innerHTML = parts.join('<span class="dotsep">·</span>') + (parts.length && st ? '<span class="dotsep">·</span>' : '') + st;
+}
+function updateFileBar(){
+  $('fname').textContent = S.handle ? S.handle.name : (S.fileLabel ? `${S.fileLabel} (original preservado)` : 'Sem arquivo');
+}
+
 /* ---------------- persistência: rascunho, arquivo .xlsx e biblioteca ---------------- */
 let saveTimer = null;
-function setSaveStatus(t){ $('savebar').textContent = t; }
+function setSaveStatus(t, kind){
+  S.saveText = t; S.saveKind = ['saved', 'saving', 'dirty'].includes(kind) ? kind : 'dirty';
+  const f = $('fstatus'); f.textContent = t; f.className = 'st ' + S.saveKind;
+  $('saveNow').style.display = (S.rows.length && S.dirty && (!S.handle || !S.autoFile)) ? '' : 'none';
+  updateFileBar(); updateIdent();
+}
+// liga a proposta a um arquivo (a partir daqui, as alterações são gravadas nele)
+function setHandle(h){ S.handle = h; S.autoFile = !!h; $('autoFile').checked = !!h; if (h) S.fileLabel = h.name; }
 function markDirty(){
-  S.dirty = true; setSaveStatus('Alterações não salvas');
+  S.dirty = true; setSaveStatus('Alterações não salvas', 'dirty');
   clearTimeout(saveTimer); saveTimer = setTimeout(autosave, 1500);
 }
 async function autosave(){
   if (!S.rows.length) return;
-  let text;
   const ok = await Store.kv.set('draft', {snap: snapshot(), at: Date.now()});
-  text = ok ? `Rascunho salvo ${hhmm()}` : 'Rascunho local indisponível neste navegador';
+  let text = ok ? `Rascunho salvo ${hhmm()} (só neste navegador)` : 'Rascunho local indisponível neste navegador', kind = 'dirty';
   if (S.handle && S.autoFile){
+    setSaveStatus('⟳ Gravando no Excel…', 'saving');
     try {
-      if (await Store.fs.granted(S.handle, true)){ await writeFile(S.handle); S.dirty = false; text = `Salvo em ${S.handle.name} · ${hhmm()}`; }
+      if (await Store.fs.granted(S.handle, true)){ await writeFile(S.handle); S.dirty = false; text = `✓ Salvo em ${S.handle.name} · ${hhmm()}`; kind = 'saved'; }
       else text += ' · clique em 💾 Salvar para reconectar o arquivo';
     } catch(e){ text += ' · falha ao gravar o arquivo: ' + e.message; }
-  }
-  setSaveStatus(text);
+  } else if (!S.handle) text += ' · use “Salvar como…” para gravar em Excel';
+  setSaveStatus(text, kind);
 }
 async function buildBlob(){
-  const R = S.result || recalc(false);
-  if (!R) throw new Error('Carregue um timeline antes de salvar.');
+  const R = E.compute(model(), P(), {today: new Date()}) || Workbook.emptyResult(snapshot()); // também grava propostas ainda sem alocação
   const Ex = await loadLib('exceljs');
   const wb = await Workbook.buildProposal(Ex, snapshot(), R);
   return new Blob([await wb.xlsx.writeBuffer()], {type: XLSX_MIME});
@@ -164,27 +196,27 @@ async function writeFile(handle){ await Store.fs.write(handle, await buildBlob()
 const aborted = e => e && (e.name === 'AbortError' || /abort/i.test(e.message || ''));
 
 async function actSave(){
-  if (!S.rows.length) return toast('Carregue um timeline primeiro.', 'warn');
+  if (!S.rows.length) return toast('Abra ou crie uma proposta primeiro.', 'warn');
   try {
     if (S.handle && Store.fs.supported() && await Store.fs.perm(S.handle, true)){
-      await writeFile(S.handle); S.dirty = false; S.autoFile = true;
-      setSaveStatus(`Salvo em ${S.handle.name} · ${hhmm()}`); toast('Proposta salva em ' + S.handle.name, 'ok'); return;
+      await writeFile(S.handle); S.dirty = false; S.autoFile = true; $('autoFile').checked = true;
+      setSaveStatus(`✓ Salvo em ${S.handle.name} · ${hhmm()}`, 'saved'); toast('Proposta salva em ' + S.handle.name, 'ok'); return;
     }
     return actSaveAs();
   } catch(e){ if (!aborted(e)) toast('Não foi possível salvar: ' + e.message, 'err', 9000); }
 }
 async function actSaveAs(){
-  if (!S.rows.length) return toast('Carregue um timeline primeiro.', 'warn');
+  if (!S.rows.length) return toast('Abra ou crie uma proposta primeiro.', 'warn');
   try {
     const name = fileBase() + '.xlsx';
     if (Store.fs.supported()){
       const h = await Store.fs.pickSave(name);
-      await writeFile(h); S.handle = h; S.autoFile = true; S.dirty = false;
-      setSaveStatus(`Salvo em ${h.name} · ${hhmm()}`); toast('Proposta salva. As próximas alterações serão gravadas neste arquivo automaticamente.', 'ok', 7000);
+      await writeFile(h); setHandle(h); S.dirty = false;
+      setSaveStatus(`✓ Salvo em ${h.name} · ${hhmm()}`, 'saved'); toast('Proposta salva. As próximas alterações serão gravadas neste arquivo automaticamente.', 'ok', 7000);
     } else {
-      Store.download(await buildBlob(), name); S.dirty = false;
-      setSaveStatus(`Arquivo baixado · ${hhmm()}`);
-      toast('Seu navegador não permite gravar direto no arquivo: o .xlsx foi baixado. Use “Abrir proposta” para continuar depois.', 'info', 9000);
+      Store.download(await buildBlob(), name); S.dirty = false; S.fileLabel = name;
+      setSaveStatus(`Arquivo baixado · ${hhmm()}`, 'saved');
+      toast('Seu navegador não permite gravar direto no arquivo: o .xlsx foi baixado. Use “Abrir do Excel” para continuar depois e Salvar para baixar de novo.', 'info', 9000);
     }
   } catch(e){ if (!aborted(e)) toast('Não foi possível salvar: ' + e.message, 'err', 9000); }
 }
@@ -194,6 +226,14 @@ async function actOpen(){
     const h = await Store.fs.pickOpen();
     await loadBuffer(await Store.fs.read(h), h.name, h);
   } catch(e){ if (!aborted(e)) toast('Não foi possível abrir: ' + e.message, 'err', 9000); }
+}
+function actNew(){
+  if (S.rows.length && S.dirty && !confirm('Há alterações ainda não gravadas em Excel. Começar uma proposta nova mesmo assim?')) return;
+  ED.startEmpty(); S.phaseDisc = {};
+  S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.fileName = ''; S.fileLabel = ''; S.result = null; S.dirty = false;
+  ['p_client', 'p_project', 'p_ref', 'p_context', 'p_assump'].forEach(id => { $(id).value = ''; });
+  msg('tlMsg', 'info', 'Proposta nova. Cadastre os perfis pela combo de cada linha (<i>➕ Cadastrar novo perfil…</i>) ou importe-os na aba 2 (“Perfis e taxas”); depois preencha o FTE. Use <b>Salvar como…</b> para criar o arquivo Excel e começar a gravar nele.');
+  afterLoad(true); markDirty();
 }
 
 /* ---------------- carregamento de arquivos ---------------- */
@@ -212,9 +252,10 @@ async function loadBuffer(buf, name, handle){
   if (Workbook.isProposalWorkbook(X, wb)){
     const st = Workbook.read(X, wb);
     st.fileName = name; applyState(st);
-    S.handle = handle || null; S.autoFile = !!handle; S.dirty = false;
+    S.fileLabel = name; S.dirty = false;
+    if (handle) setHandle(handle); else { S.handle = null; S.autoFile = false; $('autoFile').checked = false; }
     msg('tlMsg', 'ok', `✅ Proposta <b>${esc(name)}</b> aberta: ${S.rows.length} linhas, ${S.nPeriods} ${S.unit === 'SP' ? 'sprints' : 'semanas'}, ${Object.keys(S.rates).length} perfis, ${Object.keys(S.edits).length} texto(s) editado(s).` + (st.warnings.length ? '<br>⚠ ' + st.warnings.map(esc).join('<br>⚠ ') : ''));
-    setSaveStatus(handle ? `Arquivo: ${name} (alterações são gravadas nele)` : `Aberta de ${name} (use Salvar para gravar)`);
+    setSaveStatus(handle ? `✓ Aberta de ${name} — as alterações são gravadas nele` : `Aberta de ${name} — use Salvar para gravar`, handle ? 'saved' : 'dirty');
     return;
   }
 
@@ -222,88 +263,118 @@ async function loadBuffer(buf, name, handle){
   let parsed = null; const errors = [];
   const candidates = tlName ? [tlName, ...wb.SheetNames.filter(n => n !== tlName)] : wb.SheetNames;
   for (const n of candidates){
-    if (/rate|instruc|alt format/i.test(n)) continue;
+    if (/rate|perfi|instruc|alt format/i.test(n)) continue;
     try { parsed = E.parseTimeline(aoa(n)); parsed.sheet = n; break; }
     catch(e){ errors.push(`${esc(n)}: ${esc(e.message)}`); }
   }
   if (!parsed) throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
-  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unitAuto = parsed.unit;
-  const sel = $('p_unit').value; S.unit = sel === 'auto' ? parsed.unit : sel;
-  S.fileName = name; S.handle = null; S.autoFile = false; S.edits = {};
+  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit;
+  // um timeline "bruto" nunca é sobrescrito: a proposta só passa a ser gravada depois de "Salvar como…"
+  S.fileName = name; S.fileLabel = name; S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.edits = {}; S.phaseDisc = {};
   E.ensureRates(S.rates, S.rows);
-  const rcName = wb.SheetNames.find(n => /rate/i.test(n));
+  const rcName = wb.SheetNames.find(n => /rate|perfi/i.test(n));
   let rcInfo = '';
   if (rcName){
-    try { const n = E.applyRateTable(S.rates, E.parseRateRows(aoa(rcName))); rcInfo = ` Rate card importado da aba "${esc(rcName)}" (${n} de ${Object.keys(S.rates).length} perfis).`; }
-    catch(e){ rcInfo = ` ⚠ Rate card não importado: ${esc(e.message)}.`; }
+    try { const n = E.applyRateTable(S.rates, E.parseRateRows(aoa(rcName))); rcInfo = ` Perfis e taxas importados da aba "${esc(rcName)}" (${n} de ${Object.keys(S.rates).length} perfis/níveis).`; }
+    catch(e){ rcInfo = ` ⚠ Perfis/taxas não importados: ${esc(e.message)}.`; }
   }
-  afterTimelineLoaded(`Arquivo <b>${esc(name)}</b> (aba "${esc(parsed.sheet)}"): ${S.rows.length} linhas, ${S.nPeriods} ${S.unit === 'SP' ? 'sprints' : 'semanas'}.${rcInfo}` + (parsed.warnings.length ? '<br>⚠ ' + parsed.warnings.join('<br>⚠ ') : ''));
+  afterTimelineLoaded(`Arquivo <b>${esc(name)}</b> (aba "${esc(parsed.sheet)}"): ${S.rows.length} linhas, ${S.nPeriods} ${S.unit === 'SP' ? 'sprints' : 'semanas'}.${rcInfo} <b>O arquivo original não será alterado:</b> use “Salvar como…” para criar a proposta e começar a gravar nela.` + (parsed.warnings.length ? '<br>⚠ ' + parsed.warnings.join('<br>⚠ ') : ''));
+  setSaveStatus('Timeline importado — ainda não gravado (o original é preservado)', 'dirty');
+}
+// mostra o editor (e, se for uma carga nova, reinicia histórico e abas)
+function afterLoad(reset){
+  if (reset){ ED.resetHistory(); enableTabs(1); }
+  const has = S.rows.length > 0;
+  $('tlEmpty').style.display = has ? 'none' : ''; $('tlEditor').style.display = has ? 'block' : 'none';
+  renderRateTable(); if (has) ED.render(); renderDiscount(); updateFileBar(); updateIdent();
 }
 function applyState(st){
-  S.rows = st.rows; S.nPeriods = st.nPeriods; S.unit = st.unit; S.unitAuto = st.unitAuto || st.unit; S.rates = st.rates || {};
+  S.rows = st.rows; S.nPeriods = st.nPeriods; S.unit = st.unit; S.rates = st.rates || {};
   S.taxes = st.taxes && st.taxes.length ? st.taxes : [{name: 'Impostos', pct: 5.65}];
+  S.phaseDisc = st.phaseDisc || {};
   S.edits = st.edits || {}; S.fileName = st.fileName || '';
   E.ensureRates(S.rates, S.rows);
   setRaw(st.raw || {});
-  $('p_unit').value = S.unit === S.unitAuto ? 'auto' : S.unit;
-  renderTaxes(); S.result = null; renderGantt(); renderRateTable(); enableTabs(1);
-  $('tlView').style.display = 'block'; refreshFxCachedBtn();
+  $('p_unit').value = S.unit;
+  renderTaxes(); S.result = null; refreshFxCachedBtn(); afterLoad(true);
 }
 function afterTimelineLoaded(info){
   msg('tlMsg', 'ok', '✅ ' + info);
   if (!$('p_project').value && S.fileName) $('p_project').value = S.fileName.replace(/\.(xlsx|xlsm|xls|csv)$/i, '').replace(/[_-]+/g, ' ');
-  S.result = null; renderGantt(); renderRateTable(); enableTabs(1);
-  $('tlView').style.display = 'block'; markDirty();
+  S.result = null; afterLoad(true); markDirty();
 }
 function loadExample(){
   const ex = Workbook.exampleData();
   S.rows = ex.rows.map(r => ({phase: r[0], activity: r[1], role: r[2], level: r[3], location: r[4], optional: r[5] === 'Y', alloc: r[6]}));
-  S.nPeriods = ex.N; S.unit = S.unitAuto = 'SP'; S.fileName = ''; S.rates = {}; S.edits = {}; S.handle = null; S.autoFile = false;
+  S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
   E.ensureRates(S.rates, S.rows);
   E.applyRateTable(S.rates, ex.rates.map(r => ({role: r[0], level: r[1], location: r[2], cost: r[3], rate: r[4]})));
   if (!$('p_client').value) $('p_client').value = 'Client';
   if (!$('p_project').value) $('p_project').value = 'Data & Analytics Modernization';
-  $('p_unit').value = 'auto';
-  afterTimelineLoaded('Exemplo carregado (12 sprints, rates ilustrativos — substitua pelo rate card oficial).');
+  $('p_unit').value = 'SP';
+  afterTimelineLoaded('Exemplo carregado (12 sprints, taxas ilustrativas — substitua pelas taxas oficiais dos perfis).');
 }
 async function importRateCard(file){
   if (!file) return;
   try {
     const X = await loadLib('xlsx');
     const wb = X.read(new Uint8Array(await file.arrayBuffer()), {type: 'array'});
-    const n = wb.SheetNames.find(x => /rate/i.test(x)) || wb.SheetNames[0];
+    const n = wb.SheetNames.find(x => /rate|perfi/i.test(x)) || wb.SheetNames[0];
     const c = E.applyRateTable(S.rates, E.parseRateRows(X.utils.sheet_to_json(wb.Sheets[n], {header: 1, defval: '', raw: true, blankrows: false})));
     renderRateTable(); S.result = null; markDirty();
-    msg('rcMsg', c ? 'ok' : 'warn', c ? `✅ ${c} perfis do timeline atualizados a partir de "${esc(file.name)}".` : `Nenhum perfil do rate card "${esc(file.name)}" corresponde aos perfis do timeline.`);
+    msg('rcMsg', c ? 'ok' : 'warn', c ? `✅ ${c} perfis atualizados a partir de "${esc(file.name)}".` : `Nenhum perfil do arquivo "${esc(file.name)}" corresponde aos perfis do timeline.`);
   } catch(e){ msg('rcMsg', 'err', '❌ ' + esc(e.message)); }
 }
 
-/* ---------------- render: timeline importado ---------------- */
-const PALETTE = ['#1B4F8C','#13A89E','#6C4AB6','#E07A1F','#2E86C1','#C0392B','#7D8C2E','#AD5A8C','#4A6B82','#D4A017'];
-function phaseNames(){ const out = []; S.rows.forEach(r => { if (!out.includes(r.phase)) out.push(r.phase); }); return out; }
-function renderGantt(){
-  const U = S.unit, N = S.nPeriods, phases = phaseNames();
-  let h = `<table class="gantt"><thead><tr><th class="stk" style="left:0">Fase / Perfil</th><th>Nível</th><th>Local</th>`;
-  for (let p = 1; p <= N; p++) h += `<th class="c">${U}${p}</th>`;
-  h += `<th class="c">Total</th></tr></thead><tbody>`;
-  phases.forEach((ph, pi) => {
-    const color = PALETTE[pi % PALETTE.length], rows = S.rows.filter(r => r.phase === ph);
-    const span = new Array(N).fill(0); rows.forEach(r => r.alloc.forEach((v, i) => span[i] += v));
-    h += `<tr class="ph"><td class="stk" style="left:0;background:#F3F6FA"><span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;margin-right:6px"></span>${esc(ph)}${rows.every(r => r.optional) ? ' <i style="color:var(--warn)">(opcional)</i>' : ''}</td><td></td><td></td>`;
-    span.forEach(v => h += `<td class="c" style="${v ? `background:${color};color:#fff` : ''}">${v ? nfPT(v, 1) : ''}</td>`);
-    h += `<td class="c">${nfPT(span.reduce((a, b) => a + b, 0), 1)}</td></tr>`;
-    rows.forEach(r => {
-      const tot = r.alloc.reduce((a, b) => a + b, 0);
-      h += `<tr style="${r.optional ? 'color:var(--warn);font-style:italic' : ''}"><td class="stk" style="left:0;padding-left:22px">${esc(r.role)}${r.activity ? ` <span class="hint">· ${esc(r.activity)}</span>` : ''}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td>`;
-      r.alloc.forEach(v => { const a = Math.min(1, v / 1.5); h += `<td class="c" style="${v ? `background:rgba(27,79,140,${0.12 + 0.5 * a})` : ''}">${v ? nfPT(v, v % 1 ? 1 : 0) : ''}</td>`; });
-      h += `<td class="c">${nfPT(tot, 1)}</td></tr>`;
-    });
-  });
-  $('gantt').innerHTML = h + '</tbody></table>';
-  $('tlTitle').textContent = `Timeline importado — ${S.rows.length} linhas · ${phases.length} fases · ${N} ${U === 'SP' ? 'sprints' : 'semanas'}`;
-}
+/* ---------------- desconto (aba 2) ---------------- */
+let discNames = [];
+function renderDiscount(){
+  const mode = $('p_discmode').value;
+  $('l_disc').style.display = mode === 'pct' ? '' : 'none';
+  $('l_discamt').style.display = mode === 'amount' ? '' : 'none';
+  $('l_disctarget').style.display = mode === 'target' ? '' : 'none';
+  $('discPhaseBox').style.display = mode === 'pct' ? '' : 'none';
+  const R = safeCompute();
+  if (!R){
+    $('discResult').innerHTML = ''; $('discSuggest').innerHTML = '';
+    $('discPhase').innerHTML = '<tbody><tr><td class="hint">Escolha perfis e preencha o FTE no timeline para configurar o desconto.</td></tr></tbody>';
+    return;
+  }
+  const p = R.p, T = R.T, C = (v, d = 0) => curPT(v, p.cur, d), kp = (b, t) => `<div class="kp"><b>${b}</b>${t}</div>`;
+  $('discResult').innerHTML =
+    kp(C(T.listGross), 'preço de lista (c/ impostos)') + kp((T.discNet > 0.005 ? '−' : '') + C(T.discGross) + ` <small>(${nfPT(T.discPct * 100, 1)}%)</small>`, 'desconto efetivo') +
+    kp(C(T.gross), 'preço final (c/ impostos)') + kp(T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', 'GM% após o desconto');
 
-/* ---------------- render: rate card ---------------- */
+  // por fase (modo percentual)
+  const phases = R.phases.filter(ph => !ph.optional || p.inclOpt); discNames = phases.map(ph => ph.name);
+  const gross = v => p.tax < 1 ? v / (1 - p.tax) : v;
+  $('discPhase').innerHTML = `<thead><tr><th>Fase</th><th class="n">Preço de lista (c/ impostos)</th><th class="n" style="width:150px">Desconto da fase (%)</th><th class="n">Preço final (c/ impostos)</th></tr></thead><tbody>` +
+    phases.map((ph, i) => {
+      const rr = R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt)), list = rr.reduce((a, r) => a + r.listNet, 0), net = rr.reduce((a, r) => a + r.net, 0);
+      const ov = S.phaseDisc[ph.name];
+      return `<tr><td>${esc(ph.name)}</td><td class="n">${C(gross(list))}</td><td class="n"><input type="number" min="0" max="100" step="0.5" data-i="${i}" value="${ov !== undefined ? esc(ov) : ''}" placeholder="geral ${nfPT(R.dGlobal * 100, 1)}" aria-label="Desconto da fase ${esc(ph.name)}"></td><td class="n">${C(gross(net))}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  // sugestões de como aplicar
+  const gmMin = p.gmMin, floorTxt = gmMin > 0 ? `GM ≥ ${nfPT(gmMin * 100, 1)}%` : 'GM ≥ 0% (ponto de equilíbrio)';
+  const maxPct = R.maxDisc === null ? null : Math.floor(R.maxDisc * 1000) / 10;
+  const tryPct = d => { const x = E.compute(model(), {...p, discMode: 'pct', discPhase: {}, disc: d}, {today: new Date()}); return x ? {gross: x.T.gross, gm: x.T.gm, hasCost: x.T.cost > 0} : null; };
+  const ladder = [2.5, 5, 7.5, 10].map(d => { const t = tryPct(d / 100); return t ? `<button class="chip ${maxPct !== null && d > maxPct ? 'bad' : ''}" data-act="disc-apply" data-v="${d}" title="Aplicar ${d}% sobre o total">${nfPT(d, 1)}% → ${C(t.gross)}${t.hasCost ? ` · GM ${nfPT(t.gm * 100, 1)}%` : ''}</button>` : ''; }).join(' ');
+  $('discSuggest').innerHTML = `<div class="sugg"><h3>💡 Sugestões de como aplicar</h3><ul>
+    <li><b>Limite de segurança:</b> ${maxPct === null ? 'informe o Custo/h dos perfis para calcular o desconto máximo.' : `o maior desconto geral que mantém ${floorTxt} é <b>${nfPT(maxPct, 1)}%</b>. <button class="btn sec sm" data-act="disc-apply" data-v="${maxPct}">Aplicar ${nfPT(maxPct, 1)}%</button>` + (gmMin > 0 ? '' : ' Defina o <i>GM% mínimo</i> em “Premissas de preço” para proteger sua margem.')}</li>
+    <li><b>Escada de negociação</b> (preço final e margem de cada degrau): ${ladder}</li>
+    <li><b>Mostrar o desconto como linha</b> (“preço de lista → desconto → preço final”) ancora o valor e permite trocar desconto por escopo, prazo ou pagamento antecipado na negociação. Use “embutido” só quando não quiser expor a lista.</li>
+    <li><b>Concentre o desconto por fase</b> onde o risco é menor ou a entrada é estratégica (ex.: assessment/mobilização) e preserve a margem nas fases de execução.</li>
+    <li><b>Já tem orçamento do cliente?</b> Use <i>Preço final alvo</i>: o app calcula o % equivalente e avisa se a margem cair abaixo do mínimo.</li></ul></div>`;
+}
+$('discPhase').addEventListener('change', e => {
+  const i = e.target.closest('input[data-i]'); if (!i) return;
+  const name = discNames[+i.dataset.i], v = i.value === '' ? null : E.num(i.value);
+  if (v === null || v <= 0) delete S.phaseDisc[name]; else S.phaseDisc[name] = Math.min(100, v);
+  S.result = null; markDirty(); renderDiscount();
+});
+
+/* ---------------- render: perfis e taxas ---------------- */
 function renderRateTable(){
   const p = P(), keys = Object.keys(S.rates).sort();
   const hp = (S.unit === 'W' ? 1 : p.pw) * p.dpw * p.hpd;
@@ -346,8 +417,10 @@ function recalc(go){
   if (!S.rows.length) return null;
   try {
     const R = E.compute(model(), P(), {today: new Date()});
+    if (!R){ toast('Escolha ao menos um perfil e preencha o FTE no timeline antes de calcular.', 'warn', 6000); return null; }
     S.result = R; enableTabs(3);
     renderAnalysis(); renderDoc();
+    updateIdent(); renderDiscount();
     msg('rcMsg', R.missing.length ? 'warn' : '', R.missing.length ? `⚠ Sem ${R.p.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: ${esc(R.missing.join(', '))}. Esses perfis entram com valor zero.` : '');
     const inPeriod = R.holidays.filter(h => h.date >= E.iso(R.T.start) && h.date <= E.iso(R.T.end));
     $('holInfo').textContent = R.relative ? 'Sem data de início: feriados não se aplicam.' : (R.p.useHol ? `${inPeriod.length} feriado(s) dentro do período do projeto.` : 'Feriados desativados.');
@@ -360,14 +433,15 @@ function recalc(go){
 function issueText(i, R){
   const d = i.data, cur = R.p.cur;
   switch (i.code){
-    case 'missing_rates': return `Sem ${d.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: <b>${esc(d.list.join(', '))}</b>. Esses perfis entram com valor zero — preencha o rate card antes de enviar a proposta.`;
+    case 'missing_rates': return `Sem ${d.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: <b>${esc(d.list.join(', '))}</b>. Esses perfis entram com valor zero — preencha as taxas na aba 2 antes de enviar a proposta.`;
     case 'gm_negative': return `GM% negativo (${nfPT(d.gm * 100, 1)}%): o preço está abaixo do custo.`;
     case 'gm_below_min': return `GM% de ${nfPT(d.gm * 100, 1)}% está abaixo do mínimo configurado (${nfPT(d.min * 100, 1)}%).`;
     case 'no_cost': return 'Sem Custo/h informado: o GM% não pode ser calculado.';
     case 'price_below_cost': return `Preço abaixo do custo em: ${esc(d.list.join(', '))}.`;
     case 'start_adjusted': return `${esc(d.from)} não é dia útil (fim de semana ou feriado): o projeto começa em <b>${esc(d.to)}</b>.`;
     case 'relative_timeline': return 'Início sem data: a proposta mostra apenas períodos relativos (SP1, SP2…), sem datas de calendário.';
-    case 'fx_missing': return `A moeda da proposta (${esc(d.to)}) difere da do rate card (${esc(d.from)}) e o câmbio está em 1. Informe ou busque a cotação.`;
+    case 'fx_missing': return `A moeda da proposta (${esc(d.to)}) difere da das taxas (${esc(d.from)}) e o câmbio está em 1. Informe ou busque a cotação.`;
+    case 'target_above_list': return `O preço final alvo (${curPT(d.target, cur)}) é maior que o preço de lista (${curPT(d.list, cur)}): nenhum desconto foi aplicado.`;
     case 'optional_excluded': return `Há itens opcionais fora do total (${curPT(d.gross, cur)} com impostos).`;
     case 'no_active_scope': return 'Nenhum item no escopo (todos opcionais e excluídos, ou sem alocação).';
     default: return esc(i.code);
@@ -379,15 +453,15 @@ function renderAnalysis(){
   const items = R.issues.length ? R.issues : [];
   const hasBad = R.issues.some(i => i.level === 'err' || i.level === 'warn');
   $('checklist').innerHTML = (items.map(i => `<div class="it ${i.level}"><span aria-hidden="true">${icon[i.level]}</span><span>${issueText(i, R)}</span></div>`).join('')) +
-    (hasBad ? '' : `<div class="it ok"><span aria-hidden="true">✅</span><span>Nenhum alerta crítico: rate card completo, margem dentro do esperado.</span></div>`);
+    (hasBad ? '' : `<div class="it ok"><span aria-hidden="true">✅</span><span>Nenhum alerta crítico: taxas completas, margem dentro do esperado.</span></div>`);
 
   const k = (l, v, s = '') => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   $('kpis').innerHTML =
-    k('Preço total (c/ impostos)', C(T.gross), `Líquido: ${C(T.net)}`) +
+    k('Preço total (c/ impostos)', C(T.gross), `Líquido: ${C(T.net)}` + (T.discNet > 0.5 ? ` · desconto ${nfPT(T.discPct * 100, 1)}% (lista ${C(T.listGross)})` : '')) +
     k('Duração', `${T.nPer} ${U === 'SP' ? 'sprints' : 'semanas'}`, R.relative ? `${T.weeks} semanas · sem data de início` : `${T.weeks} semanas · ${E.iso(T.start)} → ${E.iso(T.end)}`) +
     k('Esforço', `${nfPT(T.H)} h`, `${nfPT(T.H / (p.hpd * p.dpw * 52 / 12 || 1), 1)} FTE-mês`) +
     k('Time', `pico ${nfPT(T.peak, 1)} FTE`, `média ${nfPT(T.avgFte, 1)} FTE`) +
-    k('Rate médio (blended)', C(T.blended, 2) + '/h', p.mode === 'rate' ? 'rate card' : 'custo + GM') +
+    k('Rate médio (blended)', C(T.blended, 2) + '/h', p.mode === 'rate' ? 'taxa do perfil' : 'custo + GM') +
     k('GM% estimado', T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', T.cost ? `Custo: ${C(T.cost)}` : 'preencha Custo/h') +
     (T.netOpt ? k('Opcionais', C(T.grossOpt), p.inclOpt ? 'incluídos no total' : 'fora do total') : '');
 
@@ -546,8 +620,8 @@ async function libSummary(f){
     if (!Workbook.isProposalWorkbook(X, wb)) out = {other: true};
     else {
       const st = Workbook.read(X, wb);
-      const R = E.compute({rows: st.rows, nPeriods: st.nPeriods, unit: st.unit, rates: st.rates}, E.parseParams(st.raw, {taxes: st.taxes}), {today: new Date()});
-      out = {client: R.p.client, project: R.p.project, cur: R.p.cur, gross: R.T.gross, gm: R.T.gm, hasCost: R.T.cost > 0, H: R.T.H, nPer: R.T.nPer, unit: R.unit, issues: R.issues.filter(i => i.level === 'err').length};
+      const R = E.compute({rows: st.rows, nPeriods: st.nPeriods, unit: st.unit, rates: st.rates}, E.parseParams(st.raw, {taxes: st.taxes, phaseDisc: st.phaseDisc}), {today: new Date()});
+      if (!R) out = {error: 'sem alocação no timeline'}; else out = {client: R.p.client, project: R.p.project, cur: R.p.cur, gross: R.T.gross, gm: R.T.gm, hasCost: R.T.cost > 0, H: R.T.H, nPer: R.T.nPer, unit: R.unit, issues: R.issues.filter(i => i.level === 'err').length};
     }
   } catch(e){ out = {error: e.message}; }
   LIB.cache.set(key, out);
@@ -611,7 +685,7 @@ async function libHere(){
     const name = fileBase() + '.xlsx';
     if (LIB.files.some(f => f.name === name) && !confirm(`Já existe "${name}" nesta pasta. Sobrescrever?`)) return;
     const h = await Store.fs.create(LIB.dir, name, await buildBlob());
-    S.handle = h; S.autoFile = true; S.dirty = false; setSaveStatus(`Salvo em ${h.name} · ${hhmm()}`);
+    setHandle(h); S.dirty = false; setSaveStatus(`✓ Salvo em ${h.name} · ${hhmm()}`, 'saved');
     toast('Proposta salva na pasta.', 'ok'); LIB.cache.clear(); renderLibrary();
   } catch(e){ if (!aborted(e)) toast('Não foi possível salvar na pasta: ' + e.message, 'err', 9000); }
 }
@@ -623,11 +697,12 @@ async function libOpen(i){
 
 /* ---------------- ações (botões com data-act) ---------------- */
 const actions = {
-  template: downloadTemplate, example: loadExample, open: actOpen, save: actSave, saveas: actSaveAs, netcheck: netCheck,
+  template: downloadTemplate, example: loadExample, new: actNew, open: actOpen, save: actSave, saveas: actSaveAs, netcheck: netCheck,
   library: () => { const d = $('dlgLib'); if (!d.open) d.showModal(); renderLibrary(); },
   'lib-close': () => $('dlgLib').close(), 'lib-pick': libPick, 'lib-here': libHere, 'lib-refresh': () => { LIB.cache.clear(); renderLibrary(); },
   'lib-open': b => libOpen(+b.dataset.i), 'lib-compare': libCompare,
   'go-par': () => goTab('par'), 'go-doc': () => goTab('doc'), calc: () => recalc(true),
+  'disc-apply': b => { $('p_discmode').value = 'pct'; $('p_disc').value = b.dataset.v; S.result = null; markDirty(); renderDiscount(); toast(`Desconto geral de ${nfPT(+b.dataset.v, 1)}% aplicado.`, 'ok', 3000); },
   'rc-import': () => $('rcFile').click(),
   'rc-gm': () => {
     const gm = P().gm; let c = 0;
@@ -653,11 +728,13 @@ document.querySelector('main').addEventListener('change', e => {
   const id = e.target.id; if (!id || !id.startsWith('p_')) return;
   S.result = null;
   if (id === 'p_startmode') syncStartUI();
-  if (id === 'p_unit' && S.rows.length){ S.unit = e.target.value === 'auto' ? S.unitAuto : e.target.value; renderGantt(); }
+  if (id === 'p_unit' && S.rows.length) S.unit = e.target.value === 'SP' ? 'SP' : 'W';
   if (id === 'p_context') Object.keys(S.edits).filter(k => k.endsWith(':exec.ctx')).forEach(k => delete S.edits[k]);
   if (id === 'p_assump') Object.keys(S.edits).filter(k => k.endsWith(':assump')).forEach(k => delete S.edits[k]);
   if (id === 'p_cur' || id === 'p_rcur') refreshFxCachedBtn();
   if (S.rows.length && ['p_mode', 'p_pw', 'p_hpd', 'p_dpw', 'p_unit'].includes(id)) renderRateTable();
+  if (S.rows.length && ED.TL_IDS.includes(id)) ED.render();
+  if (S.rows.length) renderDiscount();
   // se a análise ou a proposta estiver na tela, atualiza na hora; senão recalcula ao entrar na aba
   const visible = TABS.find(x => $('tab-' + x).classList.contains('active'));
   if (S.rows.length && (visible === 'doc' || visible === 'ana' || (DOC_ONLY.has(id) && !$('tabbtn-doc').disabled))) recalc(false);
@@ -678,8 +755,18 @@ $('rcFile').addEventListener('change', e => { importRateCard(e.target.files[0]);
 function init(){
   if (!$('p_start').value) $('p_start').value = E.iso(E.nextMonday());
   if (!$('p_startm').value){ const d = E.nextMonday(); $('p_startm').value = E.iso(d).slice(0, 7); }
-  renderTaxes(); syncStartUI(); renderNet(); refreshFxCachedBtn();
-  if (!Store.fs.supported()) $('savebar').textContent = 'Salvar baixa o .xlsx (este navegador não grava direto em arquivo)';
+  ED = TimelineEditor({S, E, $, esc, nfPT, toast, P, raw, setRaw,
+    compute: () => E.compute(model(), P(), {today: new Date()}),
+    changed: () => { S.result = null; markDirty(); }});
+  renderTaxes(); syncStartUI(); renderNet(); refreshFxCachedBtn(); updateIdent();
+  if (!Store.fs.supported()){
+    $('autoFile').disabled = true; $('autoFile').checked = false;
+    $('fstatus').textContent = 'Este navegador não grava direto no arquivo: “Salvar” baixa o .xlsx';
+  }
+  $('autoFile').addEventListener('change', e => {
+    S.autoFile = e.target.checked;
+    if (S.autoFile && S.handle) autosave(); else setSaveStatus(S.saveText || 'Alterações não salvas', S.saveKind);
+  });
   Store.kv.get('draft').then(d => {
     if (!d || !d.snap || !d.snap.rows || !d.snap.rows.length) return;
     const at = new Date(d.at);

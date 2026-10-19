@@ -30,7 +30,7 @@ const I18N = {
     model:{fp:'Fixed Price', tm:'Time & Material'},
     payTxt:{milestone:'Invoices are issued upon completion and acceptance of each phase.', monthly:'Invoices are issued monthly based on the effort consumed in the period.', install:'The total investment is invoiced in equal monthly installments.'},
     trig:{phase:'Completion of', month:'Monthly measurement', inst:'Installment'},
-    monthlyBilling:'Monthly billing (taxes included)',
+    monthlyBilling:'Monthly billing (taxes included)', subtotal:'Subtotal (list price)', discountRow:'Commercial discount',
     taxes:'Taxes', taxLine:(list,tot)=>`Taxes included in the price: ${list} (total ${tot}).`,
     relNote:'The timeline is expressed in relative periods; calendar dates will be defined at project kickoff.',
     exec:(p,T,U,f,rel)=>`${p.vendor} is pleased to present this commercial proposal to ${p.client} for the <b>${p.project}</b> initiative. The engagement is planned over <b>${T.nPer} ${U==='SP'?'sprints':'weeks'} (${T.weeks} weeks)</b>${rel?'':`, from ${f.date(T.start)} to ${f.date(T.end)}`}, with a peak team of ${f.nf(T.peak,1)} FTE and a total effort of ${f.nf(T.H)} hours.`,
@@ -59,7 +59,7 @@ const I18N = {
     model:{fp:'Preço Fixo', tm:'Time & Material'},
     payTxt:{milestone:'O faturamento ocorre na conclusão e aceite de cada fase.', monthly:'O faturamento é mensal, conforme o esforço consumido no período.', install:'O investimento total é faturado em parcelas mensais iguais.'},
     trig:{phase:'Conclusão de', month:'Medição mensal', inst:'Parcela'},
-    monthlyBilling:'Faturamento mensal (com impostos)',
+    monthlyBilling:'Faturamento mensal (com impostos)', subtotal:'Subtotal (preço de lista)', discountRow:'Desconto comercial',
     taxes:'Impostos', taxLine:(list,tot)=>`Impostos incluídos no preço: ${list} (total ${tot}).`,
     relNote:'O cronograma está expresso em períodos relativos; as datas de calendário serão definidas no início do projeto.',
     exec:(p,T,U,f,rel)=>`A ${p.vendor} tem a satisfação de apresentar à ${p.client} esta proposta comercial para a iniciativa <b>${p.project}</b>. O projeto está planejado em <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>${rel?'':`, de ${f.date(T.start)} a ${f.date(T.end)}`}, com pico de ${f.nf(T.peak,1)} FTE e esforço total de ${f.nf(T.H)} horas.`,
@@ -88,7 +88,7 @@ const I18N = {
     model:{fp:'Precio Fijo', tm:'Time & Material'},
     payTxt:{milestone:'La facturación se realiza al concluir y aceptar cada fase.', monthly:'La facturación es mensual, según el esfuerzo consumido en el período.', install:'La inversión total se factura en cuotas mensuales iguales.'},
     trig:{phase:'Conclusión de', month:'Medición mensual', inst:'Cuota'},
-    monthlyBilling:'Facturación mensual (impuestos incluidos)',
+    monthlyBilling:'Facturación mensual (impuestos incluidos)', subtotal:'Subtotal (precio de lista)', discountRow:'Descuento comercial',
     taxes:'Impuestos', taxLine:(list,tot)=>`Impuestos incluidos en el precio: ${list} (total ${tot}).`,
     relNote:'El cronograma se expresa en períodos relativos; las fechas de calendario se definirán al inicio del proyecto.',
     exec:(p,T,U,f,rel)=>`${p.vendor} se complace en presentar a ${p.client} esta propuesta comercial para la iniciativa <b>${p.project}</b>. El proyecto está planificado en <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>${rel?'':`, del ${f.date(T.start)} al ${f.date(T.end)}`}, con un pico de ${f.nf(T.peak,1)} FTE y un esfuerzo total de ${f.nf(T.H)} horas.`,
@@ -112,7 +112,7 @@ function mergeRoles(R){
   const map = new Map();
   R.roles.filter(r => !r.optional || R.p.inclOpt).forEach(r => {
     const k = E.rkey(r);
-    if (!map.has(k)) map.set(k, {role:r.role, level:r.level, location:r.location, H:0, net:0, rateH:r.rateH, act:new Array(R.nPeriods).fill(0)});
+    if (!map.has(k)) map.set(k, {role:r.role, level:r.level, location:r.location, H:0, net:0, rateH:r.rateH, rateList:r.rateList, act:new Array(R.nPeriods).fill(0)});
     const m = map.get(k); m.H += r.H; m.net += r.net; r.act.forEach((v,j) => m.act[j] += v);
   });
   return [...map.values()].map(m => { const a = m.act.filter(v => v > 0).length; return {...m, avgFte: a ? m.act.reduce((x,y)=>x+y,0)/a : 0}; });
@@ -177,22 +177,28 @@ function build(R, opts){
 
   // 4. Investimento
   B.push({t:'h', n:4, text:L.s4});
+  const showDisc = p.discShow === 'line' && T.discNet > 0.005;   // lista → desconto → preço final
   const invRows = [];
   inScopePh.forEach(ph => {
     const rr = R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt));
-    const H = rr.reduce((a,r)=>a+r.H,0), net = rr.reduce((a,r)=>a+r.net,0);
+    const H = rr.reduce((a,r)=>a+r.H,0), net = showDisc ? rr.reduce((a,r)=>a+r.listNet,0) : rr.reduce((a,r)=>a+r.net,0);
     if (!H) return;
-    invRows.push({cells:[ph.name, f.nf(H), f.money(net), f.money(gross(net)), `${T.net ? f.nf(net/T.net*100,1) : 0}%`]});
+    const base = showDisc ? T.listNet : T.net;
+    invRows.push({cells:[ph.name, f.nf(H), f.money(net), f.money(gross(net)), `${base ? f.nf(net/base*100,1) : 0}%`]});
   });
+  if (showDisc){
+    invRows.push({cells:[L.subtotal, f.nf(T.H), f.money(T.listNet), f.money(T.listGross), '100%'], cls:'sub'});
+    invRows.push({cells:[`${L.discountRow} (${f.nf(T.discPct*100,1)}%)`, '', '−' + f.money(T.discNet), '−' + f.money(T.discGross), ''], cls:'disc'});
+  }
   B.push({t:'table', head:[{text:L.phase},{text:L.hours,num:true},{text:L.net,num:true},{text:L.gross,num:true},{text:L.share,num:true}],
-    rows: invRows, total: {cells:[L.total, f.nf(T.H), f.money(T.net), f.money(T.gross), '100%']}});
+    rows: invRows, total: {cells:[L.total, f.nf(T.H), f.money(T.net), f.money(T.gross), showDisc ? '' : '100%']}});
   if (p.taxShow && p.taxes.length){
     B.push({t:'note', text: L.taxLine(p.taxes.map(t => `${t.name} ${f.nf(t.pct,2)}%`).join(', '), f.nf(p.tax*100,2) + '%')});
   }
   if (p.model === 'tm'){
     B.push({t:'sub', text:L.rateH});
     B.push({t:'table', head:[{text:L.role},{text:L.level},{text:L.loc},{text:`${L.rateH} (${L.net})`,num:true},{text:`${L.rateH} (${L.gross})`,num:true}],
-      rows: team.map(r => ({cells:[r.role, r.level, r.location, f.money(r.rateH,2), f.money(gross(r.rateH),2)]}))});
+      rows: team.map(r => { const rate = showDisc ? r.rateList : r.rateH; return {cells:[r.role, r.level, r.location, f.money(rate,2), f.money(gross(rate),2)]}; })});
   }
 
   // 5. Pagamentos
