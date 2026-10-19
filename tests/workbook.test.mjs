@@ -22,9 +22,9 @@ function exampleState(over = {}){
   const raw = {p_vendor:'ACME', p_client:'Cliente <X>', p_project:'Projeto', p_start:'2026-11-02', p_startmode:'date', p_hol:true, p_cur:'BRL', p_rcur:'BRL', p_fx:1,
     p_pw:2, p_hpd:8, p_dpw:5, p_mode:'rate', p_gm:35, p_cont:5, p_contmode:'price', p_disc:3, p_lang:'pt', p_inclOpt:false, p_pay:'milestone',
     p_assump:'Linha 1\nLinha 2', p_tlmiles:'Go-live | SP11', ...over};
-  return {rows, nPeriods:12, unit:'SP', rates, taxes:[{name:'ISS',pct:2},{name:'PIS/COFINS',pct:3.65}], edits:{'pt:exec.ctx':'<b>Texto</b> editado'}, raw, fileName:'x.xlsx'};
+  return {rows, nPeriods:12, unit:'SP', rates, taxes:[{name:'ISS',pct:2},{name:'PIS/COFINS',pct:3.65}], phaseDisc:{'Hypercare':50, 'Ingestion Migration':10}, edits:{'pt:exec.ctx':'<b>Texto</b> editado'}, raw, fileName:'x.xlsx'};
 }
-const run = (st) => Engine.compute({rows:st.rows, nPeriods:st.nPeriods, unit:st.unit, rates:st.rates}, Engine.parseParams(st.raw, {taxes:st.taxes}), {today:new Date(2026,9,19)});
+const run = (st) => Engine.compute({rows:st.rows, nPeriods:st.nPeriods, unit:st.unit, rates:st.rates}, Engine.parseParams(st.raw, {taxes:st.taxes, phaseDisc:st.phaseDisc}), {today:new Date(2026,9,19)});
 
 test('ida e volta: gravar e ler devolve o mesmo estado', async () => {
   const st = exampleState();
@@ -40,6 +40,8 @@ test('ida e volta: gravar e ler devolve o mesmo estado', async () => {
   assert.equal(back.raw.p_client, 'Cliente <X>');
   assert.equal(back.raw.p_cont, 5); assert.equal(back.raw.p_hol, true); assert.equal(back.raw.p_inclOpt, false);
   assert.deepEqual(back.taxes, st.taxes);
+  assert.deepEqual(back.phaseDisc, st.phaseDisc);
+  assert.equal(back.raw.p_discshow, undefined === back.raw.p_discshow ? undefined : back.raw.p_discshow);
   assert.equal(back.edits['pt:exec.ctx'], '<b>Texto</b> editado');
   assert.equal(Object.values(back.rates).find(r => r.role === 'Tester').rate, 140);
   const R2 = run({...back, raw:back.raw});
@@ -64,7 +66,7 @@ test('template é lido de volta pelo parser do app (matriz + rate card)', async 
 
 test('fórmulas recalculadas pelo LibreOffice batem com o motor', async (t) => {
   try { execFileSync('soffice', ['--version'], {stdio:'ignore'}); } catch(e){ return t.skip('LibreOffice indisponível'); }
-  for (const over of [{}, {p_mode:'gm', p_gm:40, p_contmode:'both', p_inclOpt:true, p_fx:0.2, p_cur:'USD'}]) {
+  for (const over of [{}, {p_mode:'gm', p_gm:40, p_contmode:'both', p_inclOpt:true, p_fx:0.2, p_cur:'USD'}, {p_discmode:'amount', p_discamt:25000}, {p_discmode:'target', p_disctarget:700000}]) {
     const st = exampleState(over), R = run(st);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-'));
     const f = path.join(dir, 'p.xlsx');
@@ -79,5 +81,28 @@ test('fórmulas recalculadas pelo LibreOffice batem com o motor', async (t) => {
     assert.ok(Math.abs(get('Preço líquido de impostos') - R.T.net) < 0.01, 'net');
     assert.ok(Math.abs(get('Preço com impostos') - R.T.gross) < 0.01, 'gross');
     assert.ok(Math.abs(get('GM%') - R.T.gm) < 1e-6, 'gm');
+    assert.ok(Math.abs(get('Desconto (com impostos)') - R.T.discGross) < 0.01, 'desconto');
   }
+});
+
+test('proposta ainda sem perfis alocados também é gravada e reaberta (linhas vazias preservadas)', async () => {
+  const st = exampleState();
+  st.rows.push({phase:'Fase nova', activity:'', role:'', level:'', location:'', optional:false, alloc:new Array(12).fill(0)});
+  st.rows.push({phase:'Fase nova', activity:'', role:'Arquiteto', level:'Q5', location:'Brazil', optional:false, alloc:new Array(12).fill(0)});
+  st.rates['Arquiteto|Q5|Brazil'] = {role:'Arquiteto', level:'Q5', location:'Brazil', cost:'', rate:''};
+  st.rates['Sobra|Q1|Brazil'] = {role:'Sobra', level:'Q1', location:'Brazil', cost:50, rate:90};
+  const R = run(st);
+  const buf = await (await Workbook.buildProposal(ExcelJS, st, R)).xlsx.writeBuffer();
+  const back = Workbook.read(XLSX, XLSX.read(new Uint8Array(buf), {type:'array'}));
+  assert.equal(back.rows.length, st.rows.length);
+  assert.equal(back.rows[back.rows.length - 2].role, '');
+  assert.equal(back.rows[back.rows.length - 1].role, 'Arquiteto');
+  assert.ok(back.rates['Sobra|Q1|Brazil'], 'perfil do catálogo sem uso é preservado');
+  // sem nenhuma alocação
+  const empty = {...st, rows:[{phase:'Fase 1', activity:'', role:'', level:'', location:'', optional:false, alloc:new Array(12).fill(0)}]};
+  const R0 = Engine.compute({rows:empty.rows, nPeriods:12, unit:'SP', rates:empty.rates}, Engine.parseParams(empty.raw, {taxes:empty.taxes}), {});
+  assert.equal(R0, null);
+  const wb0 = await Workbook.buildProposal(ExcelJS, empty, Workbook.emptyResult(empty));
+  const back0 = Workbook.read(XLSX, XLSX.read(new Uint8Array(await wb0.xlsx.writeBuffer()), {type:'array'}));
+  assert.equal(back0.rows.length, 1); assert.equal(back0.rows[0].phase, 'Fase 1');
 });

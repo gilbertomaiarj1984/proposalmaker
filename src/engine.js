@@ -120,10 +120,11 @@ function parseTimeline(aoa, opts){
       const role = String(line[col.role] ?? '').trim();
       const ph = col.phase >= 0 ? String(line[col.phase] ?? '').trim() : '';
       if (ph) lastPhase = ph;
-      if (!role || /^total/i.test(role)) continue;
+      if (/^total/i.test(role)) continue;
+      if (!role && !(opts.keepEmpty && ph)) continue; // linha sem perfil só se mantém no modo editor e com fase explícita
       const alloc = new Array(nPeriods).fill(0);
       pcols.forEach(c => alloc[c.p-1] += num(line[c.i]));
-      if (alloc.every(v => v === 0)) { warnings.push(`Linha ${r+1} (${esc(role)}) sem alocação – ignorada.`); continue; }
+      if (alloc.every(v => v === 0) && !opts.keepEmpty) { warnings.push(`Linha ${r+1} (${esc(role)}) sem alocação – ignorada.`); continue; }
       rows.push(mkRow(line, col, lastPhase, role, alloc));
     }
   } else if (col.start >= 0 && col.end >= 0){
@@ -174,11 +175,12 @@ function parseRateRows(aoa){
 }
 const rateMatch = (t, r) => norm(t.role) === norm(r.role) && (!t.level || !r.level || norm(t.level) === norm(r.level)) && (!t.location || !r.location || norm(t.location) === norm(r.location));
 
-// garante uma entrada de rate por perfil do timeline (remove as que não são mais usadas)
-function ensureRates(rates, rows){
-  rows.forEach(r => { const k = rkey(r); if (!rates[k]) rates[k] = {role:r.role, level:r.level, location:r.location, cost:'', rate:''}; });
-  const used = new Set(rows.map(rkey));
-  Object.keys(rates).forEach(k => { if (!used.has(k)) delete rates[k]; });
+// garante uma entrada de rate por perfil usado no timeline; o catálogo (Rate Card) é mantido,
+// inclusive perfis ainda não usados. Com prune=true, remove os que não são usados.
+function ensureRates(rates, rows, prune){
+  const used = rows.filter(r => r.role);
+  used.forEach(r => { const k = rkey(r); if (!rates[k]) rates[k] = {role:r.role, level:r.level, location:r.location, cost:'', rate:''}; });
+  if (prune){ const keys = new Set(used.map(rkey)); Object.keys(rates).forEach(k => { if (!keys.has(k)) delete rates[k]; }); }
   return rates;
 }
 // aplica a tabela do rate card sobre as entradas existentes; devolve quantas foram preenchidas
@@ -235,6 +237,10 @@ function parseParams(raw, extra){
     mode: raw.p_mode === 'gm' ? 'gm' : 'rate', gm: Math.min(0.95, Math.max(0, n('p_gm', 35)/100)), gmMin: Math.max(0, n('p_gmmin', 0)/100),
     cont: Math.max(0, n('p_cont', 0)/100), contMode: CONTMODES.includes(raw.p_contmode) ? raw.p_contmode : 'price',
     disc: Math.min(0.99, Math.max(0, n('p_disc', 0)/100)),
+    discMode: ['pct','amount','target'].includes(raw.p_discmode) ? raw.p_discmode : 'pct',
+    discAmount: Math.max(0, n('p_discamt', 0)), discTarget: Math.max(0, n('p_disctarget', 0)),   // valores COM impostos (o que o cliente vê)
+    discShow: raw.p_discshow === 'line' ? 'line' : 'embedded',
+    discPhase: Object.fromEntries(Object.entries(extra.phaseDisc || {}).map(([k, v]) => [k, Math.min(1, Math.max(0, num(v) / 100))]).filter(([, v]) => v > 0)),
     taxes, tax: Math.min(0.9, taxPct), taxShow: !!raw.p_taxshow,
     inclOpt: !!raw.p_inclOpt,
     pay: ['milestone','monthly','install'].includes(raw.p_pay) ? raw.p_pay : 'milestone',
@@ -250,20 +256,13 @@ function parseParams(raw, extra){
   };
 }
 
-/* ---------------- cálculo principal ---------------- */
-// model = {rows, nPeriods, unit, rates}; ctx = {today?: Date, holidays?: Set<string> (extras online/manuais)}
-function compute(model, p, ctx){
+/* ---------------- calendário (independe das linhas do timeline) ---------------- */
+// feriados nacionais calculados localmente + extras manuais/online; início ajustado para dia útil;
+// cada período termina em dia útil. Usado pelo cálculo e pela grade do editor.
+function buildCalendar(p, N, unit, ctx){
   ctx = ctx || {};
-  if (!model || !model.rows || !model.rows.length) return null;
-  const rows0 = model.rows, N = model.nPeriods, unit = model.unit, rates = model.rates || {};
   const relative = p.startMode === 'none';
   const pw = unit === 'W' ? 1 : p.pw;
-  const hpp = pw * p.dpw * p.hpd;
-  const priceF = (1 + p.cont) * (1 - p.disc);
-  const costF = p.contMode === 'both' ? (1 + p.cont) : 1;
-  const gross = v => p.tax < 1 ? v / (1 - p.tax) : v;
-
-  // calendário (feriados nacionais calculados localmente + extras manuais/online)
   const hol = new Set();
   const holNames = {};
   const baseDate = (() => {
@@ -287,6 +286,27 @@ function compute(model, p, ctx){
   const pStart = i => nextWork(addDays(effStart, i * pw * 7));
   const pEnd = i => { const s = pStart(i), e = prevWork(addDays(effStart, (i + 1) * pw * 7 - 1)); return e < s ? s : e; };
 
+  return {relative, pw, hol, holNames, baseDate, isWork, nextWork, prevWork, effStart, startAdjusted, pStart, pEnd};
+}
+
+/* ---------------- cálculo principal ---------------- */
+// model = {rows, nPeriods, unit, rates}; ctx = {today?: Date, holidays?: Set<string> (extras online/manuais)}
+function compute(model, p, ctx){
+  ctx = ctx || {};
+  if (!model || !model.rows || !model.rows.length) return null;
+  const idxRows = model.rows.map((r, i) => ({r, i})).filter(x => x.r.role); // linhas sem perfil (editor) não entram no cálculo
+  if (!idxRows.length) return null;
+  const rows0 = idxRows.map(x => x.r), N = model.nPeriods, unit = model.unit, rates = model.rates || {};
+  const relative = p.startMode === 'none';
+  const pw = unit === 'W' ? 1 : p.pw;
+  const hpp = pw * p.dpw * p.hpd;
+  const priceF = (1 + p.cont); // fator de lista (contingência); o desconto é aplicado depois, por linha
+  const costF = p.contMode === 'both' ? (1 + p.cont) : 1;
+  const gross = v => p.tax < 1 ? v / (1 - p.tax) : v;
+
+  const cal = buildCalendar(p, N, unit, ctx);
+  const {hol, holNames, baseDate, isWork, nextWork, prevWork, effStart, startAdjusted, pStart, pEnd} = cal;
+
   // taxas (rate/h e custo/h já convertidos para a moeda da proposta)
   const rc = r => rates[rkey(r)] || {};
   const basePriceH = r => p.mode === 'rate' ? num(rc(r).rate) : (num(rc(r).cost) / (1 - p.gm));
@@ -294,21 +314,36 @@ function compute(model, p, ctx){
   const costH = r => num(rc(r).cost) * p.fx * costF;
 
   const missing = [];
-  Object.values(rates).forEach(r => {
+  const usedKeys = new Set(rows0.filter(r => r.alloc.some(v => v > 0)).map(rkey)); // só perfis realmente alocados exigem taxa
+  Object.values(rates).filter(r => usedKeys.has(rkey(r))).forEach(r => {
     const ok = p.mode === 'rate' ? num(r.rate) > 0 : num(r.cost) > 0;
     if (!ok) missing.push(`${r.role}${r.level?' '+r.level:''}${r.location?' ('+r.location+')':''}`);
   });
 
-  const rows = rows0.map(r => {
-    const hrs = r.alloc.map(v => v * hpp);
-    const H = hrs.reduce((a,b)=>a+b,0);
-    const net = H * priceH(r) * priceF, cost = H * costH(r);
-    return {...r, hrs, H, rateH: priceH(r) * priceF, net, cost, netP: hrs.map(h => h * priceH(r) * priceF), costP: hrs.map(h => h * costH(r))};
-  });
   const inScope = r => !r.optional || p.inclOpt;
+  // 1) preço de lista por linha (taxa × horas × contingência), sem desconto
+  const base = rows0.map((r, k) => {
+    const hrs = r.alloc.map(v => v * hpp), H = hrs.reduce((a, b) => a + b, 0);
+    return {r, k, hrs, H, pb: priceH(r), listNet: H * priceH(r) * priceF, cost: H * costH(r)};
+  });
+  // 2) desconto efetivo: % (geral + exceções por fase), valor fixo ou preço-alvo (ambos COM impostos → convertidos para líquido)
+  const scopeList = base.filter(x => inScope(x.r)).reduce((a, x) => a + x.listNet, 0);
+  let dGlobal = p.disc, targetAboveList = false;
+  if (p.discMode === 'amount') dGlobal = scopeList > 0 ? p.discAmount * (1 - p.tax) / scopeList : 0;
+  else if (p.discMode === 'target' && p.discTarget > 0){
+    dGlobal = scopeList > 0 ? 1 - (p.discTarget * (1 - p.tax)) / scopeList : 0;
+    if (dGlobal < 0){ dGlobal = 0; targetAboveList = true; }
+  }
+  dGlobal = Math.min(0.99, Math.max(0, dGlobal));
+  const discOf = r => (p.discMode === 'pct' && p.discPhase[r.phase] !== undefined) ? p.discPhase[r.phase] : dGlobal;
+  const rows = base.map(x => {
+    const d = discOf(x.r), f = x.pb * priceF * (1 - d);
+    return {...x.r, srcIndex: idxRows[x.k].i, hrs: x.hrs, H: x.H, priceBase: x.pb, rateList: x.pb * priceF, discPct: d, listNet: x.listNet,
+      rateH: f, net: x.H * f, cost: x.cost, netP: x.hrs.map(h => h * f), costP: x.hrs.map(h => h * costH(x.r))};
+  });
   const PALETTE = ['#1B4F8C','#13A89E','#6C4AB6','#E07A1F','#2E86C1','#C0392B','#7D8C2E','#AD5A8C','#4A6B82','#D4A017'];
 
-  const phaseNames = []; rows0.forEach(r => { if (!phaseNames.includes(r.phase)) phaseNames.push(r.phase); });
+  const phaseNames = []; rows0.forEach(r => { if (!phaseNames.includes(r.phase) && rows0.some(x => x.phase === r.phase && x.alloc.some(v => v > 0))) phaseNames.push(r.phase); }); // fase sem alocação não entra na proposta
   const phases = phaseNames.map((name, i) => {
     const rr = rows.filter(r => r.phase === name);
     const act = new Array(N).fill(0); rr.forEach(r => r.alloc.forEach((v,j) => act[j] += v));
@@ -323,10 +358,10 @@ function compute(model, p, ctx){
   const roleMap = {};
   rows.forEach(r => {
     const k = rkey(r) + '|' + (r.optional ? 'opt' : 'core');
-    if (!roleMap[k]) roleMap[k] = {role:r.role, level:r.level, location:r.location, optional:r.optional, H:0, net:0, cost:0, rateH:r.rateH, act:new Array(N).fill(0)};
+    if (!roleMap[k]) roleMap[k] = {role:r.role, level:r.level, location:r.location, optional:r.optional, H:0, net:0, cost:0, rateH:r.rateH, rateList:r.rateList, act:new Array(N).fill(0)};
     const m = roleMap[k]; m.H += r.H; m.net += r.net; m.cost += r.cost; r.alloc.forEach((v,j) => m.act[j] += v);
   });
-  const roles = Object.values(roleMap).map(m => {
+  const roles = Object.values(roleMap).filter(m => m.H > 0).map(m => {
     const activeP = m.act.filter(v => v > 0).length;
     return {...m, gross: gross(m.net), avgFte: activeP ? m.act.reduce((a,b)=>a+b,0)/activeP : 0, peak: Math.max(...m.act), periods: activeP};
   }).sort((a,b) => (a.optional - b.optional) || b.net - a.net);
@@ -357,6 +392,11 @@ function compute(model, p, ctx){
   const T = {H: sum(scRows,'H'), net: sum(scRows,'net'), cost: sum(scRows,'cost'),
     Hcore: sum(core,'H'), netCore: sum(core,'net'), Hopt: sum(opt,'H'), netOpt: sum(opt,'net')};
   T.gross = gross(T.net); T.grossCore = gross(T.netCore); T.grossOpt = gross(T.netOpt);
+  T.listNet = sum(scRows, 'listNet'); T.discNet = T.listNet - T.net; T.listGross = gross(T.listNet); T.discGross = gross(T.discNet);
+  T.discPct = T.listNet ? T.discNet / T.listNet : 0;
+  // desconto máximo (uniforme) que ainda preserva o GM mínimo (ou o ponto de equilíbrio, se não houver mínimo)
+  const gmFloor = Math.max(0, p.gmMin);
+  const maxDisc = (T.listNet > 0 && T.cost > 0) ? Math.min(1, Math.max(0, 1 - T.cost / (T.listNet * (1 - gmFloor)))) : null;
   T.gm = T.net ? (T.net - T.cost)/T.net : 0;
   const activeP = periods.filter(x => x.fte > 0);
   T.peak = Math.max(0, ...periods.map(x => x.fte));
@@ -395,17 +435,18 @@ function compute(model, p, ctx){
   if (startAdjusted) issues.push({level:'warn', code:'start_adjusted', data:{from: iso(baseDate), to: iso(effStart)}});
   if (relative) issues.push({level:'info', code:'relative_timeline', data:{}});
   if (p.cur !== p.rcur && p.fx === 1) issues.push({level:'warn', code:'fx_missing', data:{from: p.rcur, to: p.cur}});
+  if (targetAboveList) issues.push({level:'info', code:'target_above_list', data:{list: T.listGross, target: p.discTarget}});
   if (T.netOpt && !p.inclOpt) issues.push({level:'info', code:'optional_excluded', data:{gross: T.grossOpt}});
   if (firstP < 0) issues.push({level:'err', code:'no_active_scope', data:{}});
 
-  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, rows, phases, roles, periods, months: monthArr, T, pays, missing, issues,
+  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc, gmFloor, dGlobal, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
     start: effStart, startBase: baseDate, startAdjusted, holidays: [...hol].sort().map(d => ({date:d, name: holNames[d] || ''})), isWork};
 }
 
 /* ---------------- sensibilidade (desconto x contingência) ---------------- */
 function sensitivity(model, p, ctx, discs, conts){
   return discs.map(d => ({disc: d, cells: conts.map(c => {
-    const R = compute(model, {...p, disc: d, cont: c}, ctx);
+    const R = compute(model, {...p, discMode: 'pct', discPhase: {}, disc: d, cont: c}, ctx);
     return {cont: c, gross: R ? R.T.gross : 0, gm: R ? R.T.gm : 0, hasCost: !!(R && R.T.cost)};
   })}));
 }
@@ -475,6 +516,6 @@ function milestones(R, extraLines, labels){
 
 return { norm, esc, num, periodNum, isYes, rkey, parseDate, addDays, iso, monthKey, isValidIso, nextMonday,
   easter, holidaysBR, ALIAS, parseTimeline, parseRateRows, rateMatch, ensureRates, applyRateTable,
-  parseParams, parseExtraHolidays, parseMilestoneLines, compute, sensitivity, timelineView, milestones };
+  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Engine;

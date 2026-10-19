@@ -6,11 +6,31 @@ seu computador.
 
 ## Como usar
 1. Abra `gerador_proposta_comercial.html` no navegador (duplo clique; funciona **sem internet**).
-2. **Timeline**: arraste o `.xlsx` (use o botão *Template Excel* para ver o formato) ou clique em *Exemplo*.
-3. **Parâmetros & Rate Card**: início (data, mês ou sem data), calendário, preço, moeda/câmbio, impostos, faturamento.
+2. **Timeline** (aba 1): defina os **parâmetros do timeline** (sprint ou semana, nº de períodos, semanas por sprint,
+   horas/dia, dias úteis e início por data, mês ou sem data) e **monte a timeline na própria tela**: fases, perfil e
+   **nível por combo** (dá para cadastrar novos), FTE digitado ou **pintado com arrastar**, com desfazer/refazer e
+   prévia da proposta. Ou abra um Excel existente.
+3. **Parâmetros & Perfis** (aba 2): calendário, premissas de preço, **desconto**, moeda/câmbio, impostos, faturamento
+   e as taxas de cada perfil/nível.
 4. **Análise**: alertas (taxas faltando, GM% baixo…), KPIs, gráficos, sensibilidade desconto × contingência.
-5. **Proposta**: escolha idioma e timeline (barras, fases + perfis ou só marcos; por sprint ou semana; com/sem FTE),
-   edite os textos direto na página e exporte **PDF** (imprimir), **Word (.docx)**, **PowerPoint (.pptx)** ou salve o **Excel**.
+5. **Proposta**: idioma e opções de timeline (barras, fases + perfis ou só marcos; por sprint ou semana; com/sem FTE),
+   edição dos textos na página e exportação em **PDF** (imprimir), **Word (.docx)**, **PowerPoint (.pptx)** ou **Excel**.
+
+A **barra superior** mostra sempre qual proposta está aberta: cliente — projeto, referência, arquivo, preço total,
+margem (GM) e o status de gravação.
+
+## Perfis e níveis
+Os perfis são cadastrados com **nível**, local e taxas (Custo/h e Rate/h). Na timeline, cada linha escolhe o **perfil**
+por uma combo e o **nível** por outra; níveis novos podem ser adicionados na hora e perfis novos entram no cadastro
+(aba `Perfis` do Excel). Um perfil só exige taxa se estiver realmente alocado.
+
+## Desconto
+Ordem de cálculo: preço de lista (taxa × horas) → contingência → **desconto** → impostos (gross-up).
+* **Tipo:** percentual sobre o total (com exceções **por fase**), **valor fixo** ou **preço final alvo** — os dois
+  últimos em valores **com impostos** (o que o cliente vê); o app calcula o percentual equivalente.
+* **Exibição:** embutido nas taxas ou **linha visível** (preço de lista → desconto → preço final).
+* **Sugestões:** desconto máximo que preserva o GM% mínimo, escada de negociação com preço e margem de cada degrau,
+  e dicas de como aplicar.
 
 ## PowerPoint editável
 Um slide por seção da proposta (capa, sumário executivo, cronograma, time, investimento, pagamentos, opcionais e
@@ -21,12 +41,13 @@ slide, com o cabeçalho repetido.
 
 ## O Excel como "banco" de cada proposta
 Cada proposta é **um arquivo `.xlsx`**. A edição acontece no navegador; o Excel guarda o resultado:
-parâmetros, timeline, rate card, impostos e os textos editados (abas `Parametros`, `Modelo`, `RateCard`,
-`Impostos`, `Textos`), além de abas de auditoria com **fórmulas** (`Resumo`, `PorFase`).
+parâmetros, timeline, perfis/níveis e taxas, impostos, descontos e os textos editados (abas `Parametros`, `Modelo`,
+`Perfis`, `Impostos`, `Descontos`, `Textos`), além de abas de auditoria com **fórmulas** (`Resumo`, `PorFase`).
 
 * **Salvar como…** / **Salvar**: no Chrome/Edge grava direto no arquivo e, depois disso, **cada alteração é
   gravada automaticamente** nele. Em outros navegadores o `.xlsx` é baixado.
-* **Abrir proposta** (ou arrastar o arquivo na aba 1) restaura tudo.
+* **Abrir do Excel** (ou arrastar o arquivo na aba 1) restaura tudo. Um timeline “bruto” (template) **nunca é
+  sobrescrito**: o app pede “Salvar como…” para criar a proposta e só então passa a gravar nela.
 * **Propostas** (Chrome/Edge): conecta uma pasta do computador (pode ser OneDrive/rede), lista as propostas,
   abre, salva e **compara** várias.
 * Um rascunho também é guardado no navegador (IndexedDB) e oferecido para restauração ao reabrir.

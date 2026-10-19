@@ -34,7 +34,7 @@ try {
 
   /* 1. offline: carrega timeline + rate card do template */
   await page.setInputFiles('#tlFile', path.join(root, 'Timeline_Template.xlsx'));
-  await page.waitForSelector('#tlView', {state: 'visible'});
+  await page.waitForSelector('#tlEditor', {state: 'visible'});
   const tlMsg = await $text(page, '#tlMsg');
   assert.match(tlMsg, /7 de 7 perfis/, 'rate card do xlsx deve ser importado: ' + tlMsg);
   const rates = await page.evaluate(() => Object.values(__pm.S.rates).map(r => r.rate));
@@ -96,19 +96,34 @@ try {
   assert.match(await $text(page, '#doc'), /Texto editado/);
   ok('edições persistem por idioma e são sanitizadas');
 
+  /* 6b. desconto: valor fixo, por fase, linha visível e persistência */
+  await page.evaluate(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', {bubbles: true})); };
+    set('p_discmode', 'pct'); set('p_disc', '5'); set('p_discshow', 'line'); __pm.S.phaseDisc = {'Hypercare': 50}; __pm.S.result = null; __pm.recalc(false); });
+  const dsc = await page.evaluate(() => { const T = __pm.S.result.T; return {pct: T.discPct, show: __pm.S.result.p.discShow, hyper: __pm.S.result.rows.find(r => r.phase === 'Hypercare').discPct}; });
+  assert.ok(dsc.pct > 0.05 && dsc.hyper === 0.5 && dsc.show === 'line');
+  assert.match(await $text(page, '#doc'), /Subtotal|Desconto comercial|Descuento/);
+  await page.evaluate(() => { __pm.goTab('par'); });
+  assert.match(await $text(page, '#discSuggest'), /Sugest/); assert.ok(await page.evaluate(() => document.querySelectorAll('#discPhase input[data-i]').length) >= 5);
+  await page.evaluate(() => document.querySelector('#discSuggest [data-act="disc-apply"]').click());
+  assert.equal(await page.evaluate(() => document.getElementById('p_discmode').value), 'pct');
+  await page.evaluate(() => { const el = document.getElementById('p_discmode'); el.value = 'amount'; el.dispatchEvent(new Event('change', {bubbles: true})); const a = document.getElementById('p_discamt'); a.value = '20000'; a.dispatchEvent(new Event('change', {bubbles: true})); __pm.S.phaseDisc = {'Hypercare': 50}; __pm.S.result = null; __pm.recalc(false); });
+  const amt = await page.evaluate(() => __pm.S.result.T.discGross);
+  assert.ok(Math.abs(amt - 20000) < 1, 'desconto em valor fixo (com impostos): ' + amt);
+  ok('desconto: percentual, por fase, valor fixo, linha visível e sugestões');
+
   /* 7. salvar (download) e reabrir: o .xlsx é o "banco" da proposta */
   const [dl] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => __pm.actions.save())]);
   const xlsxPath = path.join(outDir, 'proposta.xlsx'); await dl.saveAs(xlsxPath);
   assert.ok(fs.statSync(xlsxPath).size > 5000);
-  const snapBefore = await page.evaluate(() => { const R = __pm.S.result; return {gross: R.T.gross, client: R.p.client, edits: Object.keys(__pm.S.edits).length}; });
+  const snapBefore = await page.evaluate(() => { const R = __pm.S.result; return {gross: R.T.gross, client: R.p.client, edits: Object.keys(__pm.S.edits).length, mode: R.p.discMode, amt: R.p.discAmount, show: R.p.discShow, phaseDisc: __pm.S.phaseDisc}; });
   await page.reload(); // página nova: estado zerado
   await page.setInputFiles('#tlFile', xlsxPath);
   await page.waitForFunction(() => __pm.S.rows.length > 0);
   await page.evaluate(() => __pm.recalc(false));
-  const snapAfter = await page.evaluate(() => { const R = __pm.S.result; return {gross: R.T.gross, client: R.p.client, edits: Object.keys(__pm.S.edits).length}; });
+  const snapAfter = await page.evaluate(() => { const R = __pm.S.result; return {gross: R.T.gross, client: R.p.client, edits: Object.keys(__pm.S.edits).length, mode: R.p.discMode, amt: R.p.discAmount, show: R.p.discShow, phaseDisc: __pm.S.phaseDisc}; });
   assert.deepEqual(snapAfter, snapBefore);
   assert.match(await $text(page, '#tlMsg'), /Proposta .*proposta\.xlsx.* aberta/);
-  ok('salvar em .xlsx e reabrir restaura parâmetros, rate card, impostos e textos editados');
+  ok('salvar em .xlsx e reabrir restaura parâmetros, perfis, impostos, descontos e textos editados');
 
   /* 8. Word .docx e template */
   const [dw] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => __pm.actions.word())]);
@@ -166,10 +181,108 @@ try {
   await p2.page.waitForFunction(() => window.__written.length === 1);
   await p2.page.evaluate(() => { const c = document.getElementById('p_disc'); c.value = '5'; c.dispatchEvent(new Event('change', {bubbles: true})); });
   await p2.page.waitForFunction(() => window.__written.length === 2, null, {timeout: 8000});
-  assert.match(await $text(p2.page, '#savebar'), /Salvo em minha\.xlsx/);
+  assert.match(await $text(p2.page, '#fstatus'), /Salvo em minha\.xlsx/);
   assert.deepEqual(p2.errors, [], 'sem erros de página: ' + p2.errors.join(' | '));
   ok('Salvar como grava no arquivo e as alterações seguintes são persistidas automaticamente');
   await ctx2.close();
+
+  /* 12b. editor de timeline: células, combos de perfil e nível, pintar, desfazer, parâmetros */
+  const ctx3 = await browser.newContext({acceptDownloads: true, viewport: {width: 1440, height: 1000}});
+  const p3 = await newPage(ctx3);
+  const e3 = p3.page;
+  await e3.evaluate(() => document.querySelector('[data-act="example"]').click());
+  await e3.waitForSelector('#edGrid tr[data-r]');
+  assert.match(await $text(e3, '#pbTitle'), /Client — Data & Analytics Modernization/);
+  assert.match(await $text(e3, '#pbSub'), /R\$/, 'preço na barra superior');
+  const firstCell = e3.locator('#edGrid tr[data-r] input[data-cell][data-i="0"]').first();
+  await firstCell.fill('2'); await e3.keyboard.press('Enter');
+  assert.equal(await e3.evaluate(() => __pm.S.rows[0].alloc[0]), 2);
+  await e3.locator('#edGrid tr[data-r] input[data-cell][data-i="0"]').first().fill('abc'); await e3.keyboard.press('Enter');
+  assert.equal(await e3.evaluate(() => __pm.S.rows[0].alloc[0]), 2, 'valor inválido não é aceito');
+  assert.match(await $text(e3, '#toasts'), /FTE inválido/);
+  // combo de perfil (lista os perfis cadastrados) e nível auto-preenchido
+  await e3.locator('#edGrid .combo:not(.lv)').first().click();
+  await e3.waitForSelector('#edPop.show'); await e3.fill('#edPq', 'tester');
+  await e3.click('#edPl li[role=option]');
+  assert.deepEqual(await e3.evaluate(() => { const r = __pm.S.rows[0]; return [r.role, r.level]; }), ['Tester', 'Q2']);
+  // combo de nível: trocar por existente e adicionar um novo
+  await e3.locator('#edGrid .combo.lv').first().click();
+  await e3.waitForSelector('#edPopL.show');
+  await e3.click('#edLnew'); await e3.fill('#edFLv', 'Q5'); await e3.fill('#edFLvRate', '300'); await e3.fill('#edFLvCost', '150');
+  await e3.click('#edLf button[type=submit]');
+  assert.deepEqual(await e3.evaluate(() => { const r = __pm.S.rows[0]; return [r.role, r.level, __pm.S.rates['Tester|Q5|Brazil'].rate]; }), ['Tester', 'Q5', 300]);
+  assert.ok(await e3.evaluate(() => [...document.querySelectorAll('#edPl')].length >= 0));
+  // nova fase + perfil novo pela combo
+  await e3.click('#edAddPhase');
+  await e3.evaluate(() => { document.querySelector('.edscroll').scrollTop = 1e6; });
+  await e3.locator('#edGrid .combo.empty').last().click();
+  await e3.click('#edPnew'); await e3.fill('#edFRole', 'Scrum Master'); await e3.fill('#edFLevel', 'Q3'); await e3.fill('#edFLoc', 'Brazil'); await e3.fill('#edFRate', '210');
+  await e3.click('#edPf button[type=submit]');
+  assert.equal(await e3.evaluate(() => __pm.S.rows.at(-1).role), 'Scrum Master');
+  // pintar com arrastar
+  await e3.click('#edMPaint'); await e3.click('#edBrush .chip[data-b="2"]');
+  await e3.evaluate(() => { document.querySelector('.edscroll').scrollTop = 1e6; });
+  const lastRow = e3.locator('#edGrid tr[data-r]').last();
+  await lastRow.scrollIntoViewIfNeeded();
+  const cs = lastRow.locator('td.cell'), b1 = await cs.nth(2).boundingBox(), b2 = await cs.nth(5).boundingBox();
+  await e3.mouse.move(b1.x + 8, b1.y + 8); await e3.mouse.down(); await e3.mouse.move(b2.x + 8, b2.y + 8, {steps: 6}); await e3.mouse.up();
+  assert.deepEqual(await e3.evaluate(() => __pm.S.rows.at(-1).alloc.slice(2, 6)), [2, 2, 2, 2]);
+  // desfazer / refazer
+  await e3.click('#edUndo');
+  assert.deepEqual(await e3.evaluate(() => __pm.S.rows.at(-1).alloc.slice(2, 6)), [0, 0, 0, 0]);
+  await e3.click('#edRedo');
+  assert.deepEqual(await e3.evaluate(() => __pm.S.rows.at(-1).alloc.slice(2, 6)), [2, 2, 2, 2]);
+  await e3.click('#edMType');
+  // parâmetros: períodos, unidade e início
+  await e3.click('#edNPlus'); assert.equal(await e3.evaluate(() => __pm.S.nPeriods), 13);
+  assert.ok(await e3.evaluate(() => [...document.querySelectorAll('#edGrid thead th')].some(t => t.textContent === 'SP13')));
+  assert.ok(await e3.evaluate(() => document.querySelectorAll('#edGrid thead th.d').length) > 0, 'datas sob os períodos');
+  await e3.evaluate(() => { const u = document.getElementById('p_unit'); u.value = 'W'; u.dispatchEvent(new Event('change', {bubbles: true})); });
+  assert.ok(await e3.evaluate(() => [...document.querySelectorAll('#edGrid thead th')].some(t => t.textContent === 'W1')));
+  await e3.evaluate(() => { const u = document.getElementById('p_startmode'); u.value = 'none'; u.dispatchEvent(new Event('change', {bubbles: true})); });
+  assert.equal(await e3.evaluate(() => document.querySelectorAll('#edGrid thead th.d').length), 0, 'sem data: sem linha de datas');
+  assert.ok(await e3.evaluate(() => document.querySelectorAll('#edPv table.tlt').length) === 1, 'prévia na proposta');
+  assert.deepEqual(p3.errors, [], 'sem erros: ' + p3.errors.join(' | '));
+  await ctx3.close();
+  ok('editor: célula, validação, combo de perfil, combo de nível (trocar/adicionar), nova fase, pintar, desfazer, períodos, unidade e início');
+
+  /* 12c. proposta nova (vazia) é gravada em Excel; timeline "bruto" nunca é sobrescrito */
+  const ctx4 = await browser.newContext({acceptDownloads: true});
+  const p4 = await newPage(ctx4, {fs: true});
+  const tplB64 = fs.readFileSync(path.join(root, 'Timeline_Template.xlsx')).toString('base64');
+  await p4.page.evaluate((b64) => {
+    window.__writes = {}; window.__bad = 0;
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const mk = (name, original) => ({name, kind: 'file', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
+      getFile: async () => new File([bytes], name),
+      createWritable: async () => { if (original) window.__bad++; return {write: async d => { (window.__writes[name] ||= []).push(d.size); }, close: async () => {}}; }});
+    window.showOpenFilePicker = async () => [mk('Timeline_Template.xlsx', true)];
+    window.showSaveFilePicker = async () => mk('Nova_Proposta.xlsx', false);
+  }, tplB64);
+  await p4.page.evaluate(() => __pm.actions.new());
+  await p4.page.waitForSelector('#tlEditor', {state: 'visible'});
+  assert.equal(await p4.page.evaluate(() => __pm.S.rows.length), 1);
+  await p4.page.evaluate(() => __pm.actions.saveas());
+  await p4.page.waitForFunction(() => (window.__writes['Nova_Proposta.xlsx'] || []).length === 1);
+  await p4.page.evaluate(() => __pm.S.rows[0].alloc[0] = 0);
+  await p4.page.locator('#edGrid .combo:not(.lv)').first().click();
+  assert.match(await $text(p4.page, '#edPl'), /Nenhum perfil/i, 'proposta nova começa sem perfis');
+  await p4.page.click('#edPnew'); await p4.page.fill('#edFRole', 'Analista'); await p4.page.fill('#edFLevel', 'Q3'); await p4.page.fill('#edFLoc', 'Brazil'); await p4.page.fill('#edFRate', '150');
+  await p4.page.click('#edPf button[type=submit]');
+  await p4.page.waitForFunction(() => (window.__writes['Nova_Proposta.xlsx'] || []).length >= 2, null, {timeout: 8000});
+  // abrir o template bruto: não grava nele
+  await p4.page.evaluate(() => __pm.actions.open());
+  await p4.page.waitForFunction(() => __pm.S.rows.length > 5);
+  assert.equal(await p4.page.evaluate(() => __pm.S.handle), null);
+  assert.match(await $text(p4.page, '#fstatus'), /original/);
+  await p4.page.evaluate(() => { const c = document.getElementById('p_vendor'); c.value = 'Outro'; c.dispatchEvent(new Event('change', {bubbles: true})); });
+  await p4.page.waitForTimeout(2300);
+  assert.equal(await p4.page.evaluate(() => window.__bad), 0, 'o arquivo original não pode ser gravado');
+  assert.equal(await p4.page.evaluate(() => (window.__writes['Timeline_Template.xlsx'] || []).length), 0);
+  assert.match(await $text(p4.page, '#pbSub'), /origem: Timeline_Template\.xlsx/);
+  assert.deepEqual(p4.errors, [], 'sem erros: ' + p4.errors.join(' | '));
+  await ctx4.close();
+  ok('proposta nova é gravada em Excel; timeline bruto aberto nunca é sobrescrito; barra superior identifica a origem');
 
   /* 13. PDF (layout de impressão) */
   await page.evaluate(() => { __pm.S.result = null; __pm.recalc(false); __pm.goTab('doc'); });

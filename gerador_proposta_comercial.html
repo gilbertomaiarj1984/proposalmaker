@@ -17,6 +17,12 @@ header.app h1{font-size:18px;margin:0;font-weight:600}
 header.app .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .pill{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.4);cursor:pointer;background:rgba(255,255,255,.1);color:#fff}
 .pill.on{background:#1f7a52;border-color:#59c28f} .pill.off{background:#8a5a14;border-color:#e3b25d} .pill.chk{background:#445}
+header.app .propbar{flex:1;min-width:260px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.22);border-radius:10px;padding:6px 14px}
+.propbar .pt{font-weight:700;font-size:15px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.propbar .ps{font-size:12px;color:#cfe0f5;display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:2px}
+.propbar .ps b{color:#fff} .propbar .dotsep{opacity:.5} .propbar .pbwarn{color:#ffb4b4;font-weight:600}
+.propbar .st{padding:1px 8px;font-weight:600}
+.propbar .st.saved{background:#1f6b49;color:#fff} .propbar .st.saving{background:#2b5d96;color:#fff} .propbar .st.dirty{background:#8a5a14;color:#fff}
 #netbar{display:none;background:#FFF6E5;color:#7a4e0b;border-bottom:1px solid #f0d49a;padding:8px 24px;font-size:13px}
 #netbar.show{display:block}
 #savebar{font-size:12px;color:#cfe0f5}
@@ -110,32 +116,110 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
 #doc .hl span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
 #doc .hl b{font-size:17px;color:var(--navy)}
 #doc table.t{font-size:12px;margin:8px 0}
+#doc table.t tr.sub td{font-weight:600;background:#F8FAFC}
+#doc table.t tr.disc td{color:#2F855A;font-weight:600}
 #doc ul{padding-left:20px;line-height:1.6}
 #doc .note{font-size:11px;color:var(--muted)}
 #doc [contenteditable]:hover{outline:1px dashed #9FB3CC}
 #doc [contenteditable].edited{background:#FFFBEA}
 #doc .foot{font-size:10px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:30px}
-#doc table.tlt{border-collapse:collapse;width:100%;font-size:10px;table-layout:fixed;margin:10px 0}
-#doc table.tlt th{background:#EEF3F9;color:var(--navy);font-weight:600;padding:3px 1px;text-align:center;border:1px solid #fff}
-#doc table.tlt th.grp{background:var(--navy);color:#fff}
-#doc table.tlt th.lab,#doc table.tlt td.lab{width:200px;text-align:left;padding:3px 6px;background:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#doc table.tlt td{height:18px;text-align:center;border:1px solid #fff;background:#F0F3F7;color:#fff;font-weight:600;padding:0}
-#doc table.tlt tr.role td.lab{padding-left:16px;color:var(--muted)}
-#doc table.tlt tr.phase td.lab{font-weight:700;color:var(--navy)}
+#doc table.tlt, .pvdoc table.tlt{border-collapse:collapse;width:100%;font-size:10px;table-layout:fixed;margin:10px 0}
+#doc table.tlt th, .pvdoc table.tlt th{background:#EEF3F9;color:var(--navy);font-weight:600;padding:3px 1px;text-align:center;border:1px solid #fff}
+#doc table.tlt th.grp, .pvdoc table.tlt th.grp{background:var(--navy);color:#fff}
+#doc table.tlt th.lab,#doc table.tlt td.lab,.pvdoc table.tlt th.lab,.pvdoc table.tlt td.lab{width:200px;text-align:left;padding:3px 6px;background:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#doc table.tlt td, .pvdoc table.tlt td{height:18px;text-align:center;border:1px solid #fff;background:#F0F3F7;color:#fff;font-weight:600;padding:0}
+#doc table.tlt tr.role td.lab, .pvdoc table.tlt tr.role td.lab{padding-left:16px;color:var(--muted)}
+#doc table.tlt tr.phase td.lab, .pvdoc table.tlt tr.phase td.lab{font-weight:700;color:var(--navy)}
 .doc-opts{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
 
+/* ---------- Aba 1: arquivo, parâmetros e editor de timeline ---------- */
+.filebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+.filebar b{color:var(--navy)}
+.st{font-size:12px;border-radius:999px;padding:3px 10px;font-weight:600}
+.st.saved{background:#E8F5EE;color:var(--ok)} .st.saving{background:#EAF2FB;color:var(--blue)} .st.dirty{background:#FFF6E5;color:var(--warn)}
+.grow{flex:1}
+.flow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted);margin:2px 0 14px}
+.flow .step{background:var(--light);color:var(--navy);border-radius:6px;padding:3px 9px;font-weight:600}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px 16px;margin-top:12px;align-items:end}
+div.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+label.f input:disabled{background:#F3F5F8;color:#8a94a3}
+#discCard .grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.sumline{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.sumline .kp{background:var(--light);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--muted)}
+.sumline .kp b{display:block;font-size:16px;color:var(--navy)}
+.stepper{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:#fff;height:36px}
+.stepper button{border:0;background:var(--light);border-radius:4px;width:24px;height:24px;cursor:pointer;color:var(--blue);font-weight:700}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.toolbar .sep{width:1px;height:24px;background:var(--line)}
+.chip{display:inline-block;border-radius:999px;padding:2px 8px;font-size:11px;background:var(--light);color:var(--blue);cursor:pointer;border:1px solid var(--line)}
+.chip.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.scroll.edscroll{max-height:640px}
+table.ed{border-collapse:separate;border-spacing:0;font-size:13px;width:max-content;min-width:100%}
+table.ed th,table.ed td{border-bottom:1px solid #E6ECF3;border-right:1px solid #EEF2F7;padding:0;white-space:nowrap;background:#fff}
+table.ed thead th{background:var(--navy);color:#fff;position:sticky;top:0;z-index:3;padding:6px 4px;font-weight:600;text-align:center;font-size:12px}
+table.ed thead th.d{background:#16355f;color:#BFD2EA;font-weight:400;font-size:10px;top:27px;padding:2px 2px}
+table.ed th.l,table.ed td.l{position:sticky;background:#fff;z-index:2;text-align:left}
+table.ed thead th.l{z-index:4;background:var(--navy)} table.ed thead th.l.d{background:#16355f}
+table.ed .c1{left:0;min-width:270px;max-width:270px} table.ed .c2{left:270px;min-width:60px} table.ed .c3{left:330px;min-width:84px} table.ed .c4{left:414px;min-width:44px;text-align:center}
+table.ed tr.ph td{background:#F3F6FA;font-weight:700;color:var(--navy)} table.ed tr.ph td.l{background:#F3F6FA}
+table.ed .name{display:flex;align-items:center;gap:6px;padding:5px 8px;width:270px}
+table.ed input.pn{border:1px solid transparent;background:transparent;font:inherit;font-weight:700;color:var(--navy);padding:3px 5px;border-radius:4px;flex:1;min-width:0;text-overflow:ellipsis}
+table.ed input.pn:hover,table.ed input.pn:focus{border-color:var(--line);background:#fff}
+table.ed .dot{width:10px;height:10px;border-radius:2px;display:inline-block;flex:none}
+table.ed .caret{border:0;background:none;cursor:pointer;color:var(--muted);width:18px;font-size:12px}
+table.ed td.cell{width:46px;min-width:46px;height:34px;text-align:center;cursor:cell;user-select:none}
+table.ed td.cell input{width:100%;height:100%;border:0;background:transparent;text-align:center;font:inherit;font-size:12px;padding:0;color:#fff;font-weight:600;cursor:cell;min-width:0}
+table.ed td.cell input:focus{outline:2px solid #fff;outline-offset:-3px;box-shadow:inset 0 0 0 3px var(--navy)}
+table.ed td.cell.empty input{color:var(--text)} table.ed td.cell.empty:hover{background:#EAF2FB}
+table.ed tr.ph td.cell{color:#fff;font-weight:700;font-size:12px;cursor:default}
+table.ed td.sum{text-align:center;font-weight:700;color:var(--navy);padding:0 6px;min-width:52px;background:#F8FAFC}
+table.ed .combo{width:100%;display:flex;align-items:center;gap:6px;border:1px solid transparent;background:transparent;padding:6px 8px;cursor:pointer;font:inherit;text-align:left;border-radius:4px;color:var(--text)}
+table.ed .combo:hover{border-color:var(--line);background:#fff}
+table.ed .combo.lv{padding:6px 6px;color:var(--muted)} table.ed .combo .nm{flex:1;overflow:hidden;text-overflow:ellipsis} table.ed .combo .arrow{color:var(--muted);font-size:10px}
+table.ed .combo.empty .nm{color:var(--err);font-style:italic}
+table.ed .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;color:var(--err);font-weight:600}
+table.ed td.opt-on .nm{color:var(--warn);font-style:italic} table.ed .opt-box{accent-color:var(--warn)}
+table.ed .xbtn{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px 7px;border-radius:4px}
+table.ed .xbtn:hover{background:#FDECEC;color:var(--err)}
+table.ed .row-actions{display:flex;opacity:.4} table.ed tr:hover .row-actions{opacity:1}
+table.ed tr.foot td{background:#F8FAFC;font-weight:700;color:var(--navy);text-align:center;height:30px;position:sticky;bottom:0;z-index:2}
+table.ed tr.foot td.l{text-align:left;padding:0 10px}
+.edpop{position:fixed;z-index:50;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 40px rgba(10,30,60,.25);width:380px;display:none}
+.edpop.show{display:block;max-height:calc(100vh - 16px);overflow:auto}
+.edpop .s{padding:10px;border-bottom:1px solid var(--line)}
+.edpop .s input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;font:inherit}
+.edpop ul{list-style:none;margin:0;padding:4px;max-height:260px;overflow:auto}
+.edpop li{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;cursor:pointer}
+.edpop li:hover,.edpop li.act{background:var(--light)}
+.edpop li .r{flex:1} .edpop li .r b{display:block;font-weight:600} .edpop li .r span{font-size:11px;color:var(--muted)}
+.edpop li .p{font-size:11px;color:var(--ok);font-weight:600;white-space:nowrap} .edpop li .p.no{color:var(--err)}
+.edpop li.grp{display:block;font-size:11px;color:var(--muted);padding:6px 10px 2px;text-transform:uppercase;letter-spacing:.4px;cursor:default} .edpop li.grp:hover{background:none}
+.edpop .new{border-top:1px solid var(--line);padding:8px 10px;color:var(--blue);cursor:pointer;font-weight:600} .edpop .new:hover{background:var(--light)}
+.edpop form{display:none;padding:10px;border-top:1px solid var(--line);gap:8px;grid-template-columns:1fr 1fr}
+.edpop form.show{display:grid}
+.edpop form input{padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:inherit;width:100%}
+.edpop form .full{grid-column:1/3;display:flex;gap:8px;justify-content:flex-end}
+.pvdoc{border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff;overflow:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+.kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;font-size:11px;background:#fff}
+
+.sugg{background:#F4F9F6;border:1px solid #cfe6d9;border-radius:8px;padding:12px 16px}
+.sugg h3{margin:0 0 6px!important;color:var(--ok)!important}
+.sugg ul{margin:0;padding-left:18px;line-height:1.7;font-size:13px}
+.sugg .chip{margin:2px 2px;font-size:12px;padding:3px 10px}
+.chip.bad{background:#FDECEC;color:var(--err);border-color:#f5c2c2}
 @page{size:A4;margin:16mm 14mm 18mm}
 @page:first{margin:0}
 @media print{
   body{background:#fff}
-  header.app,nav.tabs,#netbar,.noprint,.toast-wrap{display:none!important}
+  header.app,nav.tabs,#netbar,.noprint,.toast-wrap,.edpop{display:none!important}
   main{padding:0;max-width:none}
   section.tab{display:none!important}
   section#tab-doc{display:block!important}
   #doc{box-shadow:none;max-width:none}
   #doc .page{padding:0 4mm}
   #doc .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact;page-break-after:always;min-height:296mm;padding:30mm 20mm}
-  #doc table.t th,#doc .hl div,#doc table.tlt th,#doc table.tlt td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #doc table.t th,#doc .hl div,#doc table.tlt th,#doc table.tlt td, .pvdoc table.tlt td{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #doc h3.sec{page-break-after:avoid}
   #doc table{page-break-inside:auto} #doc tr{page-break-inside:avoid}
   #doc thead{display:table-header-group}
@@ -147,23 +231,26 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
 </head>
 <body>
 <header class="app">
-  <h1>📊 Timeline → Proposta Comercial</h1>
+  <h1>📊 Timeline → Proposta</h1>
+  <div class="propbar" id="propbar" aria-live="polite" aria-label="Proposta aberta">
+    <div class="pt" id="pbTitle">Nenhuma proposta aberta</div>
+    <div class="ps" id="pbSub"></div>
+  </div>
   <div class="actions">
     <button class="btn light" data-act="template" title="Baixar o modelo de planilha de timeline">⬇ Template Excel</button>
     <button class="btn light" data-act="example">▶ Exemplo</button>
-    <button class="btn light" data-act="open" title="Abrir uma proposta (.xlsx) salva pelo app">📂 Abrir proposta</button>
+    <button class="btn light" data-act="open" title="Abrir uma proposta (.xlsx) salva pelo app">📂 Abrir</button>
     <button class="btn light" data-act="save" title="Salvar a proposta no arquivo Excel">💾 Salvar</button>
     <button class="btn light" data-act="saveas">Salvar como…</button>
     <button class="btn light" data-act="library">🗂 Propostas</button>
     <button id="netpill" class="pill chk" data-act="netcheck" title="Testar acesso aos recursos online (câmbio e feriados)">Conexão: verificar</button>
-    <span id="savebar" role="status" aria-live="polite"></span>
   </div>
 </header>
 <div id="netbar" role="status" aria-live="polite"></div>
 
 <nav class="tabs" role="tablist" aria-label="Etapas">
   <button role="tab" id="tabbtn-tl" data-tab="tl" aria-controls="tab-tl" aria-selected="true">1. Timeline</button>
-  <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Rate Card</button>
+  <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Perfis</button>
   <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>3. Análise financeira</button>
   <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>4. Proposta</button>
 </nav>
@@ -171,42 +258,99 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
 <main>
 <!-- ================= TAB 1: TIMELINE ================= -->
 <section class="tab active" id="tab-tl" role="tabpanel" aria-labelledby="tabbtn-tl">
-  <div class="card">
-    <h2>Upload do timeline</h2>
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Selecionar arquivo de timeline ou de proposta">
-      <strong>Arraste aqui o timeline (.xlsx, .xlsm, .csv) ou uma proposta salva pelo app</strong>
-      <p>ou clique para selecionar</p>
-      <p class="hint">Se o arquivo tiver uma aba <code>Rate Card</code>, ela também é importada automaticamente.</p>
+  <div class="filebar" id="filebar">
+    <span aria-hidden="true">📄</span><b id="fname">Sem arquivo</b>
+    <span class="st dirty" id="fstatus" role="status" aria-live="polite">Nenhuma proposta aberta</span>
+    <span class="grow"></span>
+    <button class="btn sec sm" data-act="new" title="Começa uma proposta vazia">＋ Nova proposta</button>
+    <button class="btn sec sm" data-act="open" title="Abre uma proposta do app ou um timeline em Excel; as alterações voltam para o mesmo arquivo">📂 Abrir do Excel…</button>
+    <button class="btn sec sm" data-act="saveas" title="Escolhe onde gravar a proposta (.xlsx)">Salvar como…</button>
+    <label class="chk"><input type="checkbox" id="autoFile" checked> Gravar automaticamente</label>
+    <button class="btn sm" id="saveNow" data-act="save" style="display:none">💾 Salvar agora</button>
+  </div>
+  <div class="flow" aria-label="Fluxo em duas vias">
+    <span class="step">1. Abre do Excel</span> → <span class="step">2. Edita no navegador</span> → <span class="step">3. Cada mudança é gravada de volta no mesmo arquivo</span>
+    <span>· Timeline → aba <code>Modelo</code> · Parâmetros → <code>Parametros</code> · Perfis e níveis → <code>Perfis</code></span>
+  </div>
+  <div id="tlMsg" aria-live="polite"></div>
+
+  <div class="card" id="tlEmpty">
+    <h2>Comece uma proposta</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Selecionar arquivo Excel de timeline ou de proposta">
+      <strong>Arraste aqui um Excel (.xlsx, .xlsm, .csv) ou clique para abrir</strong>
+      <p>Proposta salva pelo app ou timeline no formato do template. Se tiver uma aba <code>Perfis</code> (ou <code>Rate Card</code>), ela vem junto.</p>
+      <p class="hint">Um timeline “bruto” nunca é sobrescrito: o app pede para salvar como proposta e passa a gravar nela.</p>
     </div>
     <input type="file" id="tlFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
-    <div id="tlMsg" aria-live="polite"></div>
-    <div class="row" style="margin-top:12px">
-      <label class="f" style="max-width:260px">Unidade do período
-        <select id="p_unit">
-          <option value="auto">Detectar automaticamente</option>
-          <option value="SP">Sprint</option>
-          <option value="W">Semana</option>
-        </select></label>
-      <span class="hint">Use para forçar a unidade quando o arquivo traz só números em Start/End.</span>
-    </div>
+    <div class="row" style="margin-top:12px"><button class="btn" data-act="new">＋ Nova proposta (vazia)</button><button class="btn sec" data-act="example">▶ Carregar exemplo</button><button class="btn sec" data-act="template">⬇ Template Excel</button></div>
     <details style="margin-top:10px">
       <summary class="hint" style="cursor:pointer">Formatos aceitos</summary>
       <div class="hint" style="margin-top:8px;line-height:1.7">
         <b>A) Matriz (recomendado):</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Optional</code> + uma coluna por período: <code>SP1, SP2…</code> (sprints) ou <code>W1, W2…</code> (semanas), com a alocação em FTE (ex.: 1, 0,5, 50%).<br>
         <b>B) Lista:</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Start</code>, <code>End</code>, <code>FTE</code> (Start/End como número ou "SP5").<br>
         Também são aceitos cabeçalhos em português/espanhol: Fase, Frente, Onda, Perfil, Nível, Local, Opcional, Início, Fim, Alocação.<br>
-        <b>Rate Card (opcional):</b> aba com <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Cost/h</code>, <code>Rate/h</code>.<br>
-        <b>Proposta salva pelo app (.xlsx):</b> reabre com todos os parâmetros, rate card, impostos e textos editados.
+        <b>Perfis e taxas (opcional):</b> aba com <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Cost/h</code>, <code>Rate/h</code> (pode se chamar <code>Perfis</code> ou <code>Rate Card</code>).
       </div>
     </details>
   </div>
-  <div class="card" id="tlView" style="display:none">
-    <div class="row" style="justify-content:space-between">
-      <h2 id="tlTitle">Timeline importado</h2>
-      <button class="btn" data-act="go-par">Próximo: parâmetros →</button>
+
+  <div id="tlEditor" style="display:none">
+    <div class="card">
+      <h2>Parâmetros do timeline</h2>
+      <div class="hint">Defina primeiro a estrutura de tempo; a grade abaixo se ajusta (colunas e datas).</div>
+      <div class="pgrid">
+        <label class="f">Unidade do período
+          <select id="p_unit"><option value="SP">Sprint</option><option value="W">Semana</option></select></label>
+        <div class="f">Nº de períodos
+          <span class="stepper"><button id="edNMinus" aria-label="Menos um período">−</button><b id="edN" style="min-width:24px;text-align:center">12</b><button id="edNPlus" aria-label="Mais um período">+</button></span></div>
+        <label class="f">Semanas por sprint<input type="number" id="p_pw" value="2" min="1" step="1"></label>
+        <label class="f">Horas faturáveis / dia<input type="number" id="p_hpd" value="8" min="1" step="0.5"></label>
+        <label class="f">Dias úteis / semana<input type="number" id="p_dpw" value="5" min="1" max="7"></label>
+        <label class="f">Início do projeto
+          <select id="p_startmode">
+            <option value="date">Data específica</option>
+            <option value="month">Mês (primeiro dia útil)</option>
+            <option value="none">Sem data — timeline relativo (SP1, SP2…)</option>
+          </select></label>
+        <label class="f" id="lbl_start">Data de início<input type="date" id="p_start"></label>
+        <label class="f" id="lbl_startm">Mês de início<input type="month" id="p_startm"></label>
+      </div>
+      <div class="sumline" id="edSum"></div>
+      <p class="hint" style="margin-top:10px">O início avança para o próximo dia útil e cada período termina em dia útil; os feriados vêm da aba 2 (calendário).</p>
     </div>
-    <div class="scroll" id="gantt"></div>
-    <p class="hint">Valores = FTE alocado por período. Linhas em itálico/laranja são itens opcionais.</p>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Timeline — editor</h2><button class="btn" data-act="go-par">Próximo: parâmetros →</button></div>
+      <div class="hint" style="margin-top:4px">Escolha o <b>perfil</b> e o <b>nível</b> pelas combos (dá para cadastrar novos); o local vem do cadastro. Cada alteração entra na proposta e é gravada no Excel.</div>
+      <div class="toolbar">
+        <button class="btn" id="edAddPhase">+ Fase</button>
+        <span class="sep"></span>
+        <span class="hint">Preencher</span>
+        <div class="seg" role="group" aria-label="Modo de preenchimento">
+          <button id="edMType" aria-pressed="true">⌨ Digitar</button><button id="edMPaint" aria-pressed="false">🖌 Pintar</button>
+        </div>
+        <span id="edBrush" style="display:none;align-items:center;gap:6px">
+          <span class="hint">FTE do pincel</span>
+          <span class="chip" data-b="0.5">0,5</span><span class="chip on" data-b="1">1</span><span class="chip" data-b="2">2</span>
+          <input id="edBrushVal" type="number" step="0.5" min="0" value="1" style="width:64px;padding:4px 6px;border:1px solid var(--line);border-radius:6px" aria-label="FTE do pincel">
+        </span>
+        <span class="sep"></span>
+        <button class="btn sec sm" id="edUndo" title="Desfazer (Ctrl+Z)">↶ Desfazer</button>
+        <button class="btn sec sm" id="edRedo" title="Refazer (Ctrl+Y)">↷ Refazer</button>
+      </div>
+      <div class="scroll edscroll"><table class="ed" id="edGrid" aria-label="Editor de timeline"></table></div>
+      <div class="legend">
+        <span><span class="kbd">Enter</span> desce · <span class="kbd">Tab</span> avança · <span class="kbd">←↑↓→</span> navegam · <span class="kbd">Del</span> limpa a célula · <span class="kbd">Ctrl+Z</span> desfaz</span>
+        <span>Modo <b>Pintar</b>: clique ou arraste sobre as células da linha; clicar numa célula já pintada com o mesmo valor apaga.</span>
+        <span id="edRc"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Como fica na proposta</h2>
+      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 4).</div>
+      <div class="pvdoc" style="margin-top:10px"><div id="edPv"></div></div>
+    </div>
   </div>
 </section>
 
@@ -228,17 +372,8 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
   </div>
 
   <div class="card">
-    <h2>Início e calendário</h2>
-    <div class="grid">
-      <label class="f">Início do projeto
-        <select id="p_startmode">
-          <option value="date">Data específica</option>
-          <option value="month">Mês (primeiro dia útil)</option>
-          <option value="none">Sem data — timeline relativo (SP1, SP2…)</option>
-        </select></label>
-      <label class="f" id="lbl_start">Data de início<input type="date" id="p_start"></label>
-      <label class="f" id="lbl_startm">Mês de início<input type="month" id="p_startm"></label>
-    </div>
+    <h2>Calendário (feriados)</h2>
+    <p class="hint" style="margin:0 0 4px">O início do projeto e a estrutura de períodos ficam na aba 1.</p>
     <div class="row" style="margin-top:12px">
       <label class="chk"><input type="checkbox" id="p_hol" checked> Considerar feriados nacionais do Brasil (calculados no próprio app)</label>
     </div>
@@ -253,23 +388,47 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
   </div>
 
   <div class="card">
-    <h2>Premissas de esforço e preço</h2>
+    <h2>Premissas de preço</h2>
     <div class="grid">
-      <label class="f">Semanas por período (sprint)<input type="number" id="p_pw" value="2" min="1" step="1"></label>
-      <label class="f">Horas faturáveis / dia<input type="number" id="p_hpd" value="8" min="1" step="0.5"></label>
-      <label class="f">Dias úteis / semana<input type="number" id="p_dpw" value="5" min="1" max="7"></label>
       <label class="f">Modo de precificação
-        <select id="p_mode"><option value="rate">Rate/h do rate card</option><option value="gm">Custo/h + GM% alvo</option></select></label>
+        <select id="p_mode"><option value="rate">Rate/h do perfil</option><option value="gm">Custo/h + GM% alvo</option></select></label>
       <label class="f">GM% alvo (modo custo)<input type="number" id="p_gm" value="35" step="0.5"></label>
       <label class="f">GM% mínimo (gera alerta)<input type="number" id="p_gmmin" value="0" step="0.5"></label>
       <label class="f">Contingência / risco %<input type="number" id="p_cont" value="0" step="0.5"></label>
       <label class="f">Contingência entra…
         <select id="p_contmode"><option value="price">só no preço (vira margem)</option><option value="both">no preço e no custo (reserva consumida)</option></select></label>
-      <label class="f">Desconto comercial %<input type="number" id="p_disc" value="0" step="0.5"></label>
     </div>
     <div class="row" style="margin-top:12px">
       <label class="chk"><input type="checkbox" id="p_inclOpt"> Incluir itens opcionais no total da proposta</label>
     </div>
+  </div>
+
+  <div class="card" id="discCard">
+    <h2>Desconto</h2>
+    <p class="hint" style="margin:0 0 10px">Ordem de cálculo: preço de lista (taxa × horas) → contingência → <b>desconto</b> → impostos (gross-up). O desconto incide só sobre o escopo incluído no total.</p>
+    <div class="grid">
+      <label class="f">Tipo de desconto
+        <select id="p_discmode">
+          <option value="pct">Percentual sobre o total</option>
+          <option value="amount">Valor fixo (com impostos)</option>
+          <option value="target">Preço final alvo (com impostos)</option>
+        </select></label>
+      <label class="f" id="l_disc">Desconto geral (%)<input type="number" id="p_disc" value="0" step="0.5" min="0" max="99"></label>
+      <label class="f" id="l_discamt">Valor do desconto (com impostos)<input type="number" id="p_discamt" value="0" step="100" min="0"></label>
+      <label class="f" id="l_disctarget">Preço final alvo (com impostos)<input type="number" id="p_disctarget" value="0" step="100" min="0"></label>
+      <label class="f">Como mostrar na proposta
+        <select id="p_discshow">
+          <option value="embedded">Embutido nas taxas (o cliente vê só o preço final)</option>
+          <option value="line">Linha visível: preço de lista → desconto → preço final</option>
+        </select></label>
+    </div>
+    <div class="sumline" id="discResult"></div>
+    <div id="discPhaseBox" style="margin-top:14px">
+      <h3 style="margin:0 0 4px;font-size:14px;color:var(--blue)">Desconto por fase (opcional)</h3>
+      <p class="hint" style="margin:0 0 6px">Em branco = usa o desconto geral. Use para, por exemplo, abrir uma fase de assessment com desconto maior e segurar a margem nas fases de execução.</p>
+      <div class="scroll" style="max-height:none"><table class="t" id="discPhase"></table></div>
+    </div>
+    <div id="discSuggest" style="margin-top:14px"></div>
   </div>
 
   <div class="card">
@@ -277,16 +436,16 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
     <div class="grid">
       <label class="f">Moeda da proposta
         <select id="p_cur"><option>BRL</option><option>USD</option><option>EUR</option><option>MXN</option><option>COP</option><option>ARS</option></select></label>
-      <label class="f">Moeda do rate card
+      <label class="f">Moeda das taxas
         <select id="p_rcur"><option>BRL</option><option>USD</option><option>EUR</option><option>MXN</option><option>COP</option><option>ARS</option></select></label>
-      <label class="f">Câmbio (1 moeda do rate card = X da proposta)<input type="number" id="p_fx" value="1" step="0.0001" min="0"></label>
+      <label class="f">Câmbio (1 moeda das taxas = X da proposta)<input type="number" id="p_fx" value="1" step="0.0001" min="0"></label>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="btn sec sm" data-act="fx-online">Buscar cotação online</button>
       <button class="btn sec sm" data-act="fx-cached" id="btnFxCached" style="display:none">Usar última cotação salva</button>
     </div>
     <div id="fxMsg" aria-live="polite"></div>
-    <p class="hint">Se as moedas forem diferentes, as taxas do rate card são convertidas pelo câmbio informado. Sem internet, digite o câmbio manualmente.</p>
+    <p class="hint">Se as moedas forem diferentes, as taxas dos perfis são convertidas pelo câmbio informado. Sem internet, digite o câmbio manualmente.</p>
   </div>
 
   <div class="card">
@@ -297,7 +456,7 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
       <label class="chk"><input type="checkbox" id="p_taxshow"> Detalhar impostos na proposta</label>
       <span class="hint" id="taxTotal"></span>
     </div>
-    <p class="hint">O preço com impostos é calculado por gross-up: líquido ÷ (1 − soma dos percentuais). Os valores do rate card são líquidos de impostos.</p>
+    <p class="hint">O preço com impostos é calculado por gross-up: líquido ÷ (1 − soma dos percentuais). As taxas dos perfis são líquidas de impostos.</p>
   </div>
 
   <div class="card">
@@ -319,14 +478,14 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <h2>Rate Card</h2>
+      <h2>Perfis e taxas</h2>
       <div class="row">
-        <button class="btn sec" data-act="rc-import">Importar rate card (.xlsx/.csv)</button>
+        <button class="btn sec" data-act="rc-import">Importar perfis/taxas (.xlsx/.csv)</button>
         <input type="file" id="rcFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
         <button class="btn sec" data-act="rc-gm">Calcular Rate/h = Custo/(1–GM%)</button>
       </div>
     </div>
-    <p class="hint">Perfis identificados no timeline. Preencha Custo/h e/ou Rate/h (valores líquidos de impostos, na moeda do rate card). Campos vazios ficam destacados.</p>
+    <p class="hint">Perfis e níveis cadastrados (novos entram pelas combos do timeline). Preencha Custo/h e/ou Rate/h (valores líquidos de impostos, na moeda das taxas). Campos vazios ficam destacados.</p>
     <div id="rcMsg" aria-live="polite"></div>
     <div class="scroll" style="max-height:none"><table class="t" id="rcTable"></table></div>
     <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -398,6 +557,33 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
   <div class="dh"><h2 id="dlgLibTitle">Propostas (arquivos Excel)</h2><button class="btn light sm" data-act="lib-close">Fechar</button></div>
   <div class="db" id="libBody"></div>
 </dialog>
+
+<div class="edpop" id="edPop" role="dialog" aria-label="Escolher perfil">
+  <div class="s"><input id="edPq" placeholder="Buscar perfil, nível ou local…" aria-label="Buscar perfil"></div>
+  <ul id="edPl" role="listbox"></ul>
+  <div class="new" id="edPnew" tabindex="0" role="button">➕ Cadastrar novo perfil…</div>
+  <form id="edPf">
+    <input id="edFRole" placeholder="Perfil (ex.: Scrum Master)" aria-label="Perfil">
+    <input id="edFLevel" placeholder="Nível (ex.: Q3)" aria-label="Nível">
+    <input id="edFLoc" placeholder="Local (ex.: Brazil)" aria-label="Local">
+    <input id="edFRate" type="number" placeholder="Rate/h (opcional)" aria-label="Rate por hora">
+    <input id="edFCost" type="number" placeholder="Custo/h (opcional)" aria-label="Custo por hora">
+    <span></span>
+    <div class="full"><button type="button" class="btn sec sm" id="edPcancel">Cancelar</button><button type="submit" class="btn sm">Adicionar aos perfis e usar</button></div>
+  </form>
+</div>
+
+<div class="edpop" id="edPopL" role="dialog" aria-label="Escolher nível">
+  <div class="s"><input id="edLq" placeholder="Buscar nível…" aria-label="Buscar nível"></div>
+  <ul id="edLl" role="listbox"></ul>
+  <div class="new" id="edLnew" tabindex="0" role="button">➕ Adicionar nível…</div>
+  <form id="edLf">
+    <input id="edFLv" placeholder="Nível (ex.: Q5)" aria-label="Novo nível" style="grid-column:1/3">
+    <input id="edFLvRate" type="number" placeholder="Rate/h (opcional)" aria-label="Rate por hora">
+    <input id="edFLvCost" type="number" placeholder="Custo/h (opcional)" aria-label="Custo por hora">
+    <div class="full"><button type="button" class="btn sec sm" id="edLcancel">Cancelar</button><button type="submit" class="btn sm">Adicionar nível e usar</button></div>
+  </form>
+</div>
 
 <div class="toast-wrap" id="toasts" aria-live="polite"></div>
 
@@ -735,10 +921,11 @@ function parseTimeline(aoa, opts){
       const role = String(line[col.role] ?? '').trim();
       const ph = col.phase >= 0 ? String(line[col.phase] ?? '').trim() : '';
       if (ph) lastPhase = ph;
-      if (!role || /^total/i.test(role)) continue;
+      if (/^total/i.test(role)) continue;
+      if (!role && !(opts.keepEmpty && ph)) continue; // linha sem perfil só se mantém no modo editor e com fase explícita
       const alloc = new Array(nPeriods).fill(0);
       pcols.forEach(c => alloc[c.p-1] += num(line[c.i]));
-      if (alloc.every(v => v === 0)) { warnings.push(`Linha ${r+1} (${esc(role)}) sem alocação – ignorada.`); continue; }
+      if (alloc.every(v => v === 0) && !opts.keepEmpty) { warnings.push(`Linha ${r+1} (${esc(role)}) sem alocação – ignorada.`); continue; }
       rows.push(mkRow(line, col, lastPhase, role, alloc));
     }
   } else if (col.start >= 0 && col.end >= 0){
@@ -789,11 +976,12 @@ function parseRateRows(aoa){
 }
 const rateMatch = (t, r) => norm(t.role) === norm(r.role) && (!t.level || !r.level || norm(t.level) === norm(r.level)) && (!t.location || !r.location || norm(t.location) === norm(r.location));
 
-// garante uma entrada de rate por perfil do timeline (remove as que não são mais usadas)
-function ensureRates(rates, rows){
-  rows.forEach(r => { const k = rkey(r); if (!rates[k]) rates[k] = {role:r.role, level:r.level, location:r.location, cost:'', rate:''}; });
-  const used = new Set(rows.map(rkey));
-  Object.keys(rates).forEach(k => { if (!used.has(k)) delete rates[k]; });
+// garante uma entrada de rate por perfil usado no timeline; o catálogo (Rate Card) é mantido,
+// inclusive perfis ainda não usados. Com prune=true, remove os que não são usados.
+function ensureRates(rates, rows, prune){
+  const used = rows.filter(r => r.role);
+  used.forEach(r => { const k = rkey(r); if (!rates[k]) rates[k] = {role:r.role, level:r.level, location:r.location, cost:'', rate:''}; });
+  if (prune){ const keys = new Set(used.map(rkey)); Object.keys(rates).forEach(k => { if (!keys.has(k)) delete rates[k]; }); }
   return rates;
 }
 // aplica a tabela do rate card sobre as entradas existentes; devolve quantas foram preenchidas
@@ -850,6 +1038,10 @@ function parseParams(raw, extra){
     mode: raw.p_mode === 'gm' ? 'gm' : 'rate', gm: Math.min(0.95, Math.max(0, n('p_gm', 35)/100)), gmMin: Math.max(0, n('p_gmmin', 0)/100),
     cont: Math.max(0, n('p_cont', 0)/100), contMode: CONTMODES.includes(raw.p_contmode) ? raw.p_contmode : 'price',
     disc: Math.min(0.99, Math.max(0, n('p_disc', 0)/100)),
+    discMode: ['pct','amount','target'].includes(raw.p_discmode) ? raw.p_discmode : 'pct',
+    discAmount: Math.max(0, n('p_discamt', 0)), discTarget: Math.max(0, n('p_disctarget', 0)),   // valores COM impostos (o que o cliente vê)
+    discShow: raw.p_discshow === 'line' ? 'line' : 'embedded',
+    discPhase: Object.fromEntries(Object.entries(extra.phaseDisc || {}).map(([k, v]) => [k, Math.min(1, Math.max(0, num(v) / 100))]).filter(([, v]) => v > 0)),
     taxes, tax: Math.min(0.9, taxPct), taxShow: !!raw.p_taxshow,
     inclOpt: !!raw.p_inclOpt,
     pay: ['milestone','monthly','install'].includes(raw.p_pay) ? raw.p_pay : 'milestone',
@@ -865,20 +1057,13 @@ function parseParams(raw, extra){
   };
 }
 
-/* ---------------- cálculo principal ---------------- */
-// model = {rows, nPeriods, unit, rates}; ctx = {today?: Date, holidays?: Set<string> (extras online/manuais)}
-function compute(model, p, ctx){
+/* ---------------- calendário (independe das linhas do timeline) ---------------- */
+// feriados nacionais calculados localmente + extras manuais/online; início ajustado para dia útil;
+// cada período termina em dia útil. Usado pelo cálculo e pela grade do editor.
+function buildCalendar(p, N, unit, ctx){
   ctx = ctx || {};
-  if (!model || !model.rows || !model.rows.length) return null;
-  const rows0 = model.rows, N = model.nPeriods, unit = model.unit, rates = model.rates || {};
   const relative = p.startMode === 'none';
   const pw = unit === 'W' ? 1 : p.pw;
-  const hpp = pw * p.dpw * p.hpd;
-  const priceF = (1 + p.cont) * (1 - p.disc);
-  const costF = p.contMode === 'both' ? (1 + p.cont) : 1;
-  const gross = v => p.tax < 1 ? v / (1 - p.tax) : v;
-
-  // calendário (feriados nacionais calculados localmente + extras manuais/online)
   const hol = new Set();
   const holNames = {};
   const baseDate = (() => {
@@ -902,6 +1087,27 @@ function compute(model, p, ctx){
   const pStart = i => nextWork(addDays(effStart, i * pw * 7));
   const pEnd = i => { const s = pStart(i), e = prevWork(addDays(effStart, (i + 1) * pw * 7 - 1)); return e < s ? s : e; };
 
+  return {relative, pw, hol, holNames, baseDate, isWork, nextWork, prevWork, effStart, startAdjusted, pStart, pEnd};
+}
+
+/* ---------------- cálculo principal ---------------- */
+// model = {rows, nPeriods, unit, rates}; ctx = {today?: Date, holidays?: Set<string> (extras online/manuais)}
+function compute(model, p, ctx){
+  ctx = ctx || {};
+  if (!model || !model.rows || !model.rows.length) return null;
+  const idxRows = model.rows.map((r, i) => ({r, i})).filter(x => x.r.role); // linhas sem perfil (editor) não entram no cálculo
+  if (!idxRows.length) return null;
+  const rows0 = idxRows.map(x => x.r), N = model.nPeriods, unit = model.unit, rates = model.rates || {};
+  const relative = p.startMode === 'none';
+  const pw = unit === 'W' ? 1 : p.pw;
+  const hpp = pw * p.dpw * p.hpd;
+  const priceF = (1 + p.cont); // fator de lista (contingência); o desconto é aplicado depois, por linha
+  const costF = p.contMode === 'both' ? (1 + p.cont) : 1;
+  const gross = v => p.tax < 1 ? v / (1 - p.tax) : v;
+
+  const cal = buildCalendar(p, N, unit, ctx);
+  const {hol, holNames, baseDate, isWork, nextWork, prevWork, effStart, startAdjusted, pStart, pEnd} = cal;
+
   // taxas (rate/h e custo/h já convertidos para a moeda da proposta)
   const rc = r => rates[rkey(r)] || {};
   const basePriceH = r => p.mode === 'rate' ? num(rc(r).rate) : (num(rc(r).cost) / (1 - p.gm));
@@ -909,21 +1115,36 @@ function compute(model, p, ctx){
   const costH = r => num(rc(r).cost) * p.fx * costF;
 
   const missing = [];
-  Object.values(rates).forEach(r => {
+  const usedKeys = new Set(rows0.filter(r => r.alloc.some(v => v > 0)).map(rkey)); // só perfis realmente alocados exigem taxa
+  Object.values(rates).filter(r => usedKeys.has(rkey(r))).forEach(r => {
     const ok = p.mode === 'rate' ? num(r.rate) > 0 : num(r.cost) > 0;
     if (!ok) missing.push(`${r.role}${r.level?' '+r.level:''}${r.location?' ('+r.location+')':''}`);
   });
 
-  const rows = rows0.map(r => {
-    const hrs = r.alloc.map(v => v * hpp);
-    const H = hrs.reduce((a,b)=>a+b,0);
-    const net = H * priceH(r) * priceF, cost = H * costH(r);
-    return {...r, hrs, H, rateH: priceH(r) * priceF, net, cost, netP: hrs.map(h => h * priceH(r) * priceF), costP: hrs.map(h => h * costH(r))};
-  });
   const inScope = r => !r.optional || p.inclOpt;
+  // 1) preço de lista por linha (taxa × horas × contingência), sem desconto
+  const base = rows0.map((r, k) => {
+    const hrs = r.alloc.map(v => v * hpp), H = hrs.reduce((a, b) => a + b, 0);
+    return {r, k, hrs, H, pb: priceH(r), listNet: H * priceH(r) * priceF, cost: H * costH(r)};
+  });
+  // 2) desconto efetivo: % (geral + exceções por fase), valor fixo ou preço-alvo (ambos COM impostos → convertidos para líquido)
+  const scopeList = base.filter(x => inScope(x.r)).reduce((a, x) => a + x.listNet, 0);
+  let dGlobal = p.disc, targetAboveList = false;
+  if (p.discMode === 'amount') dGlobal = scopeList > 0 ? p.discAmount * (1 - p.tax) / scopeList : 0;
+  else if (p.discMode === 'target' && p.discTarget > 0){
+    dGlobal = scopeList > 0 ? 1 - (p.discTarget * (1 - p.tax)) / scopeList : 0;
+    if (dGlobal < 0){ dGlobal = 0; targetAboveList = true; }
+  }
+  dGlobal = Math.min(0.99, Math.max(0, dGlobal));
+  const discOf = r => (p.discMode === 'pct' && p.discPhase[r.phase] !== undefined) ? p.discPhase[r.phase] : dGlobal;
+  const rows = base.map(x => {
+    const d = discOf(x.r), f = x.pb * priceF * (1 - d);
+    return {...x.r, srcIndex: idxRows[x.k].i, hrs: x.hrs, H: x.H, priceBase: x.pb, rateList: x.pb * priceF, discPct: d, listNet: x.listNet,
+      rateH: f, net: x.H * f, cost: x.cost, netP: x.hrs.map(h => h * f), costP: x.hrs.map(h => h * costH(x.r))};
+  });
   const PALETTE = ['#1B4F8C','#13A89E','#6C4AB6','#E07A1F','#2E86C1','#C0392B','#7D8C2E','#AD5A8C','#4A6B82','#D4A017'];
 
-  const phaseNames = []; rows0.forEach(r => { if (!phaseNames.includes(r.phase)) phaseNames.push(r.phase); });
+  const phaseNames = []; rows0.forEach(r => { if (!phaseNames.includes(r.phase) && rows0.some(x => x.phase === r.phase && x.alloc.some(v => v > 0))) phaseNames.push(r.phase); }); // fase sem alocação não entra na proposta
   const phases = phaseNames.map((name, i) => {
     const rr = rows.filter(r => r.phase === name);
     const act = new Array(N).fill(0); rr.forEach(r => r.alloc.forEach((v,j) => act[j] += v));
@@ -938,10 +1159,10 @@ function compute(model, p, ctx){
   const roleMap = {};
   rows.forEach(r => {
     const k = rkey(r) + '|' + (r.optional ? 'opt' : 'core');
-    if (!roleMap[k]) roleMap[k] = {role:r.role, level:r.level, location:r.location, optional:r.optional, H:0, net:0, cost:0, rateH:r.rateH, act:new Array(N).fill(0)};
+    if (!roleMap[k]) roleMap[k] = {role:r.role, level:r.level, location:r.location, optional:r.optional, H:0, net:0, cost:0, rateH:r.rateH, rateList:r.rateList, act:new Array(N).fill(0)};
     const m = roleMap[k]; m.H += r.H; m.net += r.net; m.cost += r.cost; r.alloc.forEach((v,j) => m.act[j] += v);
   });
-  const roles = Object.values(roleMap).map(m => {
+  const roles = Object.values(roleMap).filter(m => m.H > 0).map(m => {
     const activeP = m.act.filter(v => v > 0).length;
     return {...m, gross: gross(m.net), avgFte: activeP ? m.act.reduce((a,b)=>a+b,0)/activeP : 0, peak: Math.max(...m.act), periods: activeP};
   }).sort((a,b) => (a.optional - b.optional) || b.net - a.net);
@@ -972,6 +1193,11 @@ function compute(model, p, ctx){
   const T = {H: sum(scRows,'H'), net: sum(scRows,'net'), cost: sum(scRows,'cost'),
     Hcore: sum(core,'H'), netCore: sum(core,'net'), Hopt: sum(opt,'H'), netOpt: sum(opt,'net')};
   T.gross = gross(T.net); T.grossCore = gross(T.netCore); T.grossOpt = gross(T.netOpt);
+  T.listNet = sum(scRows, 'listNet'); T.discNet = T.listNet - T.net; T.listGross = gross(T.listNet); T.discGross = gross(T.discNet);
+  T.discPct = T.listNet ? T.discNet / T.listNet : 0;
+  // desconto máximo (uniforme) que ainda preserva o GM mínimo (ou o ponto de equilíbrio, se não houver mínimo)
+  const gmFloor = Math.max(0, p.gmMin);
+  const maxDisc = (T.listNet > 0 && T.cost > 0) ? Math.min(1, Math.max(0, 1 - T.cost / (T.listNet * (1 - gmFloor)))) : null;
   T.gm = T.net ? (T.net - T.cost)/T.net : 0;
   const activeP = periods.filter(x => x.fte > 0);
   T.peak = Math.max(0, ...periods.map(x => x.fte));
@@ -1010,17 +1236,18 @@ function compute(model, p, ctx){
   if (startAdjusted) issues.push({level:'warn', code:'start_adjusted', data:{from: iso(baseDate), to: iso(effStart)}});
   if (relative) issues.push({level:'info', code:'relative_timeline', data:{}});
   if (p.cur !== p.rcur && p.fx === 1) issues.push({level:'warn', code:'fx_missing', data:{from: p.rcur, to: p.cur}});
+  if (targetAboveList) issues.push({level:'info', code:'target_above_list', data:{list: T.listGross, target: p.discTarget}});
   if (T.netOpt && !p.inclOpt) issues.push({level:'info', code:'optional_excluded', data:{gross: T.grossOpt}});
   if (firstP < 0) issues.push({level:'err', code:'no_active_scope', data:{}});
 
-  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, rows, phases, roles, periods, months: monthArr, T, pays, missing, issues,
+  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc, gmFloor, dGlobal, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
     start: effStart, startBase: baseDate, startAdjusted, holidays: [...hol].sort().map(d => ({date:d, name: holNames[d] || ''})), isWork};
 }
 
 /* ---------------- sensibilidade (desconto x contingência) ---------------- */
 function sensitivity(model, p, ctx, discs, conts){
   return discs.map(d => ({disc: d, cells: conts.map(c => {
-    const R = compute(model, {...p, disc: d, cont: c}, ctx);
+    const R = compute(model, {...p, discMode: 'pct', discPhase: {}, disc: d, cont: c}, ctx);
     return {cont: c, gross: R ? R.T.gross : 0, gm: R ? R.T.gm : 0, hasCost: !!(R && R.T.cost)};
   })}));
 }
@@ -1090,7 +1317,7 @@ function milestones(R, extraLines, labels){
 
 return { norm, esc, num, periodNum, isYes, rkey, parseDate, addDays, iso, monthKey, isValidIso, nextMonday,
   easter, holidaysBR, ALIAS, parseTimeline, parseRateRows, rateMatch, ensureRates, applyRateTable,
-  parseParams, parseExtraHolidays, parseMilestoneLines, compute, sensitivity, timelineView, milestones };
+  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
 
@@ -1127,7 +1354,7 @@ const I18N = {
     model:{fp:'Fixed Price', tm:'Time & Material'},
     payTxt:{milestone:'Invoices are issued upon completion and acceptance of each phase.', monthly:'Invoices are issued monthly based on the effort consumed in the period.', install:'The total investment is invoiced in equal monthly installments.'},
     trig:{phase:'Completion of', month:'Monthly measurement', inst:'Installment'},
-    monthlyBilling:'Monthly billing (taxes included)',
+    monthlyBilling:'Monthly billing (taxes included)', subtotal:'Subtotal (list price)', discountRow:'Commercial discount',
     taxes:'Taxes', taxLine:(list,tot)=>`Taxes included in the price: ${list} (total ${tot}).`,
     relNote:'The timeline is expressed in relative periods; calendar dates will be defined at project kickoff.',
     exec:(p,T,U,f,rel)=>`${p.vendor} is pleased to present this commercial proposal to ${p.client} for the <b>${p.project}</b> initiative. The engagement is planned over <b>${T.nPer} ${U==='SP'?'sprints':'weeks'} (${T.weeks} weeks)</b>${rel?'':`, from ${f.date(T.start)} to ${f.date(T.end)}`}, with a peak team of ${f.nf(T.peak,1)} FTE and a total effort of ${f.nf(T.H)} hours.`,
@@ -1156,7 +1383,7 @@ const I18N = {
     model:{fp:'Preço Fixo', tm:'Time & Material'},
     payTxt:{milestone:'O faturamento ocorre na conclusão e aceite de cada fase.', monthly:'O faturamento é mensal, conforme o esforço consumido no período.', install:'O investimento total é faturado em parcelas mensais iguais.'},
     trig:{phase:'Conclusão de', month:'Medição mensal', inst:'Parcela'},
-    monthlyBilling:'Faturamento mensal (com impostos)',
+    monthlyBilling:'Faturamento mensal (com impostos)', subtotal:'Subtotal (preço de lista)', discountRow:'Desconto comercial',
     taxes:'Impostos', taxLine:(list,tot)=>`Impostos incluídos no preço: ${list} (total ${tot}).`,
     relNote:'O cronograma está expresso em períodos relativos; as datas de calendário serão definidas no início do projeto.',
     exec:(p,T,U,f,rel)=>`A ${p.vendor} tem a satisfação de apresentar à ${p.client} esta proposta comercial para a iniciativa <b>${p.project}</b>. O projeto está planejado em <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>${rel?'':`, de ${f.date(T.start)} a ${f.date(T.end)}`}, com pico de ${f.nf(T.peak,1)} FTE e esforço total de ${f.nf(T.H)} horas.`,
@@ -1185,7 +1412,7 @@ const I18N = {
     model:{fp:'Precio Fijo', tm:'Time & Material'},
     payTxt:{milestone:'La facturación se realiza al concluir y aceptar cada fase.', monthly:'La facturación es mensual, según el esfuerzo consumido en el período.', install:'La inversión total se factura en cuotas mensuales iguales.'},
     trig:{phase:'Conclusión de', month:'Medición mensual', inst:'Cuota'},
-    monthlyBilling:'Facturación mensual (impuestos incluidos)',
+    monthlyBilling:'Facturación mensual (impuestos incluidos)', subtotal:'Subtotal (precio de lista)', discountRow:'Descuento comercial',
     taxes:'Impuestos', taxLine:(list,tot)=>`Impuestos incluidos en el precio: ${list} (total ${tot}).`,
     relNote:'El cronograma se expresa en períodos relativos; las fechas de calendario se definirán al inicio del proyecto.',
     exec:(p,T,U,f,rel)=>`${p.vendor} se complace en presentar a ${p.client} esta propuesta comercial para la iniciativa <b>${p.project}</b>. El proyecto está planificado en <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>${rel?'':`, del ${f.date(T.start)} al ${f.date(T.end)}`}, con un pico de ${f.nf(T.peak,1)} FTE y un esfuerzo total de ${f.nf(T.H)} horas.`,
@@ -1209,7 +1436,7 @@ function mergeRoles(R){
   const map = new Map();
   R.roles.filter(r => !r.optional || R.p.inclOpt).forEach(r => {
     const k = E.rkey(r);
-    if (!map.has(k)) map.set(k, {role:r.role, level:r.level, location:r.location, H:0, net:0, rateH:r.rateH, act:new Array(R.nPeriods).fill(0)});
+    if (!map.has(k)) map.set(k, {role:r.role, level:r.level, location:r.location, H:0, net:0, rateH:r.rateH, rateList:r.rateList, act:new Array(R.nPeriods).fill(0)});
     const m = map.get(k); m.H += r.H; m.net += r.net; r.act.forEach((v,j) => m.act[j] += v);
   });
   return [...map.values()].map(m => { const a = m.act.filter(v => v > 0).length; return {...m, avgFte: a ? m.act.reduce((x,y)=>x+y,0)/a : 0}; });
@@ -1274,22 +1501,28 @@ function build(R, opts){
 
   // 4. Investimento
   B.push({t:'h', n:4, text:L.s4});
+  const showDisc = p.discShow === 'line' && T.discNet > 0.005;   // lista → desconto → preço final
   const invRows = [];
   inScopePh.forEach(ph => {
     const rr = R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt));
-    const H = rr.reduce((a,r)=>a+r.H,0), net = rr.reduce((a,r)=>a+r.net,0);
+    const H = rr.reduce((a,r)=>a+r.H,0), net = showDisc ? rr.reduce((a,r)=>a+r.listNet,0) : rr.reduce((a,r)=>a+r.net,0);
     if (!H) return;
-    invRows.push({cells:[ph.name, f.nf(H), f.money(net), f.money(gross(net)), `${T.net ? f.nf(net/T.net*100,1) : 0}%`]});
+    const base = showDisc ? T.listNet : T.net;
+    invRows.push({cells:[ph.name, f.nf(H), f.money(net), f.money(gross(net)), `${base ? f.nf(net/base*100,1) : 0}%`]});
   });
+  if (showDisc){
+    invRows.push({cells:[L.subtotal, f.nf(T.H), f.money(T.listNet), f.money(T.listGross), '100%'], cls:'sub'});
+    invRows.push({cells:[`${L.discountRow} (${f.nf(T.discPct*100,1)}%)`, '', '−' + f.money(T.discNet), '−' + f.money(T.discGross), ''], cls:'disc'});
+  }
   B.push({t:'table', head:[{text:L.phase},{text:L.hours,num:true},{text:L.net,num:true},{text:L.gross,num:true},{text:L.share,num:true}],
-    rows: invRows, total: {cells:[L.total, f.nf(T.H), f.money(T.net), f.money(T.gross), '100%']}});
+    rows: invRows, total: {cells:[L.total, f.nf(T.H), f.money(T.net), f.money(T.gross), showDisc ? '' : '100%']}});
   if (p.taxShow && p.taxes.length){
     B.push({t:'note', text: L.taxLine(p.taxes.map(t => `${t.name} ${f.nf(t.pct,2)}%`).join(', '), f.nf(p.tax*100,2) + '%')});
   }
   if (p.model === 'tm'){
     B.push({t:'sub', text:L.rateH});
     B.push({t:'table', head:[{text:L.role},{text:L.level},{text:L.loc},{text:`${L.rateH} (${L.net})`,num:true},{text:`${L.rateH} (${L.gross})`,num:true}],
-      rows: team.map(r => ({cells:[r.role, r.level, r.location, f.money(r.rateH,2), f.money(gross(r.rateH),2)]}))});
+      rows: team.map(r => { const rate = showDisc ? r.rateList : r.rateH; return {cells:[r.role, r.level, r.location, f.money(rate,2), f.money(gross(rate),2)]}; })});
   }
 
   // 5. Pagamentos
@@ -1441,7 +1674,9 @@ const PARAM_DEFS = [
   ['p_cur','Moeda da proposta','text'], ['p_rcur','Moeda do rate card','text'], ['p_fx','Câmbio (1 moeda do rate card = X moeda da proposta)','num'],
   ['p_unit','Unidade do período (auto/SP/W)','text'], ['p_pw','Semanas por período (sprint)','num'], ['p_hpd','Horas faturáveis / dia','num'], ['p_dpw','Dias úteis / semana','num'],
   ['p_mode','Modo de precificação (rate/gm)','text'], ['p_gm','GM% alvo (modo custo)','num'], ['p_gmmin','GM% mínimo (alerta)','num'],
-  ['p_cont','Contingência / risco %','num'], ['p_contmode','Contingência entra em (price/both)','text'], ['p_disc','Desconto comercial %','num'],
+  ['p_cont','Contingência / risco %','num'], ['p_contmode','Contingência entra em (price/both)','text'],
+  ['p_discmode','Tipo de desconto (pct/amount/target)','text'], ['p_disc','Desconto comercial % (modo pct)','num'], ['p_discamt','Desconto em valor fixo, com impostos (modo amount)','num'],
+  ['p_disctarget','Preço final alvo, com impostos (modo target)','num'], ['p_discshow','Exibição do desconto (embedded/line)','text'],
   ['p_inclOpt','Incluir itens opcionais no total','bool'], ['p_taxshow','Detalhar impostos na proposta','bool'],
   ['p_pay','Modelo de pagamento (milestone/monthly/install)','text'], ['p_inst','Nº de parcelas (se iguais)','num'], ['p_terms','Prazo de pagamento (dias)','num'], ['p_valid','Validade da proposta (dias)','num'],
   ['p_tlmode','Timeline: modo (bars/roles/milestones)','text'], ['p_tlgran','Timeline: granularidade (period/week)','text'], ['p_tlfte','Timeline: mostrar FTE','bool'],
@@ -1532,6 +1767,16 @@ async function buildTemplate(ExcelJS){
   return wb;
 }
 
+// resultado "vazio" para gravar propostas que ainda não têm perfis alocados
+function emptyResult(st){
+  const p = E.parseParams(st.raw, {taxes: st.taxes});
+  const cal = E.buildCalendar(p, st.nPeriods, st.unit, {today: new Date()});
+  const z = new Date(cal.effStart);
+  return {p, relative: cal.relative, unit: st.unit, nPeriods: st.nPeriods, pw: cal.pw, hpp: cal.pw * p.dpw * p.hpd, f: (1 + p.cont) * (1 - p.disc),
+    rows: [], rowByIndex: new Map(), phases: [], roles: [], periods: [], months: [], pays: [], holidays: [], issues: [], missing: [],
+    T: {H: 0, net: 0, cost: 0, gross: 0, gm: 0, blended: 0, grossOpt: 0, netOpt: 0, listNet: 0, discNet: 0, listGross: 0, discGross: 0, discPct: 0, nPer: 0, weeks: 0, peak: 0, avgFte: 0, start: z, end: z}};
+}
+
 /* =====================================================================
    ARQUIVO DA PROPOSTA — gravação
    st = { rows, nPeriods, unit, rates, taxes, edits, raw (param id -> valor), fileName }
@@ -1541,7 +1786,6 @@ async function buildProposal(ExcelJS, st, R){
   const wb = new ExcelJS.Workbook();
   wb.creator = APP_ID; wb.created = new Date(); wb.modified = new Date();
   const p = R.p, N = st.nPeriods;
-  const priceF = R.f;
 
   /* ----- Parametros ----- */
   const ps = wb.addWorksheet('Parametros', {views:[{state:'frozen', ySplit:1}]});
@@ -1564,7 +1808,7 @@ async function buildProposal(ExcelJS, st, R){
   ps.getColumn(1).width = 14; ps.getColumn(2).width = 62; ps.getColumn(3).width = 46;
   const nm = (name, key) => wb.definedNames.add(`Parametros!$C$${rowOf[key]}`, name);
   nm('PW','p_pw'); nm('DPW','p_dpw'); nm('HPD','p_hpd'); nm('MODE','p_mode'); nm('GMP','p_gm'); nm('CONTP','p_cont'); nm('CONTMODE','p_contmode');
-  nm('DISCP','p_disc'); nm('FX','p_fx'); nm('INCLOPT','p_inclOpt'); nm('HPP','_hpp'); nm('TAXP','_tax');
+  nm('FX','p_fx'); nm('INCLOPT','p_inclOpt'); nm('HPP','_hpp'); nm('TAXP','_tax');
   ps.addRow([]);
   const note = ps.addRow(['', 'Este arquivo é gravado e lido pelo app. A edição é feita no navegador; alterações feitas diretamente aqui podem ser sobrescritas no próximo salvamento.', '']);
   note.getCell(2).font = {italic:true, color:{argb:'FF5F6B7A'}}; note.getCell(2).alignment = {wrapText:true};
@@ -1575,8 +1819,14 @@ async function buildProposal(ExcelJS, st, R){
   p.taxes.forEach(t => ts.addRow([t.name, t.pct]));
   ts.getColumn(1).width = 34; ts.getColumn(2).width = 10;
 
-  /* ----- RateCard ----- */
-  const rs = wb.addWorksheet('RateCard', {views:[{state:'frozen', ySplit:1}]});
+  /* ----- Descontos por fase ----- */
+  const ds = wb.addWorksheet('Descontos');
+  ds.addRow(['Fase','%']); styleHeader(ds);
+  Object.entries(st.phaseDisc || {}).forEach(([k, v]) => ds.addRow([k, E.num(v)]));
+  ds.getColumn(1).width = 34; ds.getColumn(2).width = 10;
+
+  /* ----- Perfis (cadastro de perfis, níveis e taxas) ----- */
+  const rs = wb.addWorksheet('Perfis', {views:[{state:'frozen', ySplit:1}]});
   rs.addRow(['Role','Level','Location','Cost/h','Rate/h','Price/h (calc.)','Key','Cost/h efetivo (calc.)']);
   styleHeader(rs);
   const rateList = Object.values(st.rates);
@@ -1596,29 +1846,32 @@ async function buildProposal(ExcelJS, st, R){
   /* ----- Modelo (timeline + cálculo) ----- */
   const ms = wb.addWorksheet('Modelo', {views:[{state:'frozen', xSplit:7, ySplit:1}]});
   const U = st.unit;
-  const c0 = 8, cTot = c0 + N, cHrs = cTot + 1, cPrice = cTot + 2, cNet = cTot + 3, cCost = cTot + 4, cScope = cTot + 5;
+  const c0 = 8, cTot = c0 + N, cHrs = cTot + 1, cPrice = cTot + 2, cDisc = cTot + 3, cNet = cTot + 4, cCost = cTot + 5, cScope = cTot + 6;
   ms.addRow(['Phase','Activity','Role','Level','Location','Optional','Key',
-    ...Array.from({length:N}, (_, i) => U + (i+1)), 'Total FTE', 'Hours', 'Price/h (calc.)', 'Net (calc.)', 'Cost (calc.)', 'In scope']);
+    ...Array.from({length:N}, (_, i) => U + (i+1)), 'Total FTE', 'Hours', 'Price/h (calc.)', 'Desconto efetivo (calc. pelo app)', 'Net (calc.)', 'Cost (calc.)', 'In scope']);
   styleHeader(ms);
-  const n1 = 2, nLast = R.rows.length + 1;
-  R.rows.forEach((r, i) => {
+  const n1 = 2, nLast = Math.max(2, st.rows.length + 1);
+  st.rows.forEach((src, i) => {
+    const r = R.rowByIndex.get(i) || {...src, alloc: src.alloc.slice(), H: 0, priceBase: 0, discPct: 0, net: 0, cost: 0}; // linha sem perfil: zeros
     const n = i + 2, first = colName(c0), lastc = colName(c0 + N - 1);
     const key = `G${n}`;
-    const idx = `MATCH(${key},RateCard!$G$2:$G$${rcEnd},0)`;
+    const idx = `MATCH(${key},Perfis!$G$2:$G$${rcEnd},0)`;
     ms.addRow([r.phase, r.activity, r.role, r.level || '', r.location || '', r.optional ? 'Y' : '',
       {formula:`C${n}&"|"&IF(D${n}="","-",D${n})&"|"&IF(E${n}="","-",E${n})`, result: E.rkey(r)},
       ...r.alloc.map(v => v || null),
       {formula:`SUM(${first}${n}:${lastc}${n})`, result: r.alloc.reduce((a,b)=>a+b,0)},
       {formula:`${colName(cTot)}${n}*HPP`, result: r.H},
-      {formula:`IFERROR(INDEX(RateCard!$F$2:$F$${rcEnd},${idx}),0)`, result: r.rateH / priceF},
-      {formula:`${colName(cHrs)}${n}*${colName(cPrice)}${n}*(1+CONTP/100)*(1-DISCP/100)`, result: r.net},
-      {formula:`${colName(cHrs)}${n}*IFERROR(INDEX(RateCard!$H$2:$H$${rcEnd},${idx}),0)`, result: r.cost},
+      {formula:`IFERROR(INDEX(Perfis!$F$2:$F$${rcEnd},${idx}),0)`, result: r.priceBase},
+      r.discPct || 0,
+      {formula:`${colName(cHrs)}${n}*${colName(cPrice)}${n}*(1+CONTP/100)*(1-${colName(cDisc)}${n})`, result: r.net},
+      {formula:`${colName(cHrs)}${n}*IFERROR(INDEX(Perfis!$H$2:$H$${rcEnd},${idx}),0)`, result: r.cost},
       {formula:`IF(OR(F${n}<>"Y",INCLOPT="Sim"),1,0)`, result: (!r.optional || p.inclOpt) ? 1 : 0}]);
   });
   [26,14,24,7,10,9,30].forEach((w, i) => ms.getColumn(i+1).width = w);
   for (let i = 0; i < N; i++) ms.getColumn(c0 + i).width = 6;
   [cTot, cHrs].forEach(c => ms.getColumn(c).numFmt = '#,##0.0');
   [cPrice, cNet, cCost].forEach(c => { ms.getColumn(c).numFmt = money; ms.getColumn(c).width = 14; });
+  ms.getColumn(cDisc).numFmt = pct; ms.getColumn(cDisc).width = 16;
   ms.addConditionalFormatting({ref:`${colName(c0)}2:${colName(c0 + N - 1)}${nLast}`, rules:[{type:'colorScale', cfvo:[{type:'num', value:0}, {type:'num', value:2}], color:[{argb:'FFFFFFFF'}, {argb:'FF7FA8D8'}]}]});
   const rng = c => `Modelo!$${colName(c)}$${n1}:$${colName(c)}$${nLast}`;
 
@@ -1641,6 +1894,9 @@ async function buildProposal(ExcelJS, st, R){
   add('Preço com impostos', {formula: `IF(TAXP<100,B${rN.number}/(1-TAXP/100),B${rN.number})`, result: T.gross}, money);
   add('GM%', {formula: `IF(B${rN.number}=0,0,(B${rN.number}-B${rC.number})/B${rN.number})`, result: T.gm}, pct);
   add('Rate médio (blended) /h', {formula: `IF(B${rH.number}=0,0,B${rN.number}/B${rH.number})`, result: T.blended}, money);
+  add('Preço de lista (com impostos)', T.listGross, money);
+  add('Desconto (com impostos)', T.discGross, money);
+  add('Desconto efetivo %', T.discPct, pct);
   add('Opcionais (com impostos, fora do total)', T.grossOpt, money);
 
   /* ----- PorFase (fórmulas) ----- */
@@ -1724,20 +1980,26 @@ function read(XLSX, wb){
 
   const modelo = aoa('Modelo');
   if (!modelo) throw new Error('aba "Modelo" não encontrada');
-  const t = E.parseTimeline(modelo, {unit});
+  const t = E.parseTimeline(modelo, {unit, keepEmpty: true});
 
-  const rcRows = aoa('RateCard');
-  const rates = E.ensureRates({}, t.rows);
-  if (rcRows) E.applyRateTable(rates, E.parseRateRows(rcRows));
+  const rcName = wb.SheetNames.find(n => /^(perfis|rate ?card)$/i.test(n));
+  const rcRows = rcName ? aoa(rcName) : null;
+  const rates = {};
+  if (rcRows) E.parseRateRows(rcRows).forEach(t => { rates[E.rkey(t)] = {role: t.role, level: t.level, location: t.location, cost: t.cost || '', rate: t.rate || ''}; }); // catálogo completo do Rate Card
+  E.ensureRates(rates, t.rows);
+
+  const phaseDisc = {};
+  const dsr = aoa('Descontos');
+  if (dsr) dsr.slice(1).forEach(r => { const v = E.num(r[1]); if (r[0] && v > 0) phaseDisc[String(r[0])] = v; });
 
   const edits = {};
   const tx = aoa('Textos');
   if (tx) tx.slice(1).forEach(r => { if (r[0]) edits[String(r[0])] = String(r[1] ?? ''); });
 
-  return {raw, taxes, rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
+  return {raw, taxes, phaseDisc, rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
 }
 
-return { APP_ID, FORMAT, PARAM_DEFS, BOOLS, colName, exampleData, buildTemplate, buildProposal, isProposalWorkbook, read };
+return { APP_ID, FORMAT, PARAM_DEFS, BOOLS, colName, exampleData, emptyResult, buildTemplate, buildProposal, isProposalWorkbook, read };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Workbook;
 
@@ -2374,6 +2636,364 @@ function download(blob, name){
 return { ls, ss, kv, fs, download };
 })();
 
+/* ===== editor.js ===== */
+/* =====================================================================
+   EDITOR DE TIMELINE — grade editável no navegador (fases, perfis do Rate Card
+   por combo, FTE por período), com desfazer/refazer, modo pintar e prévia da
+   proposta. Edita direto S.rows; a persistência (Excel) fica no app.js.
+===================================================================== */
+function TimelineEditor(ctx){
+  'use strict';
+  const {S, E, $, esc, nfPT, toast} = ctx;
+  const PAL = ['#1B4F8C','#13A89E','#6C4AB6','#E07A1F','#2E86C1','#C0392B','#7D8C2E','#AD5A8C','#4A6B82','#D4A017'];
+  const TL_IDS = ['p_unit', 'p_pw', 'p_hpd', 'p_dpw', 'p_startmode', 'p_start', 'p_startm'];
+  let mode = 'type', brush = 1, painting = null, drag = null;
+  const collapsed = new Set();
+  const hist = [], fut = [];
+
+  /* ---------------- utilidades ---------------- */
+  const idOf = r => r._id || (r._id = S.rows.reduce((m, x) => Math.max(m, x._id || 0), 0) + 1);
+  const fmtV = v => v ? String(Math.round(v * 100) / 100).replace('.', ',') : '';
+  const fmtD = d => d.toLocaleDateString('pt-BR', {timeZone: 'UTC', day: '2-digit', month: '2-digit'});
+  const fmtDY = d => d.toLocaleDateString('pt-BR', {timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric'});
+  const blank = (phase) => ({phase, activity: '', role: '', level: '', location: '', optional: false, alloc: new Array(S.nPeriods).fill(0)});
+  function fit(){ S.rows.forEach(r => { while (r.alloc.length < S.nPeriods) r.alloc.push(0); if (r.alloc.length > S.nPeriods) r.alloc.length = S.nPeriods; idOf(r); }); }
+  function groups(){
+    const out = [], map = new Map();
+    S.rows.forEach(r => { let g = map.get(r.phase); if (!g){ g = {name: r.phase, rows: []}; map.set(r.phase, g); out.push(g); } g.rows.push(r); });
+    return out;
+  }
+  const flatten = gs => { S.rows = gs.flatMap(g => g.rows); };
+  const catalog = () => Object.values(S.rates).filter(r => r.role).sort((a, b) => a.role.localeCompare(b.role) || a.level.localeCompare(b.level));
+  const missingRate = (r, p) => p.mode === 'rate' ? !(E.num(r.rate) > 0) : !(E.num(r.cost) > 0);
+  const rateOf = (row) => S.rates[E.rkey(row)];
+
+  /* ---------------- histórico ---------------- */
+  const tlRaw = () => { const o = {}; TL_IDS.forEach(id => { const el = $(id); if (el) o[id] = el.value; }); return o; };
+  const snap = () => JSON.stringify({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, raw: tlRaw()});
+  function pushHist(){ hist.push(snap()); if (hist.length > 100) hist.shift(); fut.length = 0; }
+  function restore(str){
+    const o = JSON.parse(str);
+    S.rows = o.rows; S.nPeriods = o.nPeriods; S.unit = o.unit; S.rates = o.rates; ctx.setRaw(o.raw);
+    changed(); render();
+  }
+  function undo(){ if (!hist.length) return; fut.push(snap()); restore(hist.pop()); }
+  function redo(){ if (!fut.length) return; hist.push(snap()); restore(fut.pop()); }
+  function resetHistory(){ hist.length = 0; fut.length = 0; collapsed.clear(); }
+  function changed(){ ctx.changed(); }
+  function mutate(fn, keepFocus){ pushHist(); fn(); fit(); changed(); render(keepFocus); }
+
+  /* ---------------- render ---------------- */
+  function render(keepFocus){
+    if (!S.rows.length) return;
+    fit();
+    const f = keepFocus && document.activeElement && document.activeElement.dataset && document.activeElement.dataset.cell ? {...document.activeElement.dataset} : null;
+    const p = ctx.P(), N = S.nPeriods, U = S.unit;
+    const cal = E.buildCalendar(p, N, U, {today: new Date()});
+    const gs = groups(), colTot = new Array(N).fill(0);
+    const hasDates = !cal.relative;
+
+    let h = `<thead><tr><th class="l c1">Fase / Perfil</th><th class="l c2">Nível</th><th class="l c3">Local</th><th class="l c4" title="Item opcional">Opc.</th>`;
+    for (let i = 1; i <= N; i++) h += `<th>${U}${i}</th>`;
+    h += `<th>Total</th><th></th></tr>`;
+    if (hasDates) h += `<tr><th class="l c1 d" style="text-align:left;padding-left:10px">início do período</th><th class="l c2 d"></th><th class="l c3 d"></th><th class="l c4 d"></th>${Array.from({length: N}, (_, i) => `<th class="d">${fmtD(cal.pStart(i))}</th>`).join('')}<th class="d"></th><th class="d"></th></tr>`;
+    h += `</thead><tbody>`;
+
+    gs.forEach((g, gi) => {
+      const color = PAL[gi % PAL.length], sum = new Array(N).fill(0);
+      g.rows.forEach(r => r.alloc.forEach((v, i) => { sum[i] += v; colTot[i] += v; }));
+      const isCol = collapsed.has(g.name), allOpt = g.rows.length && g.rows.every(r => r.optional);
+      h += `<tr class="ph"><td class="l c1"><div class="name">
+        <button class="caret" data-ed="toggle" data-g="${esc(g.name)}" aria-label="${isCol ? 'Expandir' : 'Recolher'} fase">${isCol ? '▶' : '▼'}</button>
+        <span class="dot" style="background:${color}"></span>
+        <input class="pn" value="${esc(g.name)}" data-ed="pname" data-g="${esc(g.name)}" aria-label="Nome da fase" title="${esc(g.name)}">
+      </div></td><td class="l c2"></td><td class="l c3"></td><td class="l c4"><span class="hint">${allOpt ? 'opc.' : ''}</span></td>`;
+      sum.forEach(v => h += `<td class="cell" style="${v ? `background:${color}` : ''}">${v ? nfPT(v, 1) : ''}</td>`);
+      h += `<td class="sum">${nfPT(sum.reduce((a, b) => a + b, 0), 1)}</td>
+        <td><div class="row-actions"><button class="xbtn" title="Adicionar perfil à fase" aria-label="Adicionar perfil" data-ed="addrow" data-g="${esc(g.name)}">＋</button><button class="xbtn" title="Excluir fase" aria-label="Excluir fase" data-ed="delphase" data-g="${esc(g.name)}">🗑</button></div></td></tr>`;
+      if (isCol) return;
+      g.rows.forEach(r => {
+        const rid = idOf(r), has = !!r.role, rt = has ? rateOf(r) : null, noRate = has && (!rt || missingRate(rt, p));
+        const tot = r.alloc.reduce((a, b) => a + b, 0);
+        h += `<tr data-r="${rid}"><td class="l c1 ${r.optional ? 'opt-on' : ''}" style="padding-left:18px">
+          <button class="combo ${has ? '' : 'empty'}" data-ed="combo" data-r="${rid}" aria-haspopup="listbox" aria-label="Perfil da linha: ${has ? esc(r.role) : 'não escolhido'}">
+            <span class="nm">${has ? esc(r.role) : 'Escolher perfil…'}</span>${noRate ? '<span class="tag" title="Sem taxa no Rate Card">sem taxa</span>' : ''}<span class="arrow">▼</span></button></td>
+          <td class="l c2" style="padding:0">${has ? `<button class="combo lv" data-ed="lvcombo" data-r="${rid}" aria-haspopup="listbox" aria-label="Nível da linha: ${esc(r.level || 'sem nível')}"><span class="nm">${esc(r.level || '—')}</span><span class="arrow">▼</span></button>` : '<span style="padding:0 8px;color:var(--muted)">—</span>'}</td>
+          <td class="l c3" style="padding:0 6px;color:var(--muted)">${has ? esc(r.location) : '—'}</td>
+          <td class="l c4"><input class="opt-box" type="checkbox" ${r.optional ? 'checked' : ''} data-ed="opt" data-r="${rid}" aria-label="Item opcional"></td>`;
+        r.alloc.forEach((v, i) => {
+          h += `<td class="cell ${v ? '' : 'empty'}" data-r="${rid}" data-i="${i}" style="${v ? `background:${r.optional ? color + '99' : color}` : ''}"><input value="${fmtV(v)}" data-cell="1" data-r="${rid}" data-i="${i}" ${mode === 'paint' ? 'readonly tabindex="-1"' : ''} aria-label="FTE ${U}${i + 1}" inputmode="decimal"></td>`;
+        });
+        h += `<td class="sum">${nfPT(tot, 1)}</td>
+          <td><div class="row-actions"><button class="xbtn" title="Duplicar linha" aria-label="Duplicar linha" data-ed="dup" data-r="${rid}">⧉</button><button class="xbtn" title="Excluir linha" aria-label="Excluir linha" data-ed="delrow" data-r="${rid}">×</button></div></td></tr>`;
+      });
+    });
+    const peak = Math.max(0, ...colTot);
+    h += `<tr class="foot"><td class="l c1">Total FTE por período</td><td class="l c2"></td><td class="l c3"></td><td class="l c4"></td>${colTot.map(v => `<td>${v ? nfPT(v, 1) : '–'}</td>`).join('')}<td>${nfPT(peak, 1)} pico</td><td></td></tr></tbody>`;
+    $('edGrid').innerHTML = h;
+    $('edN').textContent = N;
+    $('edMType').setAttribute('aria-pressed', mode === 'type'); $('edMPaint').setAttribute('aria-pressed', mode === 'paint');
+    $('edBrush').style.display = mode === 'paint' ? 'inline-flex' : 'none';
+    $('edUndo').disabled = !hist.length; $('edRedo').disabled = !fut.length;
+    const nCat = catalog().length, nMiss = catalog().filter(r => missingRate(r, p)).length;
+    $('edRc').innerHTML = `Perfis cadastrados: <b>${nCat}</b>` + (nMiss ? ` · <span style="color:var(--err)">${nMiss} sem taxa</span>` : '');
+    $('p_pw').disabled = U === 'W';
+    $('lbl_start').style.display = $('p_startmode').value === 'date' ? '' : 'none';
+    $('lbl_startm').style.display = $('p_startmode').value === 'month' ? '' : 'none';
+    summary(p, cal, colTot);
+    preview();
+    if (f){ const el = document.querySelector(`#edGrid input[data-cell][data-r="${f.r}"][data-i="${f.i}"]`); if (el){ el.focus(); } }
+  }
+
+  function summary(p, cal, colTot){
+    const N = S.nPeriods, U = S.unit, hpp = cal.pw * p.dpw * p.hpd;
+    let last = -1, first = -1; colTot.forEach((v, i) => { if (v > 0){ if (first < 0) first = i; last = i; } });
+    const hours = S.rows.filter(r => r.role).reduce((a, r) => a + r.alloc.reduce((x, y) => x + y, 0), 0) * hpp;
+    const active = last < 0 ? 0 : last - first + 1;
+    const kp = (b, s) => `<div class="kp"><b>${b}</b>${s}</div>`;
+    $('edSum').innerHTML =
+      kp(`${active || N} ${U === 'SP' ? 'sprints' : 'semanas'}`, active ? `${active * cal.pw} semanas com alocação · ${N} no grid` : `${N * cal.pw} semanas no grid`) +
+      kp(cal.relative ? 'relativo' : fmtDY(last < 0 ? cal.effStart : cal.pStart(first)), 'início' + (cal.startAdjusted ? ' (ajustado p/ dia útil)' : '')) +
+      kp(cal.relative ? '—' : fmtDY(cal.pEnd(last < 0 ? N - 1 : last)), 'fim previsto') +
+      kp(`${nfPT(Math.round(hours))} h`, 'esforço no timeline') +
+      kp(`${nfPT(Math.max(0, ...colTot), 1)} FTE`, 'pico do time');
+  }
+  function preview(){
+    const box = $('edPv'), R = ctx.compute();
+    if (!R){ box.innerHTML = '<p class="hint" style="margin:6px 0">Escolha um perfil e preencha o FTE para ver a prévia da proposta.</p>'; return; }
+    const tl = R.p.tl, view = E.timelineView(R, {gran: tl.gran, mode: tl.mode === 'milestones' ? 'bars' : tl.mode, fte: tl.fte});
+    box.innerHTML = DocModel.toHtml({lang: R.p.lang, blocks: [{t: 'timeline', view}]}, {});
+  }
+
+  /* ---------------- ações da grade ---------------- */
+  const rowById = id => S.rows.find(r => String(idOf(r)) === String(id));
+  const groupRows = name => S.rows.filter(r => r.phase === name);
+  $('edGrid').addEventListener('click', e => {
+    const b = e.target.closest('[data-ed]'); if (!b) return;
+    const a = b.dataset.ed, g = b.dataset.g, r = b.dataset.r ? rowById(b.dataset.r) : null;
+    if (a === 'toggle'){ collapsed.has(g) ? collapsed.delete(g) : collapsed.add(g); render(); }
+    else if (a === 'addrow') mutate(() => { collapsed.delete(g); const gs = groups(); gs.find(x => x.name === g).rows.push(blank(g)); flatten(gs); });
+    else if (a === 'delphase'){
+      const rows = groupRows(g);
+      if (rows.some(x => x.alloc.some(v => v > 0)) && !confirm(`Excluir a fase "${g}" e suas ${rows.length} linha(s)?`)) return;
+      mutate(() => { S.rows = S.rows.filter(x => x.phase !== g); });
+    }
+    else if (a === 'delrow') mutate(() => { S.rows.splice(S.rows.indexOf(r), 1); });
+    else if (a === 'dup') mutate(() => { S.rows.splice(S.rows.indexOf(r) + 1, 0, {...r, _id: undefined, alloc: r.alloc.slice()}); });
+    else if (a === 'combo') openCombo(b, r);
+    else if (a === 'lvcombo') openLevel(b, r);
+  });
+  $('edGrid').addEventListener('change', e => {
+    const t = e.target, a = t.dataset.ed;
+    if (a === 'opt'){ const r = rowById(t.dataset.r); mutate(() => { r.optional = t.checked; }); }
+    else if (a === 'pname'){
+      const old = t.dataset.g, name = t.value.trim();
+      if (!name || name === old){ t.value = old; return; }
+      mutate(() => { S.rows.forEach(r => { if (r.phase === old) r.phase = name; }); if (collapsed.delete(old)) collapsed.add(name); if (S.phaseDisc && S.phaseDisc[old] !== undefined){ S.phaseDisc[name] = S.phaseDisc[old]; delete S.phaseDisc[old]; } });
+    }
+    else if (t.dataset.cell){
+      const r = rowById(t.dataset.r), i = +t.dataset.i, txt = String(t.value).trim();
+      let v = 0;
+      if (txt !== ''){
+        v = E.num(txt);
+        if (!/^[\d.,\s%]+$/.test(txt) || !isFinite(v) || v < 0 || v > 99){ toast('FTE inválido: use um número entre 0 e 99 (ex.: 1, 0,5 ou 50%).', 'warn', 4500); render(true); return; }
+      }
+      v = Math.round(v * 100) / 100;
+      if ((r.alloc[i] || 0) === v){ t.value = fmtV(v); return; }
+      mutate(() => { r.alloc[i] = v; }, true);
+    }
+  });
+  $('edGrid').addEventListener('keydown', e => {
+    const t = e.target; if (!t.dataset || !t.dataset.cell) return;
+    const rows = [...document.querySelectorAll('#edGrid tr[data-r]')], ri = rows.findIndex(r => r.dataset.r === t.dataset.r), i = +t.dataset.i;
+    const go = (r, c) => { const row = rows[r]; if (!row) return; const el = row.querySelector(`input[data-cell][data-i="${c}"]`); if (el){ el.focus(); el.select(); } };
+    if (e.key === 'Enter'){ e.preventDefault(); const next = Math.min(rows.length - 1, ri + 1); t.blur(); setTimeout(() => go(next, i), 0); }
+    else if (e.key === 'ArrowDown'){ e.preventDefault(); go(ri + 1, i); }
+    else if (e.key === 'ArrowUp'){ e.preventDefault(); go(ri - 1, i); }
+    else if (e.key === 'ArrowRight' && t.selectionStart === t.value.length){ e.preventDefault(); go(ri, i + 1); }
+    else if (e.key === 'ArrowLeft' && t.selectionStart === 0){ e.preventDefault(); go(ri, i - 1); }
+    else if (e.key === 'Delete'){ t.value = ''; t.dispatchEvent(new Event('change', {bubbles: true})); }
+    else if (e.key === 'Escape'){ render(true); }
+  });
+  $('edGrid').addEventListener('focusin', e => { if (e.target.dataset && e.target.dataset.cell) e.target.select(); });
+
+  /* ---------------- modo pintar ---------------- */
+  function paintCell(td, r, i){
+    const gi = groups().findIndex(g => g.name === r.phase), color = PAL[gi % PAL.length], v = r.alloc[i];
+    td.style.background = v ? (r.optional ? color + '99' : color) : ''; td.classList.toggle('empty', !v);
+    td.querySelector('input').value = fmtV(v);
+  }
+  $('edGrid').addEventListener('pointerdown', e => {
+    if (mode !== 'paint') return;
+    const td = e.target.closest('td.cell[data-r]'); if (!td) return;
+    e.preventDefault();
+    const r = rowById(td.dataset.r), i = +td.dataset.i;
+    pushHist(); drag = {rid: td.dataset.r, value: (r.alloc[i] || 0) === brush ? 0 : brush};
+    r.alloc[i] = drag.value; paintCell(td, r, i); painting = true;
+  });
+  $('edGrid').addEventListener('pointerover', e => {
+    if (!painting) return;
+    const td = e.target.closest('td.cell[data-r]'); if (!td || td.dataset.r !== drag.rid) return;
+    const r = rowById(td.dataset.r); r.alloc[+td.dataset.i] = drag.value; paintCell(td, r, +td.dataset.i);
+  });
+  window.addEventListener('pointerup', () => { if (painting){ painting = false; drag = null; changed(); render(); } });
+  const setMode = m => { mode = m; render(); };
+  $('edMType').onclick = () => setMode('type'); $('edMPaint').onclick = () => setMode('paint');
+  document.querySelectorAll('#edBrush .chip[data-b]').forEach(c => c.onclick = () => { brush = +c.dataset.b; $('edBrushVal').value = brush; document.querySelectorAll('#edBrush .chip[data-b]').forEach(x => x.classList.toggle('on', x === c)); });
+  $('edBrushVal').onchange = e => { brush = Math.max(0, E.num(e.target.value)); document.querySelectorAll('#edBrush .chip[data-b]').forEach(x => x.classList.toggle('on', +x.dataset.b === brush)); };
+
+  /* ---------------- barra de ferramentas e parâmetros ---------------- */
+  function uniquePhase(base){ const names = new Set(S.rows.map(r => r.phase)); let n = base, k = 2; while (names.has(n)) n = `${base} ${k++}`; return n; }
+  $('edAddPhase').onclick = () => mutate(() => { S.rows.push(blank(uniquePhase('Nova fase'))); });
+  $('edUndo').onclick = undo; $('edRedo').onclick = redo;
+  $('edNPlus').onclick = () => mutate(() => { S.nPeriods++; });
+  $('edNMinus').onclick = () => {
+    if (S.nPeriods <= 1) return;
+    const i = S.nPeriods - 1;
+    if (S.rows.some(r => (r.alloc[i] || 0) > 0) && !confirm(`O período ${S.unit}${S.nPeriods} tem alocação. Remover mesmo assim?`)) return;
+    mutate(() => { S.nPeriods--; });
+  };
+  window.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || !$('tab-tl').classList.contains('active')) return;
+    if (document.activeElement && ['TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
+    if (document.activeElement && document.activeElement.tagName === 'INPUT' && !document.activeElement.dataset.cell) return;
+    if (e.key === 'z' && !e.shiftKey){ e.preventDefault(); undo(); }
+    else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)){ e.preventDefault(); redo(); }
+  });
+
+  /* ---------------- combos: Perfil e Nível (vêm do cadastro de perfis) ---------------- */
+  const pop = $('edPop'), popL = $('edPopL');
+  let cur = null, active = 0, shown = [], activeL = 0, shownL = [];
+  // mantém o popup inteiro dentro da janela (o formulário de cadastro aumenta a altura)
+  const fitPop = el => { const r = el.getBoundingClientRect(); if (r.bottom > innerHeight - 8) el.style.top = Math.max(8, innerHeight - 8 - r.height) + 'px'; };
+  const closePops = () => { pop.classList.remove('show'); popL.classList.remove('show'); };
+  const place = (el, btn) => {
+    const rc = btn.getBoundingClientRect();
+    el.style.left = Math.max(8, Math.min(rc.left, innerWidth - 400)) + 'px';
+    el.style.top = Math.max(8, Math.min(rc.bottom + 4, innerHeight - 430)) + 'px';
+  };
+  const natural = (a, b) => String(a).localeCompare(String(b), 'pt', {numeric: true});
+  const priceOf = (r, p) => p.mode === 'rate' ? E.num(r.rate) : (E.num(r.cost) / (1 - p.gm));
+  const priceChip = (entries, p) => {
+    const ok = entries.filter(r => !missingRate(r, p));
+    if (!ok.length) return '<span class="p no">sem taxa</span>';
+    const v = ok.map(r => priceOf(r, p)), lo = Math.min(...v), hi = Math.max(...v);
+    return `<span class="p">${esc(p.rcur)} ${lo === hi ? nfPT(lo, 0) : nfPT(lo, 0) + '–' + nfPT(hi, 0)}/h</span>`;
+  };
+
+  /* Perfil */
+  function openCombo(btn, row){
+    cur = row; closePops(); $('edPf').classList.remove('show'); $('edPq').value = ''; active = 0;
+    place(pop, btn); pop.classList.add('show'); listProfiles(); fitPop(pop); $('edPq').focus();
+  }
+  function listProfiles(){
+    const p = ctx.P(), q = $('edPq').value.trim().toLowerCase();
+    const usedRoles = new Set(S.rows.filter(r => r.role).map(r => r.role));
+    const byRole = new Map(); catalog().forEach(e => { if (!byRole.has(e.role)) byRole.set(e.role, []); byRole.get(e.role).push(e); });
+    shown = [...byRole.entries()].map(([role, entries]) => ({role, entries}))
+      .filter(x => !q || `${x.role} ${x.entries.map(e => e.level + ' ' + e.location).join(' ')}`.toLowerCase().includes(q));
+    const item = x => {
+      const i = shown.indexOf(x), levels = [...new Set(x.entries.map(e => e.level || '—'))].sort(natural).join(', ');
+      return `<li role="option" data-i="${i}" class="${i === active ? 'act' : ''}"><span class="r"><b>${esc(x.role)}</b><span>Níveis: ${esc(levels)}</span></span>${priceChip(x.entries, p)}</li>`;
+    };
+    const grp = (t, arr) => arr.length ? `<li class="grp" role="presentation">${t}</li>` + arr.map(item).join('') : '';
+    $('edPl').innerHTML = grp('Já usados neste timeline', shown.filter(x => usedRoles.has(x.role))) + grp('Demais perfis cadastrados', shown.filter(x => !usedRoles.has(x.role)))
+      || '<li class="grp" role="presentation">Nenhum perfil encontrado — cadastre um novo abaixo</li>';
+  }
+  function applyEntry(entry){
+    pushHist(); cur.role = entry.role; cur.level = entry.level; cur.location = entry.location;
+    closePops(); fit(); changed(); render();
+  }
+  function chooseRole(x){
+    // mantém o nível/local atuais se o novo perfil também os tiver; senão usa o primeiro nível (em ordem natural)
+    const sorted = x.entries.slice().sort((a, b) => natural(a.level, b.level));
+    applyEntry(sorted.find(e => e.level === cur.level && e.location === cur.location) || sorted.find(e => e.level === cur.level) || sorted[0]);
+  }
+  $('edPq').oninput = () => { active = 0; listProfiles(); };
+  $('edPq').onkeydown = e => {
+    if (e.key === 'ArrowDown'){ active = Math.min(shown.length - 1, active + 1); listProfiles(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp'){ active = Math.max(0, active - 1); listProfiles(); e.preventDefault(); }
+    else if (e.key === 'Enter' && shown[active]){ e.preventDefault(); chooseRole(shown[active]); }
+    else if (e.key === 'Escape') closePops();
+  };
+  $('edPl').onclick = e => { const li = e.target.closest('li[data-i]'); if (li) chooseRole(shown[+li.dataset.i]); };
+  $('edPnew').onclick = () => { $('edPf').classList.add('show'); fitPop(pop); $('edFRole').value = $('edPq').value; $('edFRole').focus(); };
+  $('edPcancel').onclick = () => $('edPf').classList.remove('show');
+  $('edPf').onsubmit = e => {
+    e.preventDefault();
+    const role = $('edFRole').value.trim();
+    if (!role) return $('edFRole').focus();
+    const entry = {role, level: $('edFLevel').value.trim(), location: $('edFLoc').value.trim(), cost: E.num($('edFCost').value) || '', rate: E.num($('edFRate').value) || ''};
+    const k = E.rkey(entry);
+    if (S.rates[k]) toast('Esse perfil/nível já está cadastrado — usando o existente.', 'info', 3500); else S.rates[k] = entry;
+    ['edFRole', 'edFLevel', 'edFLoc', 'edFCost', 'edFRate'].forEach(id => $(id).value = '');
+    applyEntry(S.rates[k]);
+  };
+
+  /* Nível: troca entre os níveis do perfil, usa um nível de outro perfil ou adiciona um novo */
+  function openLevel(btn, row){
+    cur = row; closePops(); $('edLf').classList.remove('show'); $('edLq').value = ''; activeL = 0;
+    place(popL, btn); popL.classList.add('show'); listLevels(); fitPop(popL); $('edLq').focus();
+  }
+  function listLevels(){
+    const p = ctx.P(), q = $('edLq').value.trim().toLowerCase();
+    const own = catalog().filter(e => e.role === cur.role);
+    const ownLevels = new Set(own.map(e => e.level));
+    const others = [...new Set(catalog().map(e => e.level).filter(l => l && !ownLevels.has(l)))].sort(natural);
+    shownL = [
+      ...own.sort((a, b) => natural(a.level, b.level)).map(e => ({kind: 'own', level: e.level, entry: e})),
+      ...others.map(l => ({kind: 'other', level: l}))
+    ].filter(x => !q || x.level.toLowerCase().includes(q) || (x.entry && x.entry.location.toLowerCase().includes(q)));
+    const item = x => {
+      const i = shownL.indexOf(x);
+      const right = x.kind === 'own' ? priceChip([x.entry], p) : '<span class="p no">sem taxa</span>';
+      const sub = x.kind === 'own' ? `${esc(x.entry.location || '-')}${x.entry.level === cur.level && x.entry.location === cur.location ? ' · atual' : ''}` : 'usar neste perfil (cria o nível sem taxa)';
+      return `<li role="option" data-i="${i}" class="${i === activeL ? 'act' : ''}"><span class="r"><b>${esc(x.level || '—')}</b><span>${sub}</span></span>${right}</li>`;
+    };
+    const grp = (t, arr) => arr.length ? `<li class="grp" role="presentation">${t}</li>` + arr.map(item).join('') : '';
+    $('edLl').innerHTML = grp(`Níveis de ${esc(cur.role)}`, shownL.filter(x => x.kind === 'own')) + grp('Níveis de outros perfis', shownL.filter(x => x.kind === 'other'))
+      || '<li class="grp" role="presentation">Nenhum nível — adicione um novo abaixo</li>';
+  }
+  function chooseLevel(x){
+    if (x.kind === 'own') return applyEntry(x.entry);
+    const entry = {role: cur.role, level: x.level, location: cur.location, cost: '', rate: ''}, k = E.rkey(entry);
+    if (!S.rates[k]) S.rates[k] = entry;
+    applyEntry(S.rates[k]);
+  }
+  $('edLq').oninput = () => { activeL = 0; listLevels(); };
+  $('edLq').onkeydown = e => {
+    if (e.key === 'ArrowDown'){ activeL = Math.min(shownL.length - 1, activeL + 1); listLevels(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp'){ activeL = Math.max(0, activeL - 1); listLevels(); e.preventDefault(); }
+    else if (e.key === 'Enter' && shownL[activeL]){ e.preventDefault(); chooseLevel(shownL[activeL]); }
+    else if (e.key === 'Escape') closePops();
+  };
+  $('edLl').onclick = e => { const li = e.target.closest('li[data-i]'); if (li) chooseLevel(shownL[+li.dataset.i]); };
+  $('edLnew').onclick = () => { $('edLf').classList.add('show'); fitPop(popL); $('edFLv').value = $('edLq').value; $('edFLv').focus(); };
+  $('edLcancel').onclick = () => $('edLf').classList.remove('show');
+  $('edLf').onsubmit = e => {
+    e.preventDefault();
+    const level = $('edFLv').value.trim();
+    if (!level) return $('edFLv').focus();
+    const entry = {role: cur.role, level, location: cur.location, cost: E.num($('edFLvCost').value) || '', rate: E.num($('edFLvRate').value) || ''};
+    const k = E.rkey(entry);
+    if (S.rates[k]) toast(`O nível ${level} já existe para ${cur.role} — usando o existente.`, 'info', 3500);
+    else S.rates[k] = entry;
+    ['edFLv', 'edFLvCost', 'edFLvRate'].forEach(id => $(id).value = '');
+    applyEntry(S.rates[k]);
+  };
+  document.addEventListener('mousedown', e => {
+    if ((pop.classList.contains('show') || popL.classList.contains('show')) && !pop.contains(e.target) && !popL.contains(e.target) && !e.target.closest('[data-ed="combo"],[data-ed="lvcombo"]')) closePops();
+  });
+
+  /* ---------------- novo timeline vazio ---------------- */
+  function startEmpty(){
+    S.rows = [blank('Fase 1')]; S.nPeriods = 12; S.unit = 'SP'; S.edits = {};
+    $('p_unit').value = 'SP'; resetHistory(); fit();
+  }
+
+  return {render, resetHistory, startEmpty, TL_IDS, undo, redo};
+}
+
 /* ===== app.js ===== */
 /* =====================================================================
    APP — interface (DOM). Toda a regra de negócio está em engine.js / doc.js.
@@ -2387,12 +3007,13 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 /* ---------------- estado ---------------- */
 const S = {
-  rows: [], nPeriods: 0, unit: 'SP', unitAuto: 'SP', rates: {}, fileName: '',
-  taxes: [{name: 'PIS/COFINS/ISS', pct: 5.65}], edits: {},
+  rows: [], nPeriods: 0, unit: 'SP', rates: {}, fileName: '', fileLabel: '', saveText: '', saveKind: 'dirty',
+  taxes: [{name: 'PIS/COFINS/ISS', pct: 5.65}], phaseDisc: {}, edits: {},
   result: null, handle: null, autoFile: false, dirty: false
 };
 const LIB = {dir: null, files: [], cache: new Map()};
 const charts = {};
+let ED = null; // editor de timeline (criado no init)
 
 /* ---------------- utilidades de interface ---------------- */
 const nfPT = (v, d = 0) => new Intl.NumberFormat('pt-BR', {minimumFractionDigits: d, maximumFractionDigits: d}).format(v);
@@ -2450,9 +3071,9 @@ function setRaw(o){
   });
   syncStartUI();
 }
-const P = () => E.parseParams(raw(), {taxes: S.taxes});
+const P = () => E.parseParams(raw(), {taxes: S.taxes, phaseDisc: S.phaseDisc});
 const model = () => ({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates});
-const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, unitAuto: S.unitAuto, rates: S.rates, edits: S.edits, fileName: S.fileName});
+const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName});
 
 function syncStartUI(){
   const m = $('p_startmode').value;
@@ -2463,13 +3084,14 @@ function syncStartUI(){
 /* ---------------- abas ---------------- */
 const TABS = ['tl', 'par', 'ana', 'doc'];
 function goTab(t){
-  if ((t === 'ana' || t === 'doc') && !S.result) recalc(false);
+  if ((t === 'ana' || t === 'doc') && !S.result && !recalc(false)) return;
   TABS.forEach(x => {
     const b = $('tabbtn-' + x), on = x === t;
     b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
     $('tab-' + x).classList.toggle('active', on);
   });
   if (t === 'ana') drawCharts();
+  if (t === 'par') renderDiscount();
   window.scrollTo(0, 0);
 }
 function enableTabs(n){ TABS.forEach((x, i) => { $('tabbtn-' + x).disabled = i > n; }); }
@@ -2510,29 +3132,59 @@ async function netCheck(){
   toast('Recursos online indisponíveis: ' + bad.map(k => lab[k]).join(', ') + '. O app continua funcionando offline.', 'warn', 9000);
 }
 
+/* ---------------- identificação da proposta (barra superior) ---------------- */
+function safeCompute(){ try { return S.rows.length ? E.compute(model(), P(), {today: new Date()}) : null; } catch(e){ return null; } }
+function updateIdent(){
+  const has = S.rows.length > 0;
+  const client = $('p_client').value.trim(), project = $('p_project').value.trim(), ref = $('p_ref').value.trim(), vendor = $('p_vendor').value.trim();
+  const title = !has ? 'Nenhuma proposta aberta' : ([client, project].filter(Boolean).join(' — ') || 'Proposta sem nome');
+  $('pbTitle').textContent = title;
+  document.title = has ? `${title} · Proposta` : 'Gerador de Proposta Comercial';
+  const parts = [];
+  if (has){
+    if (ref) parts.push(`<span>Ref. ${esc(ref)}</span>`);
+    if (vendor) parts.push(`<span>${esc(vendor)}</span>`);
+    parts.push(S.handle ? `<span title="Arquivo onde a proposta é gravada">📄 ${esc(S.handle.name)}</span>` : (S.fileLabel ? `<span title="O arquivo original não é alterado">📂 origem: ${esc(S.fileLabel)}</span>` : '<span>📄 sem arquivo</span>'));
+    const R = safeCompute();
+    if (R && R.T.gross > 0) parts.push(`<b title="Preço total com impostos">${esc(curPT(R.T.gross, R.p.cur))}</b>${R.T.cost ? `<span title="Margem bruta estimada">GM ${nfPT(R.T.gm * 100, 1)}%</span>` : ''}`);
+    if (R && R.issues.some(i => i.level === 'err')) parts.push('<span class="pbwarn" title="Há alertas críticos na análise financeira">⛔ alertas</span>');
+  }
+  const st = has && S.saveText ? `<span class="st ${S.saveKind}">${esc(S.saveText)}</span>` : '';
+  $('pbSub').innerHTML = parts.join('<span class="dotsep">·</span>') + (parts.length && st ? '<span class="dotsep">·</span>' : '') + st;
+}
+function updateFileBar(){
+  $('fname').textContent = S.handle ? S.handle.name : (S.fileLabel ? `${S.fileLabel} (original preservado)` : 'Sem arquivo');
+}
+
 /* ---------------- persistência: rascunho, arquivo .xlsx e biblioteca ---------------- */
 let saveTimer = null;
-function setSaveStatus(t){ $('savebar').textContent = t; }
+function setSaveStatus(t, kind){
+  S.saveText = t; S.saveKind = ['saved', 'saving', 'dirty'].includes(kind) ? kind : 'dirty';
+  const f = $('fstatus'); f.textContent = t; f.className = 'st ' + S.saveKind;
+  $('saveNow').style.display = (S.rows.length && S.dirty && (!S.handle || !S.autoFile)) ? '' : 'none';
+  updateFileBar(); updateIdent();
+}
+// liga a proposta a um arquivo (a partir daqui, as alterações são gravadas nele)
+function setHandle(h){ S.handle = h; S.autoFile = !!h; $('autoFile').checked = !!h; if (h) S.fileLabel = h.name; }
 function markDirty(){
-  S.dirty = true; setSaveStatus('Alterações não salvas');
+  S.dirty = true; setSaveStatus('Alterações não salvas', 'dirty');
   clearTimeout(saveTimer); saveTimer = setTimeout(autosave, 1500);
 }
 async function autosave(){
   if (!S.rows.length) return;
-  let text;
   const ok = await Store.kv.set('draft', {snap: snapshot(), at: Date.now()});
-  text = ok ? `Rascunho salvo ${hhmm()}` : 'Rascunho local indisponível neste navegador';
+  let text = ok ? `Rascunho salvo ${hhmm()} (só neste navegador)` : 'Rascunho local indisponível neste navegador', kind = 'dirty';
   if (S.handle && S.autoFile){
+    setSaveStatus('⟳ Gravando no Excel…', 'saving');
     try {
-      if (await Store.fs.granted(S.handle, true)){ await writeFile(S.handle); S.dirty = false; text = `Salvo em ${S.handle.name} · ${hhmm()}`; }
+      if (await Store.fs.granted(S.handle, true)){ await writeFile(S.handle); S.dirty = false; text = `✓ Salvo em ${S.handle.name} · ${hhmm()}`; kind = 'saved'; }
       else text += ' · clique em 💾 Salvar para reconectar o arquivo';
     } catch(e){ text += ' · falha ao gravar o arquivo: ' + e.message; }
-  }
-  setSaveStatus(text);
+  } else if (!S.handle) text += ' · use “Salvar como…” para gravar em Excel';
+  setSaveStatus(text, kind);
 }
 async function buildBlob(){
-  const R = S.result || recalc(false);
-  if (!R) throw new Error('Carregue um timeline antes de salvar.');
+  const R = E.compute(model(), P(), {today: new Date()}) || Workbook.emptyResult(snapshot()); // também grava propostas ainda sem alocação
   const Ex = await loadLib('exceljs');
   const wb = await Workbook.buildProposal(Ex, snapshot(), R);
   return new Blob([await wb.xlsx.writeBuffer()], {type: XLSX_MIME});
@@ -2541,27 +3193,27 @@ async function writeFile(handle){ await Store.fs.write(handle, await buildBlob()
 const aborted = e => e && (e.name === 'AbortError' || /abort/i.test(e.message || ''));
 
 async function actSave(){
-  if (!S.rows.length) return toast('Carregue um timeline primeiro.', 'warn');
+  if (!S.rows.length) return toast('Abra ou crie uma proposta primeiro.', 'warn');
   try {
     if (S.handle && Store.fs.supported() && await Store.fs.perm(S.handle, true)){
-      await writeFile(S.handle); S.dirty = false; S.autoFile = true;
-      setSaveStatus(`Salvo em ${S.handle.name} · ${hhmm()}`); toast('Proposta salva em ' + S.handle.name, 'ok'); return;
+      await writeFile(S.handle); S.dirty = false; S.autoFile = true; $('autoFile').checked = true;
+      setSaveStatus(`✓ Salvo em ${S.handle.name} · ${hhmm()}`, 'saved'); toast('Proposta salva em ' + S.handle.name, 'ok'); return;
     }
     return actSaveAs();
   } catch(e){ if (!aborted(e)) toast('Não foi possível salvar: ' + e.message, 'err', 9000); }
 }
 async function actSaveAs(){
-  if (!S.rows.length) return toast('Carregue um timeline primeiro.', 'warn');
+  if (!S.rows.length) return toast('Abra ou crie uma proposta primeiro.', 'warn');
   try {
     const name = fileBase() + '.xlsx';
     if (Store.fs.supported()){
       const h = await Store.fs.pickSave(name);
-      await writeFile(h); S.handle = h; S.autoFile = true; S.dirty = false;
-      setSaveStatus(`Salvo em ${h.name} · ${hhmm()}`); toast('Proposta salva. As próximas alterações serão gravadas neste arquivo automaticamente.', 'ok', 7000);
+      await writeFile(h); setHandle(h); S.dirty = false;
+      setSaveStatus(`✓ Salvo em ${h.name} · ${hhmm()}`, 'saved'); toast('Proposta salva. As próximas alterações serão gravadas neste arquivo automaticamente.', 'ok', 7000);
     } else {
-      Store.download(await buildBlob(), name); S.dirty = false;
-      setSaveStatus(`Arquivo baixado · ${hhmm()}`);
-      toast('Seu navegador não permite gravar direto no arquivo: o .xlsx foi baixado. Use “Abrir proposta” para continuar depois.', 'info', 9000);
+      Store.download(await buildBlob(), name); S.dirty = false; S.fileLabel = name;
+      setSaveStatus(`Arquivo baixado · ${hhmm()}`, 'saved');
+      toast('Seu navegador não permite gravar direto no arquivo: o .xlsx foi baixado. Use “Abrir do Excel” para continuar depois e Salvar para baixar de novo.', 'info', 9000);
     }
   } catch(e){ if (!aborted(e)) toast('Não foi possível salvar: ' + e.message, 'err', 9000); }
 }
@@ -2571,6 +3223,14 @@ async function actOpen(){
     const h = await Store.fs.pickOpen();
     await loadBuffer(await Store.fs.read(h), h.name, h);
   } catch(e){ if (!aborted(e)) toast('Não foi possível abrir: ' + e.message, 'err', 9000); }
+}
+function actNew(){
+  if (S.rows.length && S.dirty && !confirm('Há alterações ainda não gravadas em Excel. Começar uma proposta nova mesmo assim?')) return;
+  ED.startEmpty(); S.phaseDisc = {};
+  S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.fileName = ''; S.fileLabel = ''; S.result = null; S.dirty = false;
+  ['p_client', 'p_project', 'p_ref', 'p_context', 'p_assump'].forEach(id => { $(id).value = ''; });
+  msg('tlMsg', 'info', 'Proposta nova. Cadastre os perfis pela combo de cada linha (<i>➕ Cadastrar novo perfil…</i>) ou importe-os na aba 2 (“Perfis e taxas”); depois preencha o FTE. Use <b>Salvar como…</b> para criar o arquivo Excel e começar a gravar nele.');
+  afterLoad(true); markDirty();
 }
 
 /* ---------------- carregamento de arquivos ---------------- */
@@ -2589,9 +3249,10 @@ async function loadBuffer(buf, name, handle){
   if (Workbook.isProposalWorkbook(X, wb)){
     const st = Workbook.read(X, wb);
     st.fileName = name; applyState(st);
-    S.handle = handle || null; S.autoFile = !!handle; S.dirty = false;
+    S.fileLabel = name; S.dirty = false;
+    if (handle) setHandle(handle); else { S.handle = null; S.autoFile = false; $('autoFile').checked = false; }
     msg('tlMsg', 'ok', `✅ Proposta <b>${esc(name)}</b> aberta: ${S.rows.length} linhas, ${S.nPeriods} ${S.unit === 'SP' ? 'sprints' : 'semanas'}, ${Object.keys(S.rates).length} perfis, ${Object.keys(S.edits).length} texto(s) editado(s).` + (st.warnings.length ? '<br>⚠ ' + st.warnings.map(esc).join('<br>⚠ ') : ''));
-    setSaveStatus(handle ? `Arquivo: ${name} (alterações são gravadas nele)` : `Aberta de ${name} (use Salvar para gravar)`);
+    setSaveStatus(handle ? `✓ Aberta de ${name} — as alterações são gravadas nele` : `Aberta de ${name} — use Salvar para gravar`, handle ? 'saved' : 'dirty');
     return;
   }
 
@@ -2599,88 +3260,118 @@ async function loadBuffer(buf, name, handle){
   let parsed = null; const errors = [];
   const candidates = tlName ? [tlName, ...wb.SheetNames.filter(n => n !== tlName)] : wb.SheetNames;
   for (const n of candidates){
-    if (/rate|instruc|alt format/i.test(n)) continue;
+    if (/rate|perfi|instruc|alt format/i.test(n)) continue;
     try { parsed = E.parseTimeline(aoa(n)); parsed.sheet = n; break; }
     catch(e){ errors.push(`${esc(n)}: ${esc(e.message)}`); }
   }
   if (!parsed) throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
-  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unitAuto = parsed.unit;
-  const sel = $('p_unit').value; S.unit = sel === 'auto' ? parsed.unit : sel;
-  S.fileName = name; S.handle = null; S.autoFile = false; S.edits = {};
+  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit;
+  // um timeline "bruto" nunca é sobrescrito: a proposta só passa a ser gravada depois de "Salvar como…"
+  S.fileName = name; S.fileLabel = name; S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.edits = {}; S.phaseDisc = {};
   E.ensureRates(S.rates, S.rows);
-  const rcName = wb.SheetNames.find(n => /rate/i.test(n));
+  const rcName = wb.SheetNames.find(n => /rate|perfi/i.test(n));
   let rcInfo = '';
   if (rcName){
-    try { const n = E.applyRateTable(S.rates, E.parseRateRows(aoa(rcName))); rcInfo = ` Rate card importado da aba "${esc(rcName)}" (${n} de ${Object.keys(S.rates).length} perfis).`; }
-    catch(e){ rcInfo = ` ⚠ Rate card não importado: ${esc(e.message)}.`; }
+    try { const n = E.applyRateTable(S.rates, E.parseRateRows(aoa(rcName))); rcInfo = ` Perfis e taxas importados da aba "${esc(rcName)}" (${n} de ${Object.keys(S.rates).length} perfis/níveis).`; }
+    catch(e){ rcInfo = ` ⚠ Perfis/taxas não importados: ${esc(e.message)}.`; }
   }
-  afterTimelineLoaded(`Arquivo <b>${esc(name)}</b> (aba "${esc(parsed.sheet)}"): ${S.rows.length} linhas, ${S.nPeriods} ${S.unit === 'SP' ? 'sprints' : 'semanas'}.${rcInfo}` + (parsed.warnings.length ? '<br>⚠ ' + parsed.warnings.join('<br>⚠ ') : ''));
+  afterTimelineLoaded(`Arquivo <b>${esc(name)}</b> (aba "${esc(parsed.sheet)}"): ${S.rows.length} linhas, ${S.nPeriods} ${S.unit === 'SP' ? 'sprints' : 'semanas'}.${rcInfo} <b>O arquivo original não será alterado:</b> use “Salvar como…” para criar a proposta e começar a gravar nela.` + (parsed.warnings.length ? '<br>⚠ ' + parsed.warnings.join('<br>⚠ ') : ''));
+  setSaveStatus('Timeline importado — ainda não gravado (o original é preservado)', 'dirty');
+}
+// mostra o editor (e, se for uma carga nova, reinicia histórico e abas)
+function afterLoad(reset){
+  if (reset){ ED.resetHistory(); enableTabs(1); }
+  const has = S.rows.length > 0;
+  $('tlEmpty').style.display = has ? 'none' : ''; $('tlEditor').style.display = has ? 'block' : 'none';
+  renderRateTable(); if (has) ED.render(); renderDiscount(); updateFileBar(); updateIdent();
 }
 function applyState(st){
-  S.rows = st.rows; S.nPeriods = st.nPeriods; S.unit = st.unit; S.unitAuto = st.unitAuto || st.unit; S.rates = st.rates || {};
+  S.rows = st.rows; S.nPeriods = st.nPeriods; S.unit = st.unit; S.rates = st.rates || {};
   S.taxes = st.taxes && st.taxes.length ? st.taxes : [{name: 'Impostos', pct: 5.65}];
+  S.phaseDisc = st.phaseDisc || {};
   S.edits = st.edits || {}; S.fileName = st.fileName || '';
   E.ensureRates(S.rates, S.rows);
   setRaw(st.raw || {});
-  $('p_unit').value = S.unit === S.unitAuto ? 'auto' : S.unit;
-  renderTaxes(); S.result = null; renderGantt(); renderRateTable(); enableTabs(1);
-  $('tlView').style.display = 'block'; refreshFxCachedBtn();
+  $('p_unit').value = S.unit;
+  renderTaxes(); S.result = null; refreshFxCachedBtn(); afterLoad(true);
 }
 function afterTimelineLoaded(info){
   msg('tlMsg', 'ok', '✅ ' + info);
   if (!$('p_project').value && S.fileName) $('p_project').value = S.fileName.replace(/\.(xlsx|xlsm|xls|csv)$/i, '').replace(/[_-]+/g, ' ');
-  S.result = null; renderGantt(); renderRateTable(); enableTabs(1);
-  $('tlView').style.display = 'block'; markDirty();
+  S.result = null; afterLoad(true); markDirty();
 }
 function loadExample(){
   const ex = Workbook.exampleData();
   S.rows = ex.rows.map(r => ({phase: r[0], activity: r[1], role: r[2], level: r[3], location: r[4], optional: r[5] === 'Y', alloc: r[6]}));
-  S.nPeriods = ex.N; S.unit = S.unitAuto = 'SP'; S.fileName = ''; S.rates = {}; S.edits = {}; S.handle = null; S.autoFile = false;
+  S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
   E.ensureRates(S.rates, S.rows);
   E.applyRateTable(S.rates, ex.rates.map(r => ({role: r[0], level: r[1], location: r[2], cost: r[3], rate: r[4]})));
   if (!$('p_client').value) $('p_client').value = 'Client';
   if (!$('p_project').value) $('p_project').value = 'Data & Analytics Modernization';
-  $('p_unit').value = 'auto';
-  afterTimelineLoaded('Exemplo carregado (12 sprints, rates ilustrativos — substitua pelo rate card oficial).');
+  $('p_unit').value = 'SP';
+  afterTimelineLoaded('Exemplo carregado (12 sprints, taxas ilustrativas — substitua pelas taxas oficiais dos perfis).');
 }
 async function importRateCard(file){
   if (!file) return;
   try {
     const X = await loadLib('xlsx');
     const wb = X.read(new Uint8Array(await file.arrayBuffer()), {type: 'array'});
-    const n = wb.SheetNames.find(x => /rate/i.test(x)) || wb.SheetNames[0];
+    const n = wb.SheetNames.find(x => /rate|perfi/i.test(x)) || wb.SheetNames[0];
     const c = E.applyRateTable(S.rates, E.parseRateRows(X.utils.sheet_to_json(wb.Sheets[n], {header: 1, defval: '', raw: true, blankrows: false})));
     renderRateTable(); S.result = null; markDirty();
-    msg('rcMsg', c ? 'ok' : 'warn', c ? `✅ ${c} perfis do timeline atualizados a partir de "${esc(file.name)}".` : `Nenhum perfil do rate card "${esc(file.name)}" corresponde aos perfis do timeline.`);
+    msg('rcMsg', c ? 'ok' : 'warn', c ? `✅ ${c} perfis atualizados a partir de "${esc(file.name)}".` : `Nenhum perfil do arquivo "${esc(file.name)}" corresponde aos perfis do timeline.`);
   } catch(e){ msg('rcMsg', 'err', '❌ ' + esc(e.message)); }
 }
 
-/* ---------------- render: timeline importado ---------------- */
-const PALETTE = ['#1B4F8C','#13A89E','#6C4AB6','#E07A1F','#2E86C1','#C0392B','#7D8C2E','#AD5A8C','#4A6B82','#D4A017'];
-function phaseNames(){ const out = []; S.rows.forEach(r => { if (!out.includes(r.phase)) out.push(r.phase); }); return out; }
-function renderGantt(){
-  const U = S.unit, N = S.nPeriods, phases = phaseNames();
-  let h = `<table class="gantt"><thead><tr><th class="stk" style="left:0">Fase / Perfil</th><th>Nível</th><th>Local</th>`;
-  for (let p = 1; p <= N; p++) h += `<th class="c">${U}${p}</th>`;
-  h += `<th class="c">Total</th></tr></thead><tbody>`;
-  phases.forEach((ph, pi) => {
-    const color = PALETTE[pi % PALETTE.length], rows = S.rows.filter(r => r.phase === ph);
-    const span = new Array(N).fill(0); rows.forEach(r => r.alloc.forEach((v, i) => span[i] += v));
-    h += `<tr class="ph"><td class="stk" style="left:0;background:#F3F6FA"><span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;margin-right:6px"></span>${esc(ph)}${rows.every(r => r.optional) ? ' <i style="color:var(--warn)">(opcional)</i>' : ''}</td><td></td><td></td>`;
-    span.forEach(v => h += `<td class="c" style="${v ? `background:${color};color:#fff` : ''}">${v ? nfPT(v, 1) : ''}</td>`);
-    h += `<td class="c">${nfPT(span.reduce((a, b) => a + b, 0), 1)}</td></tr>`;
-    rows.forEach(r => {
-      const tot = r.alloc.reduce((a, b) => a + b, 0);
-      h += `<tr style="${r.optional ? 'color:var(--warn);font-style:italic' : ''}"><td class="stk" style="left:0;padding-left:22px">${esc(r.role)}${r.activity ? ` <span class="hint">· ${esc(r.activity)}</span>` : ''}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td>`;
-      r.alloc.forEach(v => { const a = Math.min(1, v / 1.5); h += `<td class="c" style="${v ? `background:rgba(27,79,140,${0.12 + 0.5 * a})` : ''}">${v ? nfPT(v, v % 1 ? 1 : 0) : ''}</td>`; });
-      h += `<td class="c">${nfPT(tot, 1)}</td></tr>`;
-    });
-  });
-  $('gantt').innerHTML = h + '</tbody></table>';
-  $('tlTitle').textContent = `Timeline importado — ${S.rows.length} linhas · ${phases.length} fases · ${N} ${U === 'SP' ? 'sprints' : 'semanas'}`;
-}
+/* ---------------- desconto (aba 2) ---------------- */
+let discNames = [];
+function renderDiscount(){
+  const mode = $('p_discmode').value;
+  $('l_disc').style.display = mode === 'pct' ? '' : 'none';
+  $('l_discamt').style.display = mode === 'amount' ? '' : 'none';
+  $('l_disctarget').style.display = mode === 'target' ? '' : 'none';
+  $('discPhaseBox').style.display = mode === 'pct' ? '' : 'none';
+  const R = safeCompute();
+  if (!R){
+    $('discResult').innerHTML = ''; $('discSuggest').innerHTML = '';
+    $('discPhase').innerHTML = '<tbody><tr><td class="hint">Escolha perfis e preencha o FTE no timeline para configurar o desconto.</td></tr></tbody>';
+    return;
+  }
+  const p = R.p, T = R.T, C = (v, d = 0) => curPT(v, p.cur, d), kp = (b, t) => `<div class="kp"><b>${b}</b>${t}</div>`;
+  $('discResult').innerHTML =
+    kp(C(T.listGross), 'preço de lista (c/ impostos)') + kp((T.discNet > 0.005 ? '−' : '') + C(T.discGross) + ` <small>(${nfPT(T.discPct * 100, 1)}%)</small>`, 'desconto efetivo') +
+    kp(C(T.gross), 'preço final (c/ impostos)') + kp(T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', 'GM% após o desconto');
 
-/* ---------------- render: rate card ---------------- */
+  // por fase (modo percentual)
+  const phases = R.phases.filter(ph => !ph.optional || p.inclOpt); discNames = phases.map(ph => ph.name);
+  const gross = v => p.tax < 1 ? v / (1 - p.tax) : v;
+  $('discPhase').innerHTML = `<thead><tr><th>Fase</th><th class="n">Preço de lista (c/ impostos)</th><th class="n" style="width:150px">Desconto da fase (%)</th><th class="n">Preço final (c/ impostos)</th></tr></thead><tbody>` +
+    phases.map((ph, i) => {
+      const rr = R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt)), list = rr.reduce((a, r) => a + r.listNet, 0), net = rr.reduce((a, r) => a + r.net, 0);
+      const ov = S.phaseDisc[ph.name];
+      return `<tr><td>${esc(ph.name)}</td><td class="n">${C(gross(list))}</td><td class="n"><input type="number" min="0" max="100" step="0.5" data-i="${i}" value="${ov !== undefined ? esc(ov) : ''}" placeholder="geral ${nfPT(R.dGlobal * 100, 1)}" aria-label="Desconto da fase ${esc(ph.name)}"></td><td class="n">${C(gross(net))}</td></tr>`;
+    }).join('') + '</tbody>';
+
+  // sugestões de como aplicar
+  const gmMin = p.gmMin, floorTxt = gmMin > 0 ? `GM ≥ ${nfPT(gmMin * 100, 1)}%` : 'GM ≥ 0% (ponto de equilíbrio)';
+  const maxPct = R.maxDisc === null ? null : Math.floor(R.maxDisc * 1000) / 10;
+  const tryPct = d => { const x = E.compute(model(), {...p, discMode: 'pct', discPhase: {}, disc: d}, {today: new Date()}); return x ? {gross: x.T.gross, gm: x.T.gm, hasCost: x.T.cost > 0} : null; };
+  const ladder = [2.5, 5, 7.5, 10].map(d => { const t = tryPct(d / 100); return t ? `<button class="chip ${maxPct !== null && d > maxPct ? 'bad' : ''}" data-act="disc-apply" data-v="${d}" title="Aplicar ${d}% sobre o total">${nfPT(d, 1)}% → ${C(t.gross)}${t.hasCost ? ` · GM ${nfPT(t.gm * 100, 1)}%` : ''}</button>` : ''; }).join(' ');
+  $('discSuggest').innerHTML = `<div class="sugg"><h3>💡 Sugestões de como aplicar</h3><ul>
+    <li><b>Limite de segurança:</b> ${maxPct === null ? 'informe o Custo/h dos perfis para calcular o desconto máximo.' : `o maior desconto geral que mantém ${floorTxt} é <b>${nfPT(maxPct, 1)}%</b>. <button class="btn sec sm" data-act="disc-apply" data-v="${maxPct}">Aplicar ${nfPT(maxPct, 1)}%</button>` + (gmMin > 0 ? '' : ' Defina o <i>GM% mínimo</i> em “Premissas de preço” para proteger sua margem.')}</li>
+    <li><b>Escada de negociação</b> (preço final e margem de cada degrau): ${ladder}</li>
+    <li><b>Mostrar o desconto como linha</b> (“preço de lista → desconto → preço final”) ancora o valor e permite trocar desconto por escopo, prazo ou pagamento antecipado na negociação. Use “embutido” só quando não quiser expor a lista.</li>
+    <li><b>Concentre o desconto por fase</b> onde o risco é menor ou a entrada é estratégica (ex.: assessment/mobilização) e preserve a margem nas fases de execução.</li>
+    <li><b>Já tem orçamento do cliente?</b> Use <i>Preço final alvo</i>: o app calcula o % equivalente e avisa se a margem cair abaixo do mínimo.</li></ul></div>`;
+}
+$('discPhase').addEventListener('change', e => {
+  const i = e.target.closest('input[data-i]'); if (!i) return;
+  const name = discNames[+i.dataset.i], v = i.value === '' ? null : E.num(i.value);
+  if (v === null || v <= 0) delete S.phaseDisc[name]; else S.phaseDisc[name] = Math.min(100, v);
+  S.result = null; markDirty(); renderDiscount();
+});
+
+/* ---------------- render: perfis e taxas ---------------- */
 function renderRateTable(){
   const p = P(), keys = Object.keys(S.rates).sort();
   const hp = (S.unit === 'W' ? 1 : p.pw) * p.dpw * p.hpd;
@@ -2723,8 +3414,10 @@ function recalc(go){
   if (!S.rows.length) return null;
   try {
     const R = E.compute(model(), P(), {today: new Date()});
+    if (!R){ toast('Escolha ao menos um perfil e preencha o FTE no timeline antes de calcular.', 'warn', 6000); return null; }
     S.result = R; enableTabs(3);
     renderAnalysis(); renderDoc();
+    updateIdent(); renderDiscount();
     msg('rcMsg', R.missing.length ? 'warn' : '', R.missing.length ? `⚠ Sem ${R.p.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: ${esc(R.missing.join(', '))}. Esses perfis entram com valor zero.` : '');
     const inPeriod = R.holidays.filter(h => h.date >= E.iso(R.T.start) && h.date <= E.iso(R.T.end));
     $('holInfo').textContent = R.relative ? 'Sem data de início: feriados não se aplicam.' : (R.p.useHol ? `${inPeriod.length} feriado(s) dentro do período do projeto.` : 'Feriados desativados.');
@@ -2737,14 +3430,15 @@ function recalc(go){
 function issueText(i, R){
   const d = i.data, cur = R.p.cur;
   switch (i.code){
-    case 'missing_rates': return `Sem ${d.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: <b>${esc(d.list.join(', '))}</b>. Esses perfis entram com valor zero — preencha o rate card antes de enviar a proposta.`;
+    case 'missing_rates': return `Sem ${d.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: <b>${esc(d.list.join(', '))}</b>. Esses perfis entram com valor zero — preencha as taxas na aba 2 antes de enviar a proposta.`;
     case 'gm_negative': return `GM% negativo (${nfPT(d.gm * 100, 1)}%): o preço está abaixo do custo.`;
     case 'gm_below_min': return `GM% de ${nfPT(d.gm * 100, 1)}% está abaixo do mínimo configurado (${nfPT(d.min * 100, 1)}%).`;
     case 'no_cost': return 'Sem Custo/h informado: o GM% não pode ser calculado.';
     case 'price_below_cost': return `Preço abaixo do custo em: ${esc(d.list.join(', '))}.`;
     case 'start_adjusted': return `${esc(d.from)} não é dia útil (fim de semana ou feriado): o projeto começa em <b>${esc(d.to)}</b>.`;
     case 'relative_timeline': return 'Início sem data: a proposta mostra apenas períodos relativos (SP1, SP2…), sem datas de calendário.';
-    case 'fx_missing': return `A moeda da proposta (${esc(d.to)}) difere da do rate card (${esc(d.from)}) e o câmbio está em 1. Informe ou busque a cotação.`;
+    case 'fx_missing': return `A moeda da proposta (${esc(d.to)}) difere da das taxas (${esc(d.from)}) e o câmbio está em 1. Informe ou busque a cotação.`;
+    case 'target_above_list': return `O preço final alvo (${curPT(d.target, cur)}) é maior que o preço de lista (${curPT(d.list, cur)}): nenhum desconto foi aplicado.`;
     case 'optional_excluded': return `Há itens opcionais fora do total (${curPT(d.gross, cur)} com impostos).`;
     case 'no_active_scope': return 'Nenhum item no escopo (todos opcionais e excluídos, ou sem alocação).';
     default: return esc(i.code);
@@ -2756,15 +3450,15 @@ function renderAnalysis(){
   const items = R.issues.length ? R.issues : [];
   const hasBad = R.issues.some(i => i.level === 'err' || i.level === 'warn');
   $('checklist').innerHTML = (items.map(i => `<div class="it ${i.level}"><span aria-hidden="true">${icon[i.level]}</span><span>${issueText(i, R)}</span></div>`).join('')) +
-    (hasBad ? '' : `<div class="it ok"><span aria-hidden="true">✅</span><span>Nenhum alerta crítico: rate card completo, margem dentro do esperado.</span></div>`);
+    (hasBad ? '' : `<div class="it ok"><span aria-hidden="true">✅</span><span>Nenhum alerta crítico: taxas completas, margem dentro do esperado.</span></div>`);
 
   const k = (l, v, s = '') => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   $('kpis').innerHTML =
-    k('Preço total (c/ impostos)', C(T.gross), `Líquido: ${C(T.net)}`) +
+    k('Preço total (c/ impostos)', C(T.gross), `Líquido: ${C(T.net)}` + (T.discNet > 0.5 ? ` · desconto ${nfPT(T.discPct * 100, 1)}% (lista ${C(T.listGross)})` : '')) +
     k('Duração', `${T.nPer} ${U === 'SP' ? 'sprints' : 'semanas'}`, R.relative ? `${T.weeks} semanas · sem data de início` : `${T.weeks} semanas · ${E.iso(T.start)} → ${E.iso(T.end)}`) +
     k('Esforço', `${nfPT(T.H)} h`, `${nfPT(T.H / (p.hpd * p.dpw * 52 / 12 || 1), 1)} FTE-mês`) +
     k('Time', `pico ${nfPT(T.peak, 1)} FTE`, `média ${nfPT(T.avgFte, 1)} FTE`) +
-    k('Rate médio (blended)', C(T.blended, 2) + '/h', p.mode === 'rate' ? 'rate card' : 'custo + GM') +
+    k('Rate médio (blended)', C(T.blended, 2) + '/h', p.mode === 'rate' ? 'taxa do perfil' : 'custo + GM') +
     k('GM% estimado', T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', T.cost ? `Custo: ${C(T.cost)}` : 'preencha Custo/h') +
     (T.netOpt ? k('Opcionais', C(T.grossOpt), p.inclOpt ? 'incluídos no total' : 'fora do total') : '');
 
@@ -2923,8 +3617,8 @@ async function libSummary(f){
     if (!Workbook.isProposalWorkbook(X, wb)) out = {other: true};
     else {
       const st = Workbook.read(X, wb);
-      const R = E.compute({rows: st.rows, nPeriods: st.nPeriods, unit: st.unit, rates: st.rates}, E.parseParams(st.raw, {taxes: st.taxes}), {today: new Date()});
-      out = {client: R.p.client, project: R.p.project, cur: R.p.cur, gross: R.T.gross, gm: R.T.gm, hasCost: R.T.cost > 0, H: R.T.H, nPer: R.T.nPer, unit: R.unit, issues: R.issues.filter(i => i.level === 'err').length};
+      const R = E.compute({rows: st.rows, nPeriods: st.nPeriods, unit: st.unit, rates: st.rates}, E.parseParams(st.raw, {taxes: st.taxes, phaseDisc: st.phaseDisc}), {today: new Date()});
+      if (!R) out = {error: 'sem alocação no timeline'}; else out = {client: R.p.client, project: R.p.project, cur: R.p.cur, gross: R.T.gross, gm: R.T.gm, hasCost: R.T.cost > 0, H: R.T.H, nPer: R.T.nPer, unit: R.unit, issues: R.issues.filter(i => i.level === 'err').length};
     }
   } catch(e){ out = {error: e.message}; }
   LIB.cache.set(key, out);
@@ -2988,7 +3682,7 @@ async function libHere(){
     const name = fileBase() + '.xlsx';
     if (LIB.files.some(f => f.name === name) && !confirm(`Já existe "${name}" nesta pasta. Sobrescrever?`)) return;
     const h = await Store.fs.create(LIB.dir, name, await buildBlob());
-    S.handle = h; S.autoFile = true; S.dirty = false; setSaveStatus(`Salvo em ${h.name} · ${hhmm()}`);
+    setHandle(h); S.dirty = false; setSaveStatus(`✓ Salvo em ${h.name} · ${hhmm()}`, 'saved');
     toast('Proposta salva na pasta.', 'ok'); LIB.cache.clear(); renderLibrary();
   } catch(e){ if (!aborted(e)) toast('Não foi possível salvar na pasta: ' + e.message, 'err', 9000); }
 }
@@ -3000,11 +3694,12 @@ async function libOpen(i){
 
 /* ---------------- ações (botões com data-act) ---------------- */
 const actions = {
-  template: downloadTemplate, example: loadExample, open: actOpen, save: actSave, saveas: actSaveAs, netcheck: netCheck,
+  template: downloadTemplate, example: loadExample, new: actNew, open: actOpen, save: actSave, saveas: actSaveAs, netcheck: netCheck,
   library: () => { const d = $('dlgLib'); if (!d.open) d.showModal(); renderLibrary(); },
   'lib-close': () => $('dlgLib').close(), 'lib-pick': libPick, 'lib-here': libHere, 'lib-refresh': () => { LIB.cache.clear(); renderLibrary(); },
   'lib-open': b => libOpen(+b.dataset.i), 'lib-compare': libCompare,
   'go-par': () => goTab('par'), 'go-doc': () => goTab('doc'), calc: () => recalc(true),
+  'disc-apply': b => { $('p_discmode').value = 'pct'; $('p_disc').value = b.dataset.v; S.result = null; markDirty(); renderDiscount(); toast(`Desconto geral de ${nfPT(+b.dataset.v, 1)}% aplicado.`, 'ok', 3000); },
   'rc-import': () => $('rcFile').click(),
   'rc-gm': () => {
     const gm = P().gm; let c = 0;
@@ -3030,11 +3725,13 @@ document.querySelector('main').addEventListener('change', e => {
   const id = e.target.id; if (!id || !id.startsWith('p_')) return;
   S.result = null;
   if (id === 'p_startmode') syncStartUI();
-  if (id === 'p_unit' && S.rows.length){ S.unit = e.target.value === 'auto' ? S.unitAuto : e.target.value; renderGantt(); }
+  if (id === 'p_unit' && S.rows.length) S.unit = e.target.value === 'SP' ? 'SP' : 'W';
   if (id === 'p_context') Object.keys(S.edits).filter(k => k.endsWith(':exec.ctx')).forEach(k => delete S.edits[k]);
   if (id === 'p_assump') Object.keys(S.edits).filter(k => k.endsWith(':assump')).forEach(k => delete S.edits[k]);
   if (id === 'p_cur' || id === 'p_rcur') refreshFxCachedBtn();
   if (S.rows.length && ['p_mode', 'p_pw', 'p_hpd', 'p_dpw', 'p_unit'].includes(id)) renderRateTable();
+  if (S.rows.length && ED.TL_IDS.includes(id)) ED.render();
+  if (S.rows.length) renderDiscount();
   // se a análise ou a proposta estiver na tela, atualiza na hora; senão recalcula ao entrar na aba
   const visible = TABS.find(x => $('tab-' + x).classList.contains('active'));
   if (S.rows.length && (visible === 'doc' || visible === 'ana' || (DOC_ONLY.has(id) && !$('tabbtn-doc').disabled))) recalc(false);
@@ -3055,8 +3752,18 @@ $('rcFile').addEventListener('change', e => { importRateCard(e.target.files[0]);
 function init(){
   if (!$('p_start').value) $('p_start').value = E.iso(E.nextMonday());
   if (!$('p_startm').value){ const d = E.nextMonday(); $('p_startm').value = E.iso(d).slice(0, 7); }
-  renderTaxes(); syncStartUI(); renderNet(); refreshFxCachedBtn();
-  if (!Store.fs.supported()) $('savebar').textContent = 'Salvar baixa o .xlsx (este navegador não grava direto em arquivo)';
+  ED = TimelineEditor({S, E, $, esc, nfPT, toast, P, raw, setRaw,
+    compute: () => E.compute(model(), P(), {today: new Date()}),
+    changed: () => { S.result = null; markDirty(); }});
+  renderTaxes(); syncStartUI(); renderNet(); refreshFxCachedBtn(); updateIdent();
+  if (!Store.fs.supported()){
+    $('autoFile').disabled = true; $('autoFile').checked = false;
+    $('fstatus').textContent = 'Este navegador não grava direto no arquivo: “Salvar” baixa o .xlsx';
+  }
+  $('autoFile').addEventListener('change', e => {
+    S.autoFile = e.target.checked;
+    if (S.autoFile && S.handle) autosave(); else setSaveStatus(S.saveText || 'Alterações não salvas', S.saveKind);
+  });
   Store.kv.get('draft').then(d => {
     if (!d || !d.snap || !d.snap.rows || !d.snap.rows.length) return;
     const at = new Date(d.at);

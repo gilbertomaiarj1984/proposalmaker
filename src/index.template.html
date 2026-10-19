@@ -10,23 +10,26 @@
 </head>
 <body>
 <header class="app">
-  <h1>📊 Timeline → Proposta Comercial</h1>
+  <h1>📊 Timeline → Proposta</h1>
+  <div class="propbar" id="propbar" aria-live="polite" aria-label="Proposta aberta">
+    <div class="pt" id="pbTitle">Nenhuma proposta aberta</div>
+    <div class="ps" id="pbSub"></div>
+  </div>
   <div class="actions">
     <button class="btn light" data-act="template" title="Baixar o modelo de planilha de timeline">⬇ Template Excel</button>
     <button class="btn light" data-act="example">▶ Exemplo</button>
-    <button class="btn light" data-act="open" title="Abrir uma proposta (.xlsx) salva pelo app">📂 Abrir proposta</button>
+    <button class="btn light" data-act="open" title="Abrir uma proposta (.xlsx) salva pelo app">📂 Abrir</button>
     <button class="btn light" data-act="save" title="Salvar a proposta no arquivo Excel">💾 Salvar</button>
     <button class="btn light" data-act="saveas">Salvar como…</button>
     <button class="btn light" data-act="library">🗂 Propostas</button>
     <button id="netpill" class="pill chk" data-act="netcheck" title="Testar acesso aos recursos online (câmbio e feriados)">Conexão: verificar</button>
-    <span id="savebar" role="status" aria-live="polite"></span>
   </div>
 </header>
 <div id="netbar" role="status" aria-live="polite"></div>
 
 <nav class="tabs" role="tablist" aria-label="Etapas">
   <button role="tab" id="tabbtn-tl" data-tab="tl" aria-controls="tab-tl" aria-selected="true">1. Timeline</button>
-  <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Rate Card</button>
+  <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Perfis</button>
   <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>3. Análise financeira</button>
   <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>4. Proposta</button>
 </nav>
@@ -34,42 +37,99 @@
 <main>
 <!-- ================= TAB 1: TIMELINE ================= -->
 <section class="tab active" id="tab-tl" role="tabpanel" aria-labelledby="tabbtn-tl">
-  <div class="card">
-    <h2>Upload do timeline</h2>
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Selecionar arquivo de timeline ou de proposta">
-      <strong>Arraste aqui o timeline (.xlsx, .xlsm, .csv) ou uma proposta salva pelo app</strong>
-      <p>ou clique para selecionar</p>
-      <p class="hint">Se o arquivo tiver uma aba <code>Rate Card</code>, ela também é importada automaticamente.</p>
+  <div class="filebar" id="filebar">
+    <span aria-hidden="true">📄</span><b id="fname">Sem arquivo</b>
+    <span class="st dirty" id="fstatus" role="status" aria-live="polite">Nenhuma proposta aberta</span>
+    <span class="grow"></span>
+    <button class="btn sec sm" data-act="new" title="Começa uma proposta vazia">＋ Nova proposta</button>
+    <button class="btn sec sm" data-act="open" title="Abre uma proposta do app ou um timeline em Excel; as alterações voltam para o mesmo arquivo">📂 Abrir do Excel…</button>
+    <button class="btn sec sm" data-act="saveas" title="Escolhe onde gravar a proposta (.xlsx)">Salvar como…</button>
+    <label class="chk"><input type="checkbox" id="autoFile" checked> Gravar automaticamente</label>
+    <button class="btn sm" id="saveNow" data-act="save" style="display:none">💾 Salvar agora</button>
+  </div>
+  <div class="flow" aria-label="Fluxo em duas vias">
+    <span class="step">1. Abre do Excel</span> → <span class="step">2. Edita no navegador</span> → <span class="step">3. Cada mudança é gravada de volta no mesmo arquivo</span>
+    <span>· Timeline → aba <code>Modelo</code> · Parâmetros → <code>Parametros</code> · Perfis e níveis → <code>Perfis</code></span>
+  </div>
+  <div id="tlMsg" aria-live="polite"></div>
+
+  <div class="card" id="tlEmpty">
+    <h2>Comece uma proposta</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Selecionar arquivo Excel de timeline ou de proposta">
+      <strong>Arraste aqui um Excel (.xlsx, .xlsm, .csv) ou clique para abrir</strong>
+      <p>Proposta salva pelo app ou timeline no formato do template. Se tiver uma aba <code>Perfis</code> (ou <code>Rate Card</code>), ela vem junto.</p>
+      <p class="hint">Um timeline “bruto” nunca é sobrescrito: o app pede para salvar como proposta e passa a gravar nela.</p>
     </div>
     <input type="file" id="tlFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
-    <div id="tlMsg" aria-live="polite"></div>
-    <div class="row" style="margin-top:12px">
-      <label class="f" style="max-width:260px">Unidade do período
-        <select id="p_unit">
-          <option value="auto">Detectar automaticamente</option>
-          <option value="SP">Sprint</option>
-          <option value="W">Semana</option>
-        </select></label>
-      <span class="hint">Use para forçar a unidade quando o arquivo traz só números em Start/End.</span>
-    </div>
+    <div class="row" style="margin-top:12px"><button class="btn" data-act="new">＋ Nova proposta (vazia)</button><button class="btn sec" data-act="example">▶ Carregar exemplo</button><button class="btn sec" data-act="template">⬇ Template Excel</button></div>
     <details style="margin-top:10px">
       <summary class="hint" style="cursor:pointer">Formatos aceitos</summary>
       <div class="hint" style="margin-top:8px;line-height:1.7">
         <b>A) Matriz (recomendado):</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Optional</code> + uma coluna por período: <code>SP1, SP2…</code> (sprints) ou <code>W1, W2…</code> (semanas), com a alocação em FTE (ex.: 1, 0,5, 50%).<br>
         <b>B) Lista:</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Start</code>, <code>End</code>, <code>FTE</code> (Start/End como número ou "SP5").<br>
         Também são aceitos cabeçalhos em português/espanhol: Fase, Frente, Onda, Perfil, Nível, Local, Opcional, Início, Fim, Alocação.<br>
-        <b>Rate Card (opcional):</b> aba com <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Cost/h</code>, <code>Rate/h</code>.<br>
-        <b>Proposta salva pelo app (.xlsx):</b> reabre com todos os parâmetros, rate card, impostos e textos editados.
+        <b>Perfis e taxas (opcional):</b> aba com <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Cost/h</code>, <code>Rate/h</code> (pode se chamar <code>Perfis</code> ou <code>Rate Card</code>).
       </div>
     </details>
   </div>
-  <div class="card" id="tlView" style="display:none">
-    <div class="row" style="justify-content:space-between">
-      <h2 id="tlTitle">Timeline importado</h2>
-      <button class="btn" data-act="go-par">Próximo: parâmetros →</button>
+
+  <div id="tlEditor" style="display:none">
+    <div class="card">
+      <h2>Parâmetros do timeline</h2>
+      <div class="hint">Defina primeiro a estrutura de tempo; a grade abaixo se ajusta (colunas e datas).</div>
+      <div class="pgrid">
+        <label class="f">Unidade do período
+          <select id="p_unit"><option value="SP">Sprint</option><option value="W">Semana</option></select></label>
+        <div class="f">Nº de períodos
+          <span class="stepper"><button id="edNMinus" aria-label="Menos um período">−</button><b id="edN" style="min-width:24px;text-align:center">12</b><button id="edNPlus" aria-label="Mais um período">+</button></span></div>
+        <label class="f">Semanas por sprint<input type="number" id="p_pw" value="2" min="1" step="1"></label>
+        <label class="f">Horas faturáveis / dia<input type="number" id="p_hpd" value="8" min="1" step="0.5"></label>
+        <label class="f">Dias úteis / semana<input type="number" id="p_dpw" value="5" min="1" max="7"></label>
+        <label class="f">Início do projeto
+          <select id="p_startmode">
+            <option value="date">Data específica</option>
+            <option value="month">Mês (primeiro dia útil)</option>
+            <option value="none">Sem data — timeline relativo (SP1, SP2…)</option>
+          </select></label>
+        <label class="f" id="lbl_start">Data de início<input type="date" id="p_start"></label>
+        <label class="f" id="lbl_startm">Mês de início<input type="month" id="p_startm"></label>
+      </div>
+      <div class="sumline" id="edSum"></div>
+      <p class="hint" style="margin-top:10px">O início avança para o próximo dia útil e cada período termina em dia útil; os feriados vêm da aba 2 (calendário).</p>
     </div>
-    <div class="scroll" id="gantt"></div>
-    <p class="hint">Valores = FTE alocado por período. Linhas em itálico/laranja são itens opcionais.</p>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><h2 style="margin:0">Timeline — editor</h2><button class="btn" data-act="go-par">Próximo: parâmetros →</button></div>
+      <div class="hint" style="margin-top:4px">Escolha o <b>perfil</b> e o <b>nível</b> pelas combos (dá para cadastrar novos); o local vem do cadastro. Cada alteração entra na proposta e é gravada no Excel.</div>
+      <div class="toolbar">
+        <button class="btn" id="edAddPhase">+ Fase</button>
+        <span class="sep"></span>
+        <span class="hint">Preencher</span>
+        <div class="seg" role="group" aria-label="Modo de preenchimento">
+          <button id="edMType" aria-pressed="true">⌨ Digitar</button><button id="edMPaint" aria-pressed="false">🖌 Pintar</button>
+        </div>
+        <span id="edBrush" style="display:none;align-items:center;gap:6px">
+          <span class="hint">FTE do pincel</span>
+          <span class="chip" data-b="0.5">0,5</span><span class="chip on" data-b="1">1</span><span class="chip" data-b="2">2</span>
+          <input id="edBrushVal" type="number" step="0.5" min="0" value="1" style="width:64px;padding:4px 6px;border:1px solid var(--line);border-radius:6px" aria-label="FTE do pincel">
+        </span>
+        <span class="sep"></span>
+        <button class="btn sec sm" id="edUndo" title="Desfazer (Ctrl+Z)">↶ Desfazer</button>
+        <button class="btn sec sm" id="edRedo" title="Refazer (Ctrl+Y)">↷ Refazer</button>
+      </div>
+      <div class="scroll edscroll"><table class="ed" id="edGrid" aria-label="Editor de timeline"></table></div>
+      <div class="legend">
+        <span><span class="kbd">Enter</span> desce · <span class="kbd">Tab</span> avança · <span class="kbd">←↑↓→</span> navegam · <span class="kbd">Del</span> limpa a célula · <span class="kbd">Ctrl+Z</span> desfaz</span>
+        <span>Modo <b>Pintar</b>: clique ou arraste sobre as células da linha; clicar numa célula já pintada com o mesmo valor apaga.</span>
+        <span id="edRc"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Como fica na proposta</h2>
+      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 4).</div>
+      <div class="pvdoc" style="margin-top:10px"><div id="edPv"></div></div>
+    </div>
   </div>
 </section>
 
@@ -91,17 +151,8 @@
   </div>
 
   <div class="card">
-    <h2>Início e calendário</h2>
-    <div class="grid">
-      <label class="f">Início do projeto
-        <select id="p_startmode">
-          <option value="date">Data específica</option>
-          <option value="month">Mês (primeiro dia útil)</option>
-          <option value="none">Sem data — timeline relativo (SP1, SP2…)</option>
-        </select></label>
-      <label class="f" id="lbl_start">Data de início<input type="date" id="p_start"></label>
-      <label class="f" id="lbl_startm">Mês de início<input type="month" id="p_startm"></label>
-    </div>
+    <h2>Calendário (feriados)</h2>
+    <p class="hint" style="margin:0 0 4px">O início do projeto e a estrutura de períodos ficam na aba 1.</p>
     <div class="row" style="margin-top:12px">
       <label class="chk"><input type="checkbox" id="p_hol" checked> Considerar feriados nacionais do Brasil (calculados no próprio app)</label>
     </div>
@@ -116,23 +167,47 @@
   </div>
 
   <div class="card">
-    <h2>Premissas de esforço e preço</h2>
+    <h2>Premissas de preço</h2>
     <div class="grid">
-      <label class="f">Semanas por período (sprint)<input type="number" id="p_pw" value="2" min="1" step="1"></label>
-      <label class="f">Horas faturáveis / dia<input type="number" id="p_hpd" value="8" min="1" step="0.5"></label>
-      <label class="f">Dias úteis / semana<input type="number" id="p_dpw" value="5" min="1" max="7"></label>
       <label class="f">Modo de precificação
-        <select id="p_mode"><option value="rate">Rate/h do rate card</option><option value="gm">Custo/h + GM% alvo</option></select></label>
+        <select id="p_mode"><option value="rate">Rate/h do perfil</option><option value="gm">Custo/h + GM% alvo</option></select></label>
       <label class="f">GM% alvo (modo custo)<input type="number" id="p_gm" value="35" step="0.5"></label>
       <label class="f">GM% mínimo (gera alerta)<input type="number" id="p_gmmin" value="0" step="0.5"></label>
       <label class="f">Contingência / risco %<input type="number" id="p_cont" value="0" step="0.5"></label>
       <label class="f">Contingência entra…
         <select id="p_contmode"><option value="price">só no preço (vira margem)</option><option value="both">no preço e no custo (reserva consumida)</option></select></label>
-      <label class="f">Desconto comercial %<input type="number" id="p_disc" value="0" step="0.5"></label>
     </div>
     <div class="row" style="margin-top:12px">
       <label class="chk"><input type="checkbox" id="p_inclOpt"> Incluir itens opcionais no total da proposta</label>
     </div>
+  </div>
+
+  <div class="card" id="discCard">
+    <h2>Desconto</h2>
+    <p class="hint" style="margin:0 0 10px">Ordem de cálculo: preço de lista (taxa × horas) → contingência → <b>desconto</b> → impostos (gross-up). O desconto incide só sobre o escopo incluído no total.</p>
+    <div class="grid">
+      <label class="f">Tipo de desconto
+        <select id="p_discmode">
+          <option value="pct">Percentual sobre o total</option>
+          <option value="amount">Valor fixo (com impostos)</option>
+          <option value="target">Preço final alvo (com impostos)</option>
+        </select></label>
+      <label class="f" id="l_disc">Desconto geral (%)<input type="number" id="p_disc" value="0" step="0.5" min="0" max="99"></label>
+      <label class="f" id="l_discamt">Valor do desconto (com impostos)<input type="number" id="p_discamt" value="0" step="100" min="0"></label>
+      <label class="f" id="l_disctarget">Preço final alvo (com impostos)<input type="number" id="p_disctarget" value="0" step="100" min="0"></label>
+      <label class="f">Como mostrar na proposta
+        <select id="p_discshow">
+          <option value="embedded">Embutido nas taxas (o cliente vê só o preço final)</option>
+          <option value="line">Linha visível: preço de lista → desconto → preço final</option>
+        </select></label>
+    </div>
+    <div class="sumline" id="discResult"></div>
+    <div id="discPhaseBox" style="margin-top:14px">
+      <h3 style="margin:0 0 4px;font-size:14px;color:var(--blue)">Desconto por fase (opcional)</h3>
+      <p class="hint" style="margin:0 0 6px">Em branco = usa o desconto geral. Use para, por exemplo, abrir uma fase de assessment com desconto maior e segurar a margem nas fases de execução.</p>
+      <div class="scroll" style="max-height:none"><table class="t" id="discPhase"></table></div>
+    </div>
+    <div id="discSuggest" style="margin-top:14px"></div>
   </div>
 
   <div class="card">
@@ -140,16 +215,16 @@
     <div class="grid">
       <label class="f">Moeda da proposta
         <select id="p_cur"><option>BRL</option><option>USD</option><option>EUR</option><option>MXN</option><option>COP</option><option>ARS</option></select></label>
-      <label class="f">Moeda do rate card
+      <label class="f">Moeda das taxas
         <select id="p_rcur"><option>BRL</option><option>USD</option><option>EUR</option><option>MXN</option><option>COP</option><option>ARS</option></select></label>
-      <label class="f">Câmbio (1 moeda do rate card = X da proposta)<input type="number" id="p_fx" value="1" step="0.0001" min="0"></label>
+      <label class="f">Câmbio (1 moeda das taxas = X da proposta)<input type="number" id="p_fx" value="1" step="0.0001" min="0"></label>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="btn sec sm" data-act="fx-online">Buscar cotação online</button>
       <button class="btn sec sm" data-act="fx-cached" id="btnFxCached" style="display:none">Usar última cotação salva</button>
     </div>
     <div id="fxMsg" aria-live="polite"></div>
-    <p class="hint">Se as moedas forem diferentes, as taxas do rate card são convertidas pelo câmbio informado. Sem internet, digite o câmbio manualmente.</p>
+    <p class="hint">Se as moedas forem diferentes, as taxas dos perfis são convertidas pelo câmbio informado. Sem internet, digite o câmbio manualmente.</p>
   </div>
 
   <div class="card">
@@ -160,7 +235,7 @@
       <label class="chk"><input type="checkbox" id="p_taxshow"> Detalhar impostos na proposta</label>
       <span class="hint" id="taxTotal"></span>
     </div>
-    <p class="hint">O preço com impostos é calculado por gross-up: líquido ÷ (1 − soma dos percentuais). Os valores do rate card são líquidos de impostos.</p>
+    <p class="hint">O preço com impostos é calculado por gross-up: líquido ÷ (1 − soma dos percentuais). As taxas dos perfis são líquidas de impostos.</p>
   </div>
 
   <div class="card">
@@ -182,14 +257,14 @@
 
   <div class="card">
     <div class="row" style="justify-content:space-between">
-      <h2>Rate Card</h2>
+      <h2>Perfis e taxas</h2>
       <div class="row">
-        <button class="btn sec" data-act="rc-import">Importar rate card (.xlsx/.csv)</button>
+        <button class="btn sec" data-act="rc-import">Importar perfis/taxas (.xlsx/.csv)</button>
         <input type="file" id="rcFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
         <button class="btn sec" data-act="rc-gm">Calcular Rate/h = Custo/(1–GM%)</button>
       </div>
     </div>
-    <p class="hint">Perfis identificados no timeline. Preencha Custo/h e/ou Rate/h (valores líquidos de impostos, na moeda do rate card). Campos vazios ficam destacados.</p>
+    <p class="hint">Perfis e níveis cadastrados (novos entram pelas combos do timeline). Preencha Custo/h e/ou Rate/h (valores líquidos de impostos, na moeda das taxas). Campos vazios ficam destacados.</p>
     <div id="rcMsg" aria-live="polite"></div>
     <div class="scroll" style="max-height:none"><table class="t" id="rcTable"></table></div>
     <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -261,6 +336,33 @@
   <div class="dh"><h2 id="dlgLibTitle">Propostas (arquivos Excel)</h2><button class="btn light sm" data-act="lib-close">Fechar</button></div>
   <div class="db" id="libBody"></div>
 </dialog>
+
+<div class="edpop" id="edPop" role="dialog" aria-label="Escolher perfil">
+  <div class="s"><input id="edPq" placeholder="Buscar perfil, nível ou local…" aria-label="Buscar perfil"></div>
+  <ul id="edPl" role="listbox"></ul>
+  <div class="new" id="edPnew" tabindex="0" role="button">➕ Cadastrar novo perfil…</div>
+  <form id="edPf">
+    <input id="edFRole" placeholder="Perfil (ex.: Scrum Master)" aria-label="Perfil">
+    <input id="edFLevel" placeholder="Nível (ex.: Q3)" aria-label="Nível">
+    <input id="edFLoc" placeholder="Local (ex.: Brazil)" aria-label="Local">
+    <input id="edFRate" type="number" placeholder="Rate/h (opcional)" aria-label="Rate por hora">
+    <input id="edFCost" type="number" placeholder="Custo/h (opcional)" aria-label="Custo por hora">
+    <span></span>
+    <div class="full"><button type="button" class="btn sec sm" id="edPcancel">Cancelar</button><button type="submit" class="btn sm">Adicionar aos perfis e usar</button></div>
+  </form>
+</div>
+
+<div class="edpop" id="edPopL" role="dialog" aria-label="Escolher nível">
+  <div class="s"><input id="edLq" placeholder="Buscar nível…" aria-label="Buscar nível"></div>
+  <ul id="edLl" role="listbox"></ul>
+  <div class="new" id="edLnew" tabindex="0" role="button">➕ Adicionar nível…</div>
+  <form id="edLf">
+    <input id="edFLv" placeholder="Nível (ex.: Q5)" aria-label="Novo nível" style="grid-column:1/3">
+    <input id="edFLvRate" type="number" placeholder="Rate/h (opcional)" aria-label="Rate por hora">
+    <input id="edFLvCost" type="number" placeholder="Custo/h (opcional)" aria-label="Custo por hora">
+    <div class="full"><button type="button" class="btn sec sm" id="edLcancel">Cancelar</button><button type="submit" class="btn sm">Adicionar nível e usar</button></div>
+  </form>
+</div>
 
 <div class="toast-wrap" id="toasts" aria-live="polite"></div>
 

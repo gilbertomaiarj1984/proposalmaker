@@ -19,7 +19,9 @@ const PARAM_DEFS = [
   ['p_cur','Moeda da proposta','text'], ['p_rcur','Moeda do rate card','text'], ['p_fx','Câmbio (1 moeda do rate card = X moeda da proposta)','num'],
   ['p_unit','Unidade do período (auto/SP/W)','text'], ['p_pw','Semanas por período (sprint)','num'], ['p_hpd','Horas faturáveis / dia','num'], ['p_dpw','Dias úteis / semana','num'],
   ['p_mode','Modo de precificação (rate/gm)','text'], ['p_gm','GM% alvo (modo custo)','num'], ['p_gmmin','GM% mínimo (alerta)','num'],
-  ['p_cont','Contingência / risco %','num'], ['p_contmode','Contingência entra em (price/both)','text'], ['p_disc','Desconto comercial %','num'],
+  ['p_cont','Contingência / risco %','num'], ['p_contmode','Contingência entra em (price/both)','text'],
+  ['p_discmode','Tipo de desconto (pct/amount/target)','text'], ['p_disc','Desconto comercial % (modo pct)','num'], ['p_discamt','Desconto em valor fixo, com impostos (modo amount)','num'],
+  ['p_disctarget','Preço final alvo, com impostos (modo target)','num'], ['p_discshow','Exibição do desconto (embedded/line)','text'],
   ['p_inclOpt','Incluir itens opcionais no total','bool'], ['p_taxshow','Detalhar impostos na proposta','bool'],
   ['p_pay','Modelo de pagamento (milestone/monthly/install)','text'], ['p_inst','Nº de parcelas (se iguais)','num'], ['p_terms','Prazo de pagamento (dias)','num'], ['p_valid','Validade da proposta (dias)','num'],
   ['p_tlmode','Timeline: modo (bars/roles/milestones)','text'], ['p_tlgran','Timeline: granularidade (period/week)','text'], ['p_tlfte','Timeline: mostrar FTE','bool'],
@@ -110,6 +112,16 @@ async function buildTemplate(ExcelJS){
   return wb;
 }
 
+// resultado "vazio" para gravar propostas que ainda não têm perfis alocados
+function emptyResult(st){
+  const p = E.parseParams(st.raw, {taxes: st.taxes});
+  const cal = E.buildCalendar(p, st.nPeriods, st.unit, {today: new Date()});
+  const z = new Date(cal.effStart);
+  return {p, relative: cal.relative, unit: st.unit, nPeriods: st.nPeriods, pw: cal.pw, hpp: cal.pw * p.dpw * p.hpd, f: (1 + p.cont) * (1 - p.disc),
+    rows: [], rowByIndex: new Map(), phases: [], roles: [], periods: [], months: [], pays: [], holidays: [], issues: [], missing: [],
+    T: {H: 0, net: 0, cost: 0, gross: 0, gm: 0, blended: 0, grossOpt: 0, netOpt: 0, listNet: 0, discNet: 0, listGross: 0, discGross: 0, discPct: 0, nPer: 0, weeks: 0, peak: 0, avgFte: 0, start: z, end: z}};
+}
+
 /* =====================================================================
    ARQUIVO DA PROPOSTA — gravação
    st = { rows, nPeriods, unit, rates, taxes, edits, raw (param id -> valor), fileName }
@@ -119,7 +131,6 @@ async function buildProposal(ExcelJS, st, R){
   const wb = new ExcelJS.Workbook();
   wb.creator = APP_ID; wb.created = new Date(); wb.modified = new Date();
   const p = R.p, N = st.nPeriods;
-  const priceF = R.f;
 
   /* ----- Parametros ----- */
   const ps = wb.addWorksheet('Parametros', {views:[{state:'frozen', ySplit:1}]});
@@ -142,7 +153,7 @@ async function buildProposal(ExcelJS, st, R){
   ps.getColumn(1).width = 14; ps.getColumn(2).width = 62; ps.getColumn(3).width = 46;
   const nm = (name, key) => wb.definedNames.add(`Parametros!$C$${rowOf[key]}`, name);
   nm('PW','p_pw'); nm('DPW','p_dpw'); nm('HPD','p_hpd'); nm('MODE','p_mode'); nm('GMP','p_gm'); nm('CONTP','p_cont'); nm('CONTMODE','p_contmode');
-  nm('DISCP','p_disc'); nm('FX','p_fx'); nm('INCLOPT','p_inclOpt'); nm('HPP','_hpp'); nm('TAXP','_tax');
+  nm('FX','p_fx'); nm('INCLOPT','p_inclOpt'); nm('HPP','_hpp'); nm('TAXP','_tax');
   ps.addRow([]);
   const note = ps.addRow(['', 'Este arquivo é gravado e lido pelo app. A edição é feita no navegador; alterações feitas diretamente aqui podem ser sobrescritas no próximo salvamento.', '']);
   note.getCell(2).font = {italic:true, color:{argb:'FF5F6B7A'}}; note.getCell(2).alignment = {wrapText:true};
@@ -153,8 +164,14 @@ async function buildProposal(ExcelJS, st, R){
   p.taxes.forEach(t => ts.addRow([t.name, t.pct]));
   ts.getColumn(1).width = 34; ts.getColumn(2).width = 10;
 
-  /* ----- RateCard ----- */
-  const rs = wb.addWorksheet('RateCard', {views:[{state:'frozen', ySplit:1}]});
+  /* ----- Descontos por fase ----- */
+  const ds = wb.addWorksheet('Descontos');
+  ds.addRow(['Fase','%']); styleHeader(ds);
+  Object.entries(st.phaseDisc || {}).forEach(([k, v]) => ds.addRow([k, E.num(v)]));
+  ds.getColumn(1).width = 34; ds.getColumn(2).width = 10;
+
+  /* ----- Perfis (cadastro de perfis, níveis e taxas) ----- */
+  const rs = wb.addWorksheet('Perfis', {views:[{state:'frozen', ySplit:1}]});
   rs.addRow(['Role','Level','Location','Cost/h','Rate/h','Price/h (calc.)','Key','Cost/h efetivo (calc.)']);
   styleHeader(rs);
   const rateList = Object.values(st.rates);
@@ -174,29 +191,32 @@ async function buildProposal(ExcelJS, st, R){
   /* ----- Modelo (timeline + cálculo) ----- */
   const ms = wb.addWorksheet('Modelo', {views:[{state:'frozen', xSplit:7, ySplit:1}]});
   const U = st.unit;
-  const c0 = 8, cTot = c0 + N, cHrs = cTot + 1, cPrice = cTot + 2, cNet = cTot + 3, cCost = cTot + 4, cScope = cTot + 5;
+  const c0 = 8, cTot = c0 + N, cHrs = cTot + 1, cPrice = cTot + 2, cDisc = cTot + 3, cNet = cTot + 4, cCost = cTot + 5, cScope = cTot + 6;
   ms.addRow(['Phase','Activity','Role','Level','Location','Optional','Key',
-    ...Array.from({length:N}, (_, i) => U + (i+1)), 'Total FTE', 'Hours', 'Price/h (calc.)', 'Net (calc.)', 'Cost (calc.)', 'In scope']);
+    ...Array.from({length:N}, (_, i) => U + (i+1)), 'Total FTE', 'Hours', 'Price/h (calc.)', 'Desconto efetivo (calc. pelo app)', 'Net (calc.)', 'Cost (calc.)', 'In scope']);
   styleHeader(ms);
-  const n1 = 2, nLast = R.rows.length + 1;
-  R.rows.forEach((r, i) => {
+  const n1 = 2, nLast = Math.max(2, st.rows.length + 1);
+  st.rows.forEach((src, i) => {
+    const r = R.rowByIndex.get(i) || {...src, alloc: src.alloc.slice(), H: 0, priceBase: 0, discPct: 0, net: 0, cost: 0}; // linha sem perfil: zeros
     const n = i + 2, first = colName(c0), lastc = colName(c0 + N - 1);
     const key = `G${n}`;
-    const idx = `MATCH(${key},RateCard!$G$2:$G$${rcEnd},0)`;
+    const idx = `MATCH(${key},Perfis!$G$2:$G$${rcEnd},0)`;
     ms.addRow([r.phase, r.activity, r.role, r.level || '', r.location || '', r.optional ? 'Y' : '',
       {formula:`C${n}&"|"&IF(D${n}="","-",D${n})&"|"&IF(E${n}="","-",E${n})`, result: E.rkey(r)},
       ...r.alloc.map(v => v || null),
       {formula:`SUM(${first}${n}:${lastc}${n})`, result: r.alloc.reduce((a,b)=>a+b,0)},
       {formula:`${colName(cTot)}${n}*HPP`, result: r.H},
-      {formula:`IFERROR(INDEX(RateCard!$F$2:$F$${rcEnd},${idx}),0)`, result: r.rateH / priceF},
-      {formula:`${colName(cHrs)}${n}*${colName(cPrice)}${n}*(1+CONTP/100)*(1-DISCP/100)`, result: r.net},
-      {formula:`${colName(cHrs)}${n}*IFERROR(INDEX(RateCard!$H$2:$H$${rcEnd},${idx}),0)`, result: r.cost},
+      {formula:`IFERROR(INDEX(Perfis!$F$2:$F$${rcEnd},${idx}),0)`, result: r.priceBase},
+      r.discPct || 0,
+      {formula:`${colName(cHrs)}${n}*${colName(cPrice)}${n}*(1+CONTP/100)*(1-${colName(cDisc)}${n})`, result: r.net},
+      {formula:`${colName(cHrs)}${n}*IFERROR(INDEX(Perfis!$H$2:$H$${rcEnd},${idx}),0)`, result: r.cost},
       {formula:`IF(OR(F${n}<>"Y",INCLOPT="Sim"),1,0)`, result: (!r.optional || p.inclOpt) ? 1 : 0}]);
   });
   [26,14,24,7,10,9,30].forEach((w, i) => ms.getColumn(i+1).width = w);
   for (let i = 0; i < N; i++) ms.getColumn(c0 + i).width = 6;
   [cTot, cHrs].forEach(c => ms.getColumn(c).numFmt = '#,##0.0');
   [cPrice, cNet, cCost].forEach(c => { ms.getColumn(c).numFmt = money; ms.getColumn(c).width = 14; });
+  ms.getColumn(cDisc).numFmt = pct; ms.getColumn(cDisc).width = 16;
   ms.addConditionalFormatting({ref:`${colName(c0)}2:${colName(c0 + N - 1)}${nLast}`, rules:[{type:'colorScale', cfvo:[{type:'num', value:0}, {type:'num', value:2}], color:[{argb:'FFFFFFFF'}, {argb:'FF7FA8D8'}]}]});
   const rng = c => `Modelo!$${colName(c)}$${n1}:$${colName(c)}$${nLast}`;
 
@@ -219,6 +239,9 @@ async function buildProposal(ExcelJS, st, R){
   add('Preço com impostos', {formula: `IF(TAXP<100,B${rN.number}/(1-TAXP/100),B${rN.number})`, result: T.gross}, money);
   add('GM%', {formula: `IF(B${rN.number}=0,0,(B${rN.number}-B${rC.number})/B${rN.number})`, result: T.gm}, pct);
   add('Rate médio (blended) /h', {formula: `IF(B${rH.number}=0,0,B${rN.number}/B${rH.number})`, result: T.blended}, money);
+  add('Preço de lista (com impostos)', T.listGross, money);
+  add('Desconto (com impostos)', T.discGross, money);
+  add('Desconto efetivo %', T.discPct, pct);
   add('Opcionais (com impostos, fora do total)', T.grossOpt, money);
 
   /* ----- PorFase (fórmulas) ----- */
@@ -302,19 +325,25 @@ function read(XLSX, wb){
 
   const modelo = aoa('Modelo');
   if (!modelo) throw new Error('aba "Modelo" não encontrada');
-  const t = E.parseTimeline(modelo, {unit});
+  const t = E.parseTimeline(modelo, {unit, keepEmpty: true});
 
-  const rcRows = aoa('RateCard');
-  const rates = E.ensureRates({}, t.rows);
-  if (rcRows) E.applyRateTable(rates, E.parseRateRows(rcRows));
+  const rcName = wb.SheetNames.find(n => /^(perfis|rate ?card)$/i.test(n));
+  const rcRows = rcName ? aoa(rcName) : null;
+  const rates = {};
+  if (rcRows) E.parseRateRows(rcRows).forEach(t => { rates[E.rkey(t)] = {role: t.role, level: t.level, location: t.location, cost: t.cost || '', rate: t.rate || ''}; }); // catálogo completo do Rate Card
+  E.ensureRates(rates, t.rows);
+
+  const phaseDisc = {};
+  const dsr = aoa('Descontos');
+  if (dsr) dsr.slice(1).forEach(r => { const v = E.num(r[1]); if (r[0] && v > 0) phaseDisc[String(r[0])] = v; });
 
   const edits = {};
   const tx = aoa('Textos');
   if (tx) tx.slice(1).forEach(r => { if (r[0]) edits[String(r[0])] = String(r[1] ?? ''); });
 
-  return {raw, taxes, rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
+  return {raw, taxes, phaseDisc, rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
 }
 
-return { APP_ID, FORMAT, PARAM_DEFS, BOOLS, colName, exampleData, buildTemplate, buildProposal, isProposalWorkbook, read };
+return { APP_ID, FORMAT, PARAM_DEFS, BOOLS, colName, exampleData, emptyResult, buildTemplate, buildProposal, isProposalWorkbook, read };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Workbook;
