@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Proposta Comercial a partir de Timeline</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#0B2545; --blue:#1B4F8C; --teal:#13A89E; --light:#EEF3F9; --line:#D7DFEA;
+    --text:#1D2733; --muted:#5F6B7A; --warn:#B7791F; --err:#C53030; --ok:#2F855A;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:var(--text);background:#F6F8FB;font-size:14px}
+  header.app{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  header.app h1{font-size:18px;margin:0;font-weight:600}
+  header.app .actions{display:flex;gap:8px;flex-wrap:wrap}
+  nav.tabs{display:flex;background:#fff;border-bottom:1px solid var(--line);padding:0 16px;position:sticky;top:0;z-index:20}
+  nav.tabs button{border:0;background:none;padding:14px 18px;font-size:14px;cursor:pointer;color:var(--muted);border-bottom:3px solid transparent}
+  nav.tabs button.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+  nav.tabs button:disabled{opacity:.4;cursor:not-allowed}
+  main{padding:20px 24px;max-width:1500px;margin:0 auto}
+  section.tab{display:none} section.tab.active{display:block}
+  .card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+  .card h2{font-size:16px;margin:0 0 12px;color:var(--navy)}
+  .card h3{font-size:14px;margin:14px 0 8px;color:var(--blue)}
+  .btn{background:var(--blue);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font-size:13px}
+  .btn.sec{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+  .btn.light{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.35)}
+  .btn.teal{background:var(--teal)}
+  .btn:hover{filter:brightness(1.08)}
+  .drop{border:2px dashed #9FB3CC;border-radius:10px;padding:34px;text-align:center;background:var(--light);cursor:pointer;transition:.2s}
+  .drop.over{background:#DCE9F7;border-color:var(--blue)}
+  .drop p{margin:6px 0;color:var(--muted)}
+  .drop strong{color:var(--navy);font-size:15px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px 16px}
+  label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:600}
+  label.f input,label.f select,label.f textarea{font-size:14px;padding:7px 9px;border:1px solid var(--line);border-radius:6px;color:var(--text);font-family:inherit;background:#fff}
+  label.f textarea{min-height:90px;resize:vertical}
+  label.chk{display:flex;gap:8px;align-items:center;font-size:13px}
+  .msg{padding:10px 12px;border-radius:6px;margin:10px 0;font-size:13px}
+  .msg.err{background:#FDECEC;color:var(--err)} .msg.ok{background:#E8F5EE;color:var(--ok)} .msg.warn{background:#FFF6E5;color:var(--warn)}
+  table.t{border-collapse:collapse;width:100%;font-size:13px}
+  table.t th{background:var(--navy);color:#fff;font-weight:600;text-align:left;padding:7px 8px;white-space:nowrap}
+  table.t td{border-bottom:1px solid var(--line);padding:6px 8px}
+  table.t td.n,table.t th.n{text-align:right;white-space:nowrap}
+  table.t tr.tot td{font-weight:700;background:var(--light)}
+  table.t tr.opt td{color:var(--warn);font-style:italic}
+  table.t input{width:100%;min-width:80px;padding:5px 6px;border:1px solid var(--line);border-radius:4px;text-align:right;font-size:13px}
+  .scroll{overflow:auto;max-height:560px;border:1px solid var(--line);border-radius:8px}
+  table.gantt{border-collapse:separate;border-spacing:0;font-size:12px}
+  table.gantt th,table.gantt td{border-bottom:1px solid #E6ECF3;border-right:1px solid #EEF2F7;padding:4px 6px;white-space:nowrap}
+  table.gantt th{background:var(--navy);color:#fff;position:sticky;top:0;z-index:2;font-weight:600}
+  table.gantt td.c{text-align:center;min-width:42px}
+  table.gantt .stk{position:sticky;background:#fff;z-index:1}
+  table.gantt th.stk{z-index:3;background:var(--navy)}
+  table.gantt tr.ph td{background:#F3F6FA;font-weight:700;color:var(--navy)}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+  .kpi{background:#fff;border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:8px;padding:12px 14px}
+  .kpi .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .kpi .v{font-size:20px;font-weight:700;color:var(--navy);margin-top:4px}
+  .kpi .s{font-size:11px;color:var(--muted);margin-top:2px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:1000px){.two{grid-template-columns:1fr}}
+  .chartbox{position:relative;height:300px}
+  .hint{font-size:12px;color:var(--muted)}
+  code{background:var(--light);padding:1px 5px;border-radius:4px;font-size:12px}
+
+  /* ---------- Proposal document ---------- */
+  #doc{background:#fff;max-width:900px;margin:0 auto;box-shadow:0 2px 16px rgba(0,0,0,.08);color:#1D2733}
+  #doc .page{padding:48px 56px}
+  #doc .cover{background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;padding:70px 56px 60px}
+  #doc .cover .tag{letter-spacing:3px;text-transform:uppercase;font-size:12px;opacity:.85}
+  #doc .cover h1{font-size:34px;margin:14px 0 6px;line-height:1.15}
+  #doc .cover h2{font-size:20px;font-weight:400;margin:0 0 36px;opacity:.95}
+  #doc .cover .meta{display:flex;gap:40px;font-size:13px;flex-wrap:wrap}
+  #doc .cover .meta div span{display:block;opacity:.7;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+  #doc h3.sec{color:var(--navy);font-size:19px;border-bottom:2px solid var(--teal);padding-bottom:6px;margin:34px 0 14px}
+  #doc h3.sec:first-child{margin-top:0}
+  #doc p{line-height:1.55}
+  #doc .hl{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0}
+  #doc .hl div{background:var(--light);border-radius:8px;padding:12px}
+  #doc .hl span{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  #doc .hl b{font-size:17px;color:var(--navy)}
+  #doc table.t{font-size:12px}
+  #doc ul{padding-left:20px;line-height:1.6}
+  #doc .mg{display:grid;gap:3px;margin:10px 0}
+  #doc .mg .r{display:grid;grid-template-columns:200px 1fr;align-items:center;gap:8px;font-size:11px}
+  #doc .mg .bar{position:relative;height:16px;background:#F0F3F7;border-radius:3px}
+  #doc .mg .bar i{position:absolute;top:0;bottom:0;background:var(--blue);border-radius:3px}
+  #doc .mg .bar i.o{background:repeating-linear-gradient(45deg,var(--warn),var(--warn) 4px,#E9B04F 4px,#E9B04F 8px)}
+  #doc .mg .ax{display:grid;font-size:9px;color:var(--muted)}
+  #doc .note{font-size:11px;color:var(--muted)}
+  #doc [contenteditable]:hover{outline:1px dashed #9FB3CC}
+  #doc .foot{font-size:10px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px;margin-top:30px}
+
+  @media print{
+    body{background:#fff}
+    header.app,nav.tabs,.noprint{display:none!important}
+    main{padding:0;max-width:none}
+    section.tab{display:none!important}
+    section#tab-doc{display:block!important}
+    #doc{box-shadow:none;max-width:none}
+    #doc .cover{-webkit-print-color-adjust:exact;print-color-adjust:exact;page-break-after:always}
+    #doc table.t th,#doc .hl div,#doc .mg .bar i,#doc .mg .bar{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    #doc h3.sec{page-break-after:avoid}
+    #doc table{page-break-inside:auto} #doc tr{page-break-inside:avoid}
+    #doc [contenteditable]:hover{outline:none}
+  }
+</style>
+</head>
+<body>
+<header class="app">
+  <h1>📊 Timeline → Proposta Comercial</h1>
+  <div class="actions">
+    <button class="btn light" onclick="downloadTemplate()">⬇ Template Excel</button>
+    <button class="btn light" onclick="loadExample()">▶ Carregar exemplo</button>
+    <button class="btn light" onclick="saveScenario()">💾 Salvar cenário</button>
+    <button class="btn light" onclick="document.getElementById('scnFile').click()">📂 Abrir cenário</button>
+    <input type="file" id="scnFile" accept=".json" hidden onchange="openScenario(this.files[0])">
+  </div>
+</header>
+
+<nav class="tabs">
+  <button data-tab="tl" class="active">1. Timeline</button>
+  <button data-tab="par" disabled>2. Parâmetros & Rate Card</button>
+  <button data-tab="ana" disabled>3. Análise financeira</button>
+  <button data-tab="doc" disabled>4. Proposta</button>
+</nav>
+
+<main>
+<!-- ================= TAB 1: TIMELINE ================= -->
+<section class="tab active" id="tab-tl">
+  <div class="card">
+    <h2>Upload do timeline</h2>
+    <div class="drop" id="drop" onclick="document.getElementById('tlFile').click()">
+      <strong>Arraste aqui o arquivo do timeline (.xlsx, .xlsm, .csv)</strong>
+      <p>ou clique para selecionar</p>
+      <p class="hint">Se o arquivo tiver uma aba chamada <code>Rate Card</code>, ela também é importada automaticamente.</p>
+    </div>
+    <input type="file" id="tlFile" accept=".xlsx,.xlsm,.xls,.csv" hidden onchange="handleFile(this.files[0])">
+    <div id="tlMsg"></div>
+    <details style="margin-top:10px">
+      <summary class="hint" style="cursor:pointer">Formatos aceitos</summary>
+      <div class="hint" style="margin-top:8px;line-height:1.7">
+        <b>A) Matriz (recomendado):</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Optional</code> + uma coluna por período: <code>SP1, SP2…</code> (sprints) ou <code>W1, W2…</code> (semanas), com a alocação em FTE (ex.: 1, 0,5, 50%).<br>
+        <b>B) Lista:</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Start</code>, <code>End</code>, <code>FTE</code> (Start/End como número ou "SP5").<br>
+        Também são aceitos cabeçalhos em português/espanhol: Fase, Frente, Onda, Perfil, Nível, Local, Opcional, Início, Fim, Alocação.<br>
+        <b>Rate Card (opcional):</b> aba com <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Cost/h</code>, <code>Rate/h</code>.
+      </div>
+    </details>
+  </div>
+  <div class="card" id="tlView" style="display:none">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="tlTitle">Timeline importado</h2>
+      <button class="btn" onclick="goTab('par')">Próximo: parâmetros →</button>
+    </div>
+    <div class="scroll" id="gantt"></div>
+    <p class="hint">Valores = FTE alocado por período. Linhas em itálico/laranja são itens opcionais.</p>
+  </div>
+</section>
+
+<!-- ================= TAB 2: PARAMS ================= -->
+<section class="tab" id="tab-par">
+  <div class="card">
+    <h2>Dados da proposta</h2>
+    <div class="grid">
+      <label class="f">Fornecedor<input id="p_vendor" value="TCS"></label>
+      <label class="f">Cliente<input id="p_client" placeholder="Ex.: Roche"></label>
+      <label class="f">Projeto<input id="p_project" placeholder="Ex.: Analytics Modernization"></label>
+      <label class="f">Referência / CRM ID<input id="p_ref" placeholder="CRM ID"></label>
+      <label class="f">Data de início<input type="date" id="p_start"></label>
+      <label class="f">Idioma da proposta
+        <select id="p_lang"><option value="en">English</option><option value="pt">Português</option><option value="es">Español</option></select></label>
+      <label class="f">Modelo de contratação
+        <select id="p_model"><option value="fp">Fixed Price</option><option value="tm">Time & Material</option></select></label>
+      <label class="f">Moeda
+        <select id="p_cur"><option>BRL</option><option>USD</option><option>EUR</option><option>MXN</option><option>COP</option><option>ARS</option></select></label>
+    </div>
+    <label class="f" style="margin-top:12px">Contexto / objetivo (aparece no Executive Summary)
+      <textarea id="p_context" placeholder="Ex.: Modernize the analytics platform, migrating ingestion and transformation layers to a governed Medallion architecture…"></textarea></label>
+  </div>
+
+  <div class="card">
+    <h2>Premissas de esforço e preço</h2>
+    <div class="grid">
+      <label class="f">Semanas por período (sprint)<input type="number" id="p_pw" value="2" min="1" step="1"></label>
+      <label class="f">Horas faturáveis / dia<input type="number" id="p_hpd" value="8" min="1" step="0.5"></label>
+      <label class="f">Dias úteis / semana<input type="number" id="p_dpw" value="5" min="1" max="7"></label>
+      <label class="f">Modo de precificação
+        <select id="p_mode"><option value="rate">Rate/h do rate card</option><option value="gm">Custo/h + GM% alvo</option></select></label>
+      <label class="f">GM% alvo (modo custo)<input type="number" id="p_gm" value="35" step="0.5"></label>
+      <label class="f">Contingência / risco %<input type="number" id="p_cont" value="0" step="0.5"></label>
+      <label class="f">Desconto comercial %<input type="number" id="p_disc" value="0" step="0.5"></label>
+      <label class="f">Impostos (gross-up) %<input type="number" id="p_tax" value="5.65" step="0.01"></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="chk"><input type="checkbox" id="p_inclOpt"> Incluir itens opcionais no total da proposta</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Faturamento</h2>
+    <div class="grid">
+      <label class="f">Modelo de pagamento
+        <select id="p_pay">
+          <option value="milestone">Marcos por fase (fim da fase)</option>
+          <option value="monthly">Mensal pelo consumo (T&M)</option>
+          <option value="install">Parcelas mensais iguais</option>
+        </select></label>
+      <label class="f">Nº de parcelas (se iguais)<input type="number" id="p_inst" value="6" min="1"></label>
+      <label class="f">Prazo de pagamento (dias)<input type="number" id="p_terms" value="30" min="0"></label>
+      <label class="f">Validade da proposta (dias)<input type="number" id="p_valid" value="30" min="1"></label>
+    </div>
+    <label class="f" style="margin-top:12px">Premissas adicionais (uma por linha)
+      <textarea id="p_assump" placeholder="Client will provide access to source systems and environments by Sprint 1.&#10;Licenses and cloud consumption are not included."></textarea></label>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2>Rate Card</h2>
+      <div class="row">
+        <button class="btn sec" onclick="document.getElementById('rcFile').click()">Importar rate card (.xlsx/.csv)</button>
+        <input type="file" id="rcFile" accept=".xlsx,.xlsm,.xls,.csv" hidden onchange="importRateCard(this.files[0])">
+        <button class="btn sec" onclick="applyGmToRates()">Calcular Rate/h = Custo/(1–GM%)</button>
+      </div>
+    </div>
+    <p class="hint">Perfis identificados no timeline. Preencha Custo/h e/ou Rate/h (valores líquidos de impostos). Campos vazios ficam destacados.</p>
+    <div id="rcMsg"></div>
+    <div class="scroll" style="max-height:none"><table class="t" id="rcTable"></table></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn" onclick="recalc(true)">Calcular proposta →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TAB 3: ANALYSIS ================= -->
+<section class="tab" id="tab-ana">
+  <div class="kpis" id="kpis"></div>
+  <div class="two">
+    <div class="card"><h2>Alocação (FTE) por período</h2><div class="chartbox"><canvas id="chFte"></canvas></div></div>
+    <div class="card"><h2>Faturamento por mês (com impostos)</h2><div class="chartbox"><canvas id="chMonth"></canvas></div></div>
+  </div>
+  <div class="card"><h2>Investimento por fase</h2><div id="tbPhase"></div></div>
+  <div class="card"><h2>Investimento por perfil</h2><div id="tbRole"></div></div>
+  <div class="two">
+    <div class="card"><h2>Distribuição mensal</h2><div id="tbMonth"></div></div>
+    <div class="card"><h2>Cronograma de pagamentos</h2><div id="tbPay"></div></div>
+  </div>
+  <div class="row noprint" style="justify-content:flex-end;gap:10px">
+    <button class="btn sec" onclick="exportExcel()">⬇ Exportar memória de cálculo (Excel)</button>
+    <button class="btn" onclick="goTab('doc')">Ver proposta →</button>
+  </div>
+</section>
+
+<!-- ================= TAB 4: PROPOSAL ================= -->
+<section class="tab" id="tab-doc">
+  <div class="row noprint" style="justify-content:space-between;margin-bottom:14px">
+    <span class="hint">Os textos do documento podem ser editados diretamente (clique no texto). Recalcular sobrescreve as edições.</span>
+    <div class="row">
+      <button class="btn sec" onclick="exportExcel()">⬇ Excel</button>
+      <button class="btn sec" onclick="exportWord()">⬇ Word (.doc)</button>
+      <button class="btn teal" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+    </div>
+  </div>
+  <div id="doc"></div>
+</section>
+</main>
+
+<script>
+/* =====================================================================
+   STATE
+===================================================================== */
+const S = {
+  rows: [],          // {phase, activity, role, level, location, optional, alloc:[fte per period]}
+  nPeriods: 0,
+  unit: 'SP',        // 'SP' (sprint) or 'W' (week)
+  rates: {},         // key -> {role, level, location, cost, rate}
+  fileName: '',
+  result: null
+};
+const charts = {};
+
+/* =====================================================================
+   HELPERS
+===================================================================== */
+const $ = id => document.getElementById(id);
+const norm = s => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function num(v){
+  if (v === null || v === undefined || v === '') return 0;
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v).trim(); if (!s) return 0;
+  const pct = s.endsWith('%');
+  s = s.replace('%','').replace(/\s/g,'');
+  if (/,\d+$/.test(s) && s.indexOf('.') > -1) s = s.replace(/\./g,'').replace(',', '.'); // 1.234,5
+  else s = s.replace(',', '.');
+  const n = parseFloat(s);
+  if (isNaN(n)) return 0;
+  return pct ? n/100 : n;
+}
+function periodNum(v){
+  if (typeof v === 'number') return Math.round(v);
+  const m = String(v ?? '').match(/(\d+)/);
+  return m ? parseInt(m[1],10) : 0;
+}
+const isYes = v => ['y','yes','s','sim','si','x','true','1','optional','opcional'].includes(norm(v));
+const rkey = r => [r.role, r.level || '-', r.location || '-'].join('|');
+
+// dates in UTC
+function parseDate(s){ const [y,m,d] = s.split('-').map(Number); return new Date(Date.UTC(y, m-1, d)); }
+const addDays = (d, n) => new Date(d.getTime() + n*86400000);
+const iso = d => d.toISOString().slice(0,10);
+const monthKey = d => d.toISOString().slice(0,7);
+
+function locale(){ const l = $('p_lang').value; return l==='pt' ? 'pt-BR' : l==='es' ? 'es-ES' : 'en-US'; }
+function fmtCur(v, dec=0){
+  try { return new Intl.NumberFormat(locale(), {style:'currency', currency: $('p_cur').value, minimumFractionDigits:dec, maximumFractionDigits:dec}).format(v); }
+  catch(e){ return $('p_cur').value + ' ' + fmtNum(v, dec); }
+}
+const fmtNum = (v, dec=0) => new Intl.NumberFormat(locale(), {minimumFractionDigits:dec, maximumFractionDigits:dec}).format(v);
+const fmtNumPT = (v, dec=0) => new Intl.NumberFormat('pt-BR', {minimumFractionDigits:dec, maximumFractionDigits:dec}).format(v);
+const fmtCurPT = (v, dec=0) => { try { return new Intl.NumberFormat('pt-BR',{style:'currency',currency:$('p_cur').value,minimumFractionDigits:dec,maximumFractionDigits:dec}).format(v);} catch(e){ return fmtNumPT(v,dec);} };
+function fmtDate(d){ return d.toLocaleDateString(locale(), {timeZone:'UTC', day:'2-digit', month:'short', year:'numeric'}); }
+function fmtMonth(k){ const d = parseDate(k+'-01'); return d.toLocaleDateString(locale(), {timeZone:'UTC', month:'short', year:'numeric'}); }
+function msg(el, type, text){ $(el).innerHTML = text ? `<div class="msg ${type}">${text}</div>` : ''; }
+function nextMonday(){ const d = new Date(); const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const dow = t.getUTCDay(); return addDays(t, ((8 - dow) % 7) || 7); }
+
+/* =====================================================================
+   TABS
+===================================================================== */
+document.querySelectorAll('nav.tabs button').forEach(b => b.addEventListener('click', () => !b.disabled && goTab(b.dataset.tab)));
+function goTab(t){
+  if (t === 'ana' || t === 'doc') { if (!S.result) recalc(false); }
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('active', s.id === 'tab-'+t));
+  if (t === 'ana') drawCharts();
+  window.scrollTo(0,0);
+}
+function enableTabs(n){ document.querySelectorAll('nav.tabs button').forEach((b,i) => b.disabled = i > n); }
+
+/* =====================================================================
+   FILE UPLOAD / PARSING
+===================================================================== */
+const drop = $('drop');
+['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', ev => { const f = ev.dataTransfer.files[0]; if (f) handleFile(f); });
+
+function readWorkbook(file){
+  return new Promise((res, rej) => {
+    if (typeof XLSX === 'undefined') return rej(new Error('Biblioteca SheetJS não carregou (verifique acesso à internet).'));
+    const fr = new FileReader();
+    fr.onload = e => { try { res(XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true})); } catch(err){ rej(err); } };
+    fr.onerror = rej;
+    fr.readAsArrayBuffer(file);
+  });
+}
+const sheetAoa = ws => XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true, blankrows:false});
+
+async function handleFile(file){
+  if (!file) return;
+  try {
+    const wb = await readWorkbook(file);
+    // choose timeline sheet
+    let tlName = wb.SheetNames.find(n => /timeline|cronograma|gantt|plan/i.test(n)) || null;
+    let parsed = null, errors = [];
+    const candidates = tlName ? [tlName, ...wb.SheetNames.filter(n => n !== tlName)] : wb.SheetNames;
+    for (const n of candidates){
+      if (/rate/i.test(n)) continue;
+      try { parsed = parseTimeline(sheetAoa(wb.Sheets[n])); parsed.sheet = n; break; }
+      catch(e){ errors.push(`${n}: ${e.message}`); }
+    }
+    if (!parsed) throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
+    S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; S.fileName = file.name;
+    $('p_pw').value = S.unit === 'W' ? 1 : ($('p_pw').value === '1' ? 2 : $('p_pw').value);
+    // rate card sheet
+    const rcName = wb.SheetNames.find(n => /rate/i.test(n));
+    let rcInfo = '';
+    if (rcName){ const n = loadRateRows(sheetAoa(wb.Sheets[rcName])); rcInfo = ` Rate card importado da aba "${esc(rcName)}" (${n} perfis).`; }
+    afterTimelineLoaded(`Arquivo <b>${esc(file.name)}</b> (aba "${esc(parsed.sheet)}"): ${S.rows.length} linhas, ${S.nPeriods} ${S.unit==='SP'?'sprints':'semanas'}.${rcInfo}` + (parsed.warnings.length ? '<br>⚠ ' + parsed.warnings.join('<br>⚠ ') : ''));
+  } catch(e){ msg('tlMsg', 'err', '❌ ' + e.message); }
+}
+
+const ALIAS = {
+  phase:    ['phase','fase','workstream','frente','wave','onda','stage','etapa','track'],
+  activity: ['activity','atividade','actividad','deliverable','entregavel','entregable','task','tarefa'],
+  role:     ['role','perfil','papel','funcao','rol','profile','resource','recurso','cargo'],
+  level:    ['level','nivel','senioridade','seniority','grade','band','q level','qlevel'],
+  location: ['location','local','localidade','localizacao','ubicacion','country','pais','delivery'],
+  optional: ['optional','opcional','opt'],
+  start:    ['start','inicio','start sprint','sprint inicio','from','de'],
+  end:      ['end','fim','fin','end sprint','sprint fim','to','ate','hasta'],
+  fte:      ['fte','alocacao','allocation','asignacion','qty','quantidade','hc','headcount']
+};
+function findCol(headers, key){ return headers.findIndex(h => ALIAS[key].includes(h)); }
+
+function parseTimeline(aoa){
+  if (!aoa || !aoa.length) throw new Error('aba vazia');
+  // header row: first row (within 20) containing a role alias
+  let hr = -1;
+  for (let i = 0; i < Math.min(20, aoa.length); i++){
+    if (aoa[i].some(c => ALIAS.role.includes(norm(c)))) { hr = i; break; }
+  }
+  if (hr < 0) throw new Error('coluna "Role/Perfil" não encontrada');
+  const headers = aoa[hr].map(norm);
+  const col = {}; Object.keys(ALIAS).forEach(k => col[k] = findCol(headers, k));
+  const warnings = [];
+
+  // period columns
+  const pcols = [];
+  headers.forEach((h, i) => {
+    let m = h.match(/^(sp|sprint|s)\s*[-_#]?\s*(\d+)$/);
+    if (m) { pcols.push({i, p:+m[2], u:'SP'}); return; }
+    m = h.match(/^(w|wk|week|semana|sem)\s*[-_#]?\s*(\d+)$/);
+    if (m) pcols.push({i, p:+m[2], u:'W'});
+  });
+
+  const rows = []; let lastPhase = '';
+  let unit = 'SP', nPeriods = 0;
+
+  if (pcols.length){
+    unit = pcols.filter(c => c.u === 'W').length > pcols.length/2 ? 'W' : 'SP';
+    nPeriods = Math.max(...pcols.map(c => c.p));
+    for (let r = hr+1; r < aoa.length; r++){
+      const line = aoa[r];
+      const role = String(line[col.role] ?? '').trim();
+      const ph = col.phase >= 0 ? String(line[col.phase] ?? '').trim() : '';
+      if (ph) lastPhase = ph;
+      if (!role || /^total/i.test(role)) continue;
+      const alloc = new Array(nPeriods).fill(0);
+      pcols.forEach(c => alloc[c.p-1] += num(line[c.i]));
+      if (alloc.every(v => v === 0)) { warnings.push(`Linha ${r+1} (${esc(role)}) sem alocação – ignorada.`); continue; }
+      rows.push(mkRow(line, col, lastPhase, role, alloc));
+    }
+  } else if (col.start >= 0 && col.end >= 0){
+    const tmp = [];
+    for (let r = hr+1; r < aoa.length; r++){
+      const line = aoa[r];
+      const role = String(line[col.role] ?? '').trim();
+      const ph = col.phase >= 0 ? String(line[col.phase] ?? '').trim() : '';
+      if (ph) lastPhase = ph;
+      if (!role) continue;
+      const s = periodNum(line[col.start]), e = periodNum(line[col.end]);
+      const f = col.fte >= 0 ? num(line[col.fte]) : 1;
+      if (!s || !e || e < s) { warnings.push(`Linha ${r+1}: início/fim inválidos – ignorada.`); continue; }
+      tmp.push({line, role, phase:lastPhase, s, e, f});
+      nPeriods = Math.max(nPeriods, e);
+      const hs = norm(aoa[hr][col.start]);
+      if (/w|sem/.test(String(line[col.start]).toLowerCase()) && !/sp/.test(String(line[col.start]).toLowerCase())) unit = 'W';
+    }
+    tmp.forEach(t => {
+      const alloc = new Array(nPeriods).fill(0);
+      for (let p = t.s; p <= t.e; p++) alloc[p-1] = t.f || 1;
+      rows.push(mkRow(t.line, col, t.phase, t.role, alloc));
+    });
+  } else throw new Error('não encontrei colunas de período (SP1, SP2… / W1, W2…) nem Start/End');
+
+  if (!rows.length) throw new Error('nenhuma linha com alocação');
+  return {rows, nPeriods, unit, warnings};
+}
+function mkRow(line, col, phase, role, alloc){
+  return {
+    phase: phase || 'General',
+    activity: col.activity >= 0 ? String(line[col.activity] ?? '').trim() : '',
+    role,
+    level: col.level >= 0 ? String(line[col.level] ?? '').trim() : '',
+    location: col.location >= 0 ? String(line[col.location] ?? '').trim() : '',
+    optional: col.optional >= 0 ? isYes(line[col.optional]) : /opcional|optional/i.test(phase),
+    alloc
+  };
+}
+
+function afterTimelineLoaded(info){
+  msg('tlMsg', 'ok', '✅ ' + info);
+  // ensure rate entries
+  S.rows.forEach(r => { const k = rkey(r); if (!S.rates[k]) S.rates[k] = {role:r.role, level:r.level, location:r.location, cost:'', rate:''}; });
+  // drop rates not in timeline
+  const used = new Set(S.rows.map(rkey)); Object.keys(S.rates).forEach(k => { if (!used.has(k)) delete S.rates[k]; });
+  if (!$('p_start').value) $('p_start').value = iso(nextMonday());
+  if (!$('p_project').value && S.fileName) $('p_project').value = S.fileName.replace(/\.(xlsx|xlsm|xls|csv)$/i,'').replace(/[_-]+/g,' ');
+  S.result = null;
+  renderGantt(); renderRateTable(); enableTabs(1);
+  $('tlView').style.display = 'block';
+}
+
+/* ---------------- Rate card import ---------------- */
+async function importRateCard(file){
+  if (!file) return;
+  try {
+    const wb = await readWorkbook(file);
+    const n = wb.SheetNames.find(x => /rate/i.test(x)) || wb.SheetNames[0];
+    const c = loadRateRows(sheetAoa(wb.Sheets[n]));
+    renderRateTable(); msg('rcMsg', 'ok', `✅ ${c} perfis do timeline atualizados a partir de "${esc(file.name)}".`);
+  } catch(e){ msg('rcMsg', 'err', '❌ ' + e.message); }
+}
+function loadRateRows(aoa){
+  let hr = aoa.findIndex(r => r.some(c => ALIAS.role.includes(norm(c))));
+  if (hr < 0) throw new Error('Rate card sem coluna Role/Perfil');
+  const h = aoa[hr].map(norm);
+  const ci = {
+    role: findCol(h,'role'), level: findCol(h,'level'), location: findCol(h,'location'),
+    cost: h.findIndex(x => /^(cost|custo|costo)/.test(x)),
+    rate: h.findIndex(x => /^(rate|price|preco|tarifa|taxa|bill)/.test(x))
+  };
+  const table = [];
+  for (let r = hr+1; r < aoa.length; r++){
+    const L = aoa[r]; const role = String(L[ci.role] ?? '').trim(); if (!role) continue;
+    table.push({role, level: ci.level>=0 ? String(L[ci.level]??'').trim() : '', location: ci.location>=0 ? String(L[ci.location]??'').trim() : '',
+      cost: ci.cost>=0 ? num(L[ci.cost]) : 0, rate: ci.rate>=0 ? num(L[ci.rate]) : 0});
+  }
+  // also keep for not-yet-loaded timeline
+  let count = 0;
+  const match = (t, r) => norm(t.role) === norm(r.role) && (!t.level || !r.level || norm(t.level) === norm(r.level)) && (!t.location || !r.location || norm(t.location) === norm(r.location));
+  if (!S.rows.length){ table.forEach(t => { S.rates[rkey(t)] = {...t}; count++; }); return count; }
+  Object.values(S.rates).forEach(r => {
+    const t = table.find(t => match(t, r));
+    if (t){ if (t.cost) r.cost = t.cost; if (t.rate) r.rate = t.rate; count++; }
+  });
+  return count;
+}
+
+/* =====================================================================
+   RENDER: GANTT (input view)
+===================================================================== */
+const PALETTE = ['#1B4F8C','#13A89E','#6C4AB6','#E07A1F','#2E86C1','#C0392B','#7D8C2E','#AD5A8C','#4A6B82','#D4A017'];
+function phaseList(){ const out = []; S.rows.forEach(r => { if (!out.includes(r.phase)) out.push(r.phase); }); return out; }
+function renderGantt(){
+  const U = S.unit; const N = S.nPeriods; const phases = phaseList();
+  let h = `<table class="gantt"><thead><tr><th class="stk" style="left:0">Fase / Perfil</th><th>Nível</th><th>Local</th>`;
+  for (let p = 1; p <= N; p++) h += `<th class="c">${U}${p}</th>`;
+  h += `<th class="c">Total</th></tr></thead><tbody>`;
+  phases.forEach((ph, pi) => {
+    const color = PALETTE[pi % PALETTE.length];
+    const rows = S.rows.filter(r => r.phase === ph);
+    const span = new Array(N).fill(0); rows.forEach(r => r.alloc.forEach((v,i) => span[i] += v));
+    h += `<tr class="ph"><td class="stk" style="left:0;background:#F3F6FA"><span style="display:inline-block;width:10px;height:10px;background:${color};border-radius:2px;margin-right:6px"></span>${esc(ph)}${rows.every(r=>r.optional)?' <i style="color:var(--warn)">(opcional)</i>':''}</td><td></td><td></td>`;
+    span.forEach(v => h += `<td class="c" style="${v?`background:${color};color:#fff`:''}">${v?fmtNumPT(v,1):''}</td>`);
+    h += `<td class="c">${fmtNumPT(span.reduce((a,b)=>a+b,0),1)}</td></tr>`;
+    rows.forEach(r => {
+      const tot = r.alloc.reduce((a,b)=>a+b,0);
+      h += `<tr style="${r.optional?'color:var(--warn);font-style:italic':''}"><td class="stk" style="left:0;padding-left:22px">${esc(r.role)}${r.activity?` <span class="hint">· ${esc(r.activity)}</span>`:''}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td>`;
+      r.alloc.forEach(v => { const a = Math.min(1, v/1.5); h += `<td class="c" style="${v?`background:rgba(27,79,140,${0.12+0.5*a})`:''}">${v?fmtNumPT(v,v%1?1:0):''}</td>`; });
+      h += `<td class="c">${fmtNumPT(tot,1)}</td></tr>`;
+    });
+  });
+  h += `</tbody></table>`;
+  $('gantt').innerHTML = h;
+  $('tlTitle').textContent = `Timeline importado — ${S.rows.length} linhas · ${phases.length} fases · ${N} ${U==='SP'?'sprints':'semanas'}`;
+}
+
+/* =====================================================================
+   RENDER: RATE CARD
+===================================================================== */
+function renderRateTable(){
+  const keys = Object.keys(S.rates).sort();
+  let h = `<thead><tr><th>Perfil</th><th>Nível</th><th>Local</th><th class="n">Horas (timeline)</th><th class="n">Custo/h</th><th class="n">Rate/h</th><th class="n">GM%</th></tr></thead><tbody>`;
+  const hrsBy = {}; const hp = hoursPerPeriod();
+  S.rows.forEach(r => { const k = rkey(r); hrsBy[k] = (hrsBy[k]||0) + r.alloc.reduce((a,b)=>a+b,0)*hp; });
+  keys.forEach(k => {
+    const r = S.rates[k];
+    const gm = r.rate && r.cost ? (1 - r.cost/r.rate)*100 : null;
+    const miss = v => (v===''||v===0||v===null) ? 'style="border-color:var(--err);background:#FFF5F5"' : '';
+    h += `<tr><td>${esc(r.role)}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td><td class="n">${fmtNumPT(hrsBy[k]||0)}</td>
+      <td class="n"><input type="number" step="0.01" value="${r.cost}" data-k="${esc(k)}" data-f="cost" ${$('p_mode').value==='gm'?miss(r.cost):''}></td>
+      <td class="n"><input type="number" step="0.01" value="${r.rate}" data-k="${esc(k)}" data-f="rate" ${$('p_mode').value==='rate'?miss(r.rate):''}></td>
+      <td class="n" style="${gm!==null&&gm<0?'color:var(--err)':''}">${gm===null?'–':fmtNumPT(gm,1)+'%'}</td></tr>`;
+  });
+  $('rcTable').innerHTML = h + '</tbody>';
+  $('rcTable').querySelectorAll('input').forEach(inp => inp.addEventListener('change', e => {
+    S.rates[e.target.dataset.k][e.target.dataset.f] = e.target.value === '' ? '' : num(e.target.value);
+    S.result = null; renderRateTable();
+  }));
+}
+function applyGmToRates(){
+  const gm = num($('p_gm').value)/100; let c = 0;
+  Object.values(S.rates).forEach(r => { if (r.cost) { r.rate = Math.round(r.cost/(1-gm)*100)/100; c++; } });
+  renderRateTable(); msg('rcMsg', c?'ok':'warn', c ? `Rate/h recalculado para ${c} perfis com GM ${fmtNumPT(gm*100,1)}%.` : 'Preencha o Custo/h primeiro.');
+}
+['p_mode','p_pw','p_hpd','p_dpw'].forEach(id => $(id).addEventListener('change', () => { S.result = null; if (S.rows.length) renderRateTable(); }));
+
+/* =====================================================================
+   CALCULATION ENGINE
+===================================================================== */
+function P(){
+  return {
+    vendor: $('p_vendor').value.trim() || 'TCS', client: $('p_client').value.trim() || 'Client', project: $('p_project').value.trim() || 'Project',
+    ref: $('p_ref').value.trim(), start: $('p_start').value || iso(nextMonday()), lang: $('p_lang').value, model: $('p_model').value, cur: $('p_cur').value,
+    context: $('p_context').value.trim(), pw: Math.max(1, num($('p_pw').value)), hpd: num($('p_hpd').value), dpw: Math.min(7, Math.max(1, num($('p_dpw').value))),
+    mode: $('p_mode').value, gm: num($('p_gm').value)/100, cont: num($('p_cont').value)/100, disc: num($('p_disc').value)/100, tax: num($('p_tax').value)/100,
+    inclOpt: $('p_inclOpt').checked, pay: $('p_pay').value, inst: Math.max(1, Math.round(num($('p_inst').value))), terms: num($('p_terms').value), valid: num($('p_valid').value),
+    assump: $('p_assump').value.split('\n').map(s => s.trim()).filter(Boolean)
+  };
+}
+function hoursPerPeriod(){ const pw = S.unit==='W' ? 1 : Math.max(1, num($('p_pw').value)); return pw * num($('p_dpw').value) * num($('p_hpd').value); }
+
+function recalc(go){
+  if (!S.rows.length) return;
+  const p = P();
+  const pw = S.unit === 'W' ? 1 : p.pw;
+  const hpp = pw * p.dpw * p.hpd;
+  const f = (1 + p.cont) * (1 - p.disc);
+  const gross = v => p.tax < 1 ? v / (1 - p.tax) : v;
+  const start = parseDate(p.start);
+  const pStart = i => addDays(start, i*pw*7);
+  const pEnd = i => addDays(start, (i+1)*pw*7 - 1 - (p.dpw===5 ? 2 : p.dpw===6 ? 1 : 0));
+
+  // validation
+  const missing = [];
+  Object.entries(S.rates).forEach(([k, r]) => {
+    const ok = p.mode === 'rate' ? num(r.rate) > 0 : num(r.cost) > 0;
+    if (!ok) missing.push(`${r.role}${r.level?' '+r.level:''}${r.location?' ('+r.location+')':''}`);
+  });
+  if (missing.length){ msg('rcMsg','warn', `⚠ Sem ${p.mode==='rate'?'Rate/h':'Custo/h'} para: ${esc(missing.join(', '))}. Esses perfis entram com valor zero.`); }
+  else msg('rcMsg','',''); 
+
+  const priceH = r => { const rc = S.rates[rkey(r)] || {}; return p.mode === 'rate' ? num(rc.rate) : (num(rc.cost) / (1 - p.gm)); };
+  const costH = r => num((S.rates[rkey(r)] || {}).cost);
+
+  // per row
+  const rows = S.rows.map(r => {
+    const hrs = r.alloc.map(v => v * hpp);
+    const H = hrs.reduce((a,b)=>a+b,0);
+    const net = H * priceH(r) * f, cost = H * costH(r);
+    return {...r, hrs, H, rateH: priceH(r) * f, net, cost, netP: hrs.map(h => h * priceH(r) * f), costP: hrs.map(h => h*costH(r))};
+  });
+  const inScope = r => !r.optional || p.inclOpt;
+
+  // phases
+  const phases = phaseList().map((name, i) => {
+    const rr = rows.filter(r => r.phase === name);
+    const act = new Array(S.nPeriods).fill(0); rr.forEach(r => r.alloc.forEach((v,j) => act[j] += v));
+    const first = act.findIndex(v => v > 0), last = act.length - 1 - [...act].reverse().findIndex(v => v > 0);
+    const H = rr.reduce((a,r)=>a+r.H,0), net = rr.reduce((a,r)=>a+r.net,0), cost = rr.reduce((a,r)=>a+r.cost,0);
+    const optional = rr.every(r => r.optional);
+    return {name, color: PALETTE[i % PALETTE.length], first, last, start: pStart(first), end: pEnd(last), H, net, gross: gross(net), cost, optional, partialOpt: !optional && rr.some(r=>r.optional),
+      fte: act, roles: [...new Set(rr.map(r => r.role))]};
+  });
+
+  // roles
+  const roleMap = {};
+  rows.forEach(r => {
+    const k = rkey(r) + '|' + (r.optional ? 'opt' : 'core');
+    if (!roleMap[k]) roleMap[k] = {role:r.role, level:r.level, location:r.location, optional:r.optional, H:0, net:0, cost:0, fteSum:0, rateH:r.rateH, act: new Array(S.nPeriods).fill(0)};
+    const m = roleMap[k]; m.H += r.H; m.net += r.net; m.cost += r.cost; r.alloc.forEach((v,j) => m.act[j] += v);
+  });
+  const roles = Object.values(roleMap).map(m => {
+    const activeP = m.act.filter(v => v > 0).length;
+    return {...m, gross: gross(m.net), avgFte: activeP ? m.act.reduce((a,b)=>a+b,0)/activeP : 0, peak: Math.max(...m.act), periods: activeP};
+  }).sort((a,b) => (a.optional - b.optional) || b.net - a.net);
+
+  // periods
+  const periods = [];
+  for (let j = 0; j < S.nPeriods; j++){
+    const sc = rows.filter(inScope);
+    periods.push({idx:j, start: pStart(j), end: pEnd(j),
+      fte: sc.reduce((a,r)=>a+r.alloc[j],0), fteAll: rows.reduce((a,r)=>a+r.alloc[j],0),
+      H: sc.reduce((a,r)=>a+r.hrs[j],0), net: sc.reduce((a,r)=>a+r.netP[j],0), cost: sc.reduce((a,r)=>a+r.costP[j],0)});
+  }
+
+  // monthly distribution: spread each period across its working days
+  const months = {};
+  periods.forEach(pd => {
+    const days = [];
+    for (let d = 0; d < pw*7; d++){ const dt = addDays(pd.start, d); const dow = dt.getUTCDay(); const wd = dow === 0 ? 7 : dow; if (wd <= p.dpw) days.push(dt); }
+    days.forEach(dt => {
+      const k = monthKey(dt); if (!months[k]) months[k] = {key:k, H:0, net:0, cost:0};
+      months[k].H += pd.H/days.length; months[k].net += pd.net/days.length; months[k].cost += pd.cost/days.length;
+    });
+  });
+  const monthArr = Object.values(months).sort((a,b) => a.key.localeCompare(b.key)).map(m => ({...m, gross: gross(m.net)}));
+
+  // totals
+  const sum = (arr, k) => arr.reduce((a,x)=>a+x[k],0);
+  const core = rows.filter(r => !r.optional), opt = rows.filter(r => r.optional), sc = rows.filter(inScope);
+  const T = {
+    H: sum(sc,'H'), net: sum(sc,'net'), cost: sum(sc,'cost'),
+    Hcore: sum(core,'H'), netCore: sum(core,'net'), Hopt: sum(opt,'H'), netOpt: sum(opt,'net')
+  };
+  T.gross = gross(T.net); T.grossCore = gross(T.netCore); T.grossOpt = gross(T.netOpt);
+  T.gm = T.net ? (T.net - T.cost)/T.net : 0;
+  T.list = sum(sc, 'H') ? sc.reduce((a,r)=>a + r.H * (p.mode==='rate'?num((S.rates[rkey(r)]||{}).rate):num((S.rates[rkey(r)]||{}).cost)/(1-p.gm)) * (1+p.cont),0) : 0;
+  const activeP = periods.filter(x => x.fte > 0);
+  T.peak = Math.max(0, ...periods.map(x => x.fte));
+  T.avgFte = activeP.length ? sum(activeP,'fte')/activeP.length : 0;
+  const scPhases = phases.filter(ph => !ph.optional || p.inclOpt);
+  const firstP = periods.findIndex(x => x.fte > 0), lastP = periods.length - 1 - [...periods].reverse().findIndex(x => x.fte > 0);
+  T.start = pStart(Math.max(0, firstP)); T.end = pEnd(lastP < periods.length ? lastP : periods.length-1);
+  T.nPer = lastP - firstP + 1; T.weeks = T.nPer * pw;
+  T.blended = T.H ? T.net / T.H : 0;
+
+  // payments
+  let pays = [];
+  if (p.pay === 'milestone'){
+    scPhases.filter(ph => ph.net > 0).sort((a,b) => a.last - b.last || a.first - b.first).forEach(ph => {
+      const netIn = rows.filter(r => r.phase === ph.name && inScope(r)).reduce((a,r)=>a+r.net,0);
+      pays.push({label: ph.name, trigger: 'phase', when: ph.end, net: netIn});
+    });
+  } else if (p.pay === 'monthly'){
+    monthArr.forEach(m => { const d = parseDate(m.key + '-01'); const eom = addDays(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth()+1, 1)), -1); pays.push({label: m.key, trigger:'month', when: eom, net: m.net}); });
+  } else {
+    for (let i = 0; i < p.inst; i++){ const d = new Date(Date.UTC(T.start.getUTCFullYear(), T.start.getUTCMonth()+i+1, 0)); pays.push({label: i+1, trigger:'inst', when: d, net: T.net/p.inst}); }
+  }
+  pays = pays.map(x => ({...x, gross: gross(x.net), pct: T.net ? x.net/T.net : 0, due: addDays(x.when, p.terms)}));
+
+  S.result = {p, pw, hpp, f, rows, phases, roles, periods, months: monthArr, T, pays, missing};
+  enableTabs(3);
+  renderAnalysis(); renderDoc();
+  if (go) goTab('ana');
+}
+
+/* =====================================================================
+   RENDER: ANALYSIS
+===================================================================== */
+function renderAnalysis(){
+  const R = S.result, T = R.T, p = R.p, U = S.unit;
+  const k = (l, v, s='') => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  $('kpis').innerHTML =
+    k('Preço total (c/ impostos)', fmtCurPT(T.gross), `Líquido: ${fmtCurPT(T.net)}`) +
+    k('Duração', `${T.nPer} ${U==='SP'?'sprints':'semanas'}`, `${T.weeks} semanas · ${iso(T.start)} → ${iso(T.end)}`) +
+    k('Esforço', `${fmtNumPT(T.H)} h`, `${fmtNumPT(T.H / (p.hpd*p.dpw*52/12||1),1)} FTE-mês`) +
+    k('Time', `pico ${fmtNumPT(T.peak,1)} FTE`, `média ${fmtNumPT(T.avgFte,1)} FTE`) +
+    k('Rate médio (blended)', fmtCurPT(T.blended,2)+'/h', `${p.mode==='rate'?'rate card':'custo + GM'}`) +
+    k('GM% estimado', T.cost ? fmtNumPT(T.gm*100,1)+'%' : '–', T.cost ? `Custo: ${fmtCurPT(T.cost)}` : 'preencha Custo/h') +
+    (T.netOpt ? k('Opcionais', fmtCurPT(T.grossOpt), p.inclOpt ? 'incluídos no total' : 'fora do total') : '');
+
+  // phase table
+  let h = `<table class="t"><thead><tr><th>Fase</th><th>Período</th><th>Datas</th><th class="n">Horas</th><th class="n">Líquido</th><th class="n">Com impostos</th><th class="n">% total</th></tr></thead><tbody>`;
+  R.phases.forEach(ph => {
+    h += `<tr class="${ph.optional?'opt':''}"><td><span style="display:inline-block;width:9px;height:9px;background:${ph.color};border-radius:2px;margin-right:6px"></span>${esc(ph.name)}${ph.optional?' (opcional)':''}</td><td>${ph.first===ph.last?U+(ph.first+1):U+(ph.first+1)+'–'+U+(ph.last+1)}</td><td>${iso(ph.start)} → ${iso(ph.end)}</td><td class="n">${fmtNumPT(ph.H)}</td><td class="n">${fmtCurPT(ph.net)}</td><td class="n">${fmtCurPT(ph.gross)}</td><td class="n">${(!ph.optional||p.inclOpt)&&T.net?fmtNumPT(ph.net/T.net*100,1)+'%':'–'}</td></tr>`;
+  });
+  h += `<tr class="tot"><td colspan="3">Total ${p.inclOpt?'(com opcionais)':'(escopo base)'}</td><td class="n">${fmtNumPT(T.H)}</td><td class="n">${fmtCurPT(T.net)}</td><td class="n">${fmtCurPT(T.gross)}</td><td class="n">100%</td></tr></tbody></table>`;
+  $('tbPhase').innerHTML = h;
+
+  // role table
+  h = `<table class="t"><thead><tr><th>Perfil</th><th>Nível</th><th>Local</th><th class="n">FTE médio</th><th class="n">Pico</th><th class="n">Horas</th><th class="n">Rate/h aplicado</th><th class="n">Líquido</th><th class="n">GM%</th></tr></thead><tbody>`;
+  R.roles.forEach(r => {
+    h += `<tr class="${r.optional?'opt':''}"><td>${esc(r.role)}${r.optional?' (opc.)':''}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td><td class="n">${fmtNumPT(r.avgFte,2)}</td><td class="n">${fmtNumPT(r.peak,1)}</td><td class="n">${fmtNumPT(r.H)}</td><td class="n">${fmtCurPT(r.rateH,2)}</td><td class="n">${fmtCurPT(r.net)}</td><td class="n">${r.cost&&r.net?fmtNumPT((1-r.cost/r.net)*100,1)+'%':'–'}</td></tr>`;
+  });
+  $('tbRole').innerHTML = h + '</tbody></table>';
+
+  // month table
+  h = `<table class="t"><thead><tr><th>Mês</th><th class="n">Horas</th><th class="n">Líquido</th><th class="n">Com impostos</th></tr></thead><tbody>`;
+  R.months.forEach(m => h += `<tr><td>${m.key}</td><td class="n">${fmtNumPT(m.H)}</td><td class="n">${fmtCurPT(m.net)}</td><td class="n">${fmtCurPT(m.gross)}</td></tr>`);
+  $('tbMonth').innerHTML = h + `<tr class="tot"><td>Total</td><td class="n">${fmtNumPT(T.H)}</td><td class="n">${fmtCurPT(T.net)}</td><td class="n">${fmtCurPT(T.gross)}</td></tr></tbody></table>`;
+
+  // payments
+  h = `<table class="t"><thead><tr><th>#</th><th>Evento</th><th>Faturamento</th><th>Vencimento</th><th class="n">%</th><th class="n">Com impostos</th></tr></thead><tbody>`;
+  R.pays.forEach((x,i) => h += `<tr><td>${i+1}</td><td>${esc(x.trigger==='phase'?'Conclusão: '+x.label:x.trigger==='month'?'Medição '+x.label:'Parcela '+x.label)}</td><td>${iso(x.when)}</td><td>${iso(x.due)}</td><td class="n">${fmtNumPT(x.pct*100,1)}%</td><td class="n">${fmtCurPT(x.gross)}</td></tr>`);
+  $('tbPay').innerHTML = h + `<tr class="tot"><td colspan="5">Total</td><td class="n">${fmtCurPT(R.pays.reduce((a,x)=>a+x.gross,0))}</td></tr></tbody></table>`;
+}
+
+function drawCharts(){
+  if (!S.result || typeof Chart === 'undefined') return;
+  const R = S.result, U = S.unit;
+  Object.values(charts).forEach(c => c.destroy());
+  const labels = R.periods.map((x,i) => U + (i+1));
+  const ds = R.phases.map(ph => ({
+    label: ph.name + (ph.optional ? ' (opc.)' : ''),
+    data: R.periods.map((_, j) => R.rows.filter(r => r.phase === ph.name).reduce((a,r)=>a+r.alloc[j],0)),
+    backgroundColor: ph.optional ? ph.color + '88' : ph.color, stack: 's'
+  }));
+  charts.fte = new Chart($('chFte'), {type:'bar', data:{labels, datasets:ds}, options:{maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10, font:{size:11}}}}, scales:{x:{stacked:true}, y:{stacked:true, title:{display:true, text:'FTE'}}}}});
+  let acc = 0;
+  charts.m = new Chart($('chMonth'), {type:'bar', data:{labels: R.months.map(m => m.key), datasets:[
+    {label:'Faturamento mensal', data: R.months.map(m => Math.round(m.gross)), backgroundColor:'#1B4F8C', yAxisID:'y'},
+    {label:'Acumulado', type:'line', data: R.months.map(m => Math.round(acc += m.gross)), borderColor:'#13A89E', backgroundColor:'#13A89E', yAxisID:'y1', tension:.25}
+  ]}, options:{maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10}}}, scales:{y:{position:'left'}, y1:{position:'right', grid:{drawOnChartArea:false}}}}});
+}
+
+/* =====================================================================
+   PROPOSAL DOCUMENT (EN / PT / ES)
+===================================================================== */
+const I18N = {
+  en: {
+    tag:'Commercial Proposal', prepared:'Prepared for', date:'Date', ref:'Reference', validity:'Valid until',
+    s1:'Executive Summary', s2:'Delivery Timeline', s3:'Team Composition', s4:'Investment', s5:'Payment Schedule', s6:'Commercial Assumptions', s7:'Optional Scope',
+    duration:'Duration', peak:'Peak team', effort:'Total effort', invest:'Total investment',
+    phase:'Phase', period:'Sprints', dates:'Dates', hours:'Hours', net:'Net of taxes', gross:'Taxes included', share:'% of total', total:'Total',
+    role:'Role', level:'Level', loc:'Location', avgFte:'Avg. FTE', rateH:'Rate / hour', amount:'Amount',
+    event:'Billing event', invDate:'Invoice date', due:'Due date',
+    sp:'Sprint', wk:'Week', weeks:'weeks', sprints:'sprints', fte:'FTE',
+    model:{fp:'Fixed Price', tm:'Time & Material'},
+    payTxt:{milestone:'Invoices are issued upon completion and acceptance of each phase.', monthly:'Invoices are issued monthly based on the effort consumed in the period.', install:'The total investment is invoiced in equal monthly installments.'},
+    trig:{phase:'Completion of', month:'Monthly measurement', inst:'Installment'},
+    exec: (p,T,U) => `${p.vendor} is pleased to present this commercial proposal to ${p.client} for the <b>${p.project}</b> initiative. The engagement is planned over <b>${T.nPer} ${U==='SP'?'sprints':'weeks'} (${T.weeks} weeks)</b>, from ${fmtDate(T.start)} to ${fmtDate(T.end)}, with a peak team of ${fmtNum(T.peak,1)} FTE and a total effort of ${fmtNum(T.H)} hours.`,
+    execInv: (p,T) => `The total investment is <b>${fmtCur(T.gross)}</b> (taxes included), under a <b>${I18N.en.model[p.model]}</b> commercial model.`,
+    optTxt: (T) => `The items below are not included in the base investment and can be activated upon formal approval. Additional investment: <b>${fmtCur(T.grossOpt)}</b> (taxes included).`,
+    optIncl: (T) => `Optional items are included in the total investment above, representing ${fmtCur(T.grossOpt)} (taxes included).`,
+    a: (p,R) => [
+      `Commercial model: ${I18N.en.model[p.model]}. Prices in ${p.cur}${p.tax?`, including local taxes (${fmtNum(p.tax*100,2)}% gross-up)`:''}.`,
+      `Effort estimated on ${fmtNum(p.hpd,1)} billable hours per day, ${p.dpw} working days per week${S.unit==='SP'?` and ${R.pw}-week sprints`:''}.`,
+      `Project start on ${fmtDate(parseDate(p.start))}; any change in the start date may require re-planning of the timeline.`,
+      `Payment terms: ${p.terms} days from invoice date.`,
+      `Scope, timeline and investment are based on the information available at the time of this proposal; changes will be handled through a formal change request process.`,
+      `This proposal is valid for ${p.valid} days.`
+    ],
+    foot: (p) => `${p.vendor} · Commercial Proposal · ${p.client} — ${p.project}`
+  },
+  pt: {
+    tag:'Proposta Comercial', prepared:'Preparado para', date:'Data', ref:'Referência', validity:'Válida até',
+    s1:'Sumário Executivo', s2:'Cronograma de Entrega', s3:'Composição do Time', s4:'Investimento', s5:'Cronograma de Pagamentos', s6:'Premissas Comerciais', s7:'Escopo Opcional',
+    duration:'Duração', peak:'Pico do time', effort:'Esforço total', invest:'Investimento total',
+    phase:'Fase', period:'Sprints', dates:'Datas', hours:'Horas', net:'Líquido de impostos', gross:'Com impostos', share:'% do total', total:'Total',
+    role:'Perfil', level:'Nível', loc:'Local', avgFte:'FTE médio', rateH:'Valor / hora', amount:'Valor',
+    event:'Evento de faturamento', invDate:'Faturamento', due:'Vencimento',
+    sp:'Sprint', wk:'Semana', weeks:'semanas', sprints:'sprints', fte:'FTE',
+    model:{fp:'Preço Fixo', tm:'Time & Material'},
+    payTxt:{milestone:'O faturamento ocorre na conclusão e aceite de cada fase.', monthly:'O faturamento é mensal, conforme o esforço consumido no período.', install:'O investimento total é faturado em parcelas mensais iguais.'},
+    trig:{phase:'Conclusão de', month:'Medição mensal', inst:'Parcela'},
+    exec: (p,T,U) => `A ${p.vendor} tem a satisfação de apresentar à ${p.client} esta proposta comercial para a iniciativa <b>${p.project}</b>. O projeto está planejado em <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>, de ${fmtDate(T.start)} a ${fmtDate(T.end)}, com pico de ${fmtNum(T.peak,1)} FTE e esforço total de ${fmtNum(T.H)} horas.`,
+    execInv: (p,T) => `O investimento total é de <b>${fmtCur(T.gross)}</b> (impostos inclusos), no modelo comercial <b>${I18N.pt.model[p.model]}</b>.`,
+    optTxt: (T) => `Os itens abaixo não estão incluídos no investimento base e podem ser ativados mediante aprovação formal. Investimento adicional: <b>${fmtCur(T.grossOpt)}</b> (impostos inclusos).`,
+    optIncl: (T) => `Os itens opcionais estão incluídos no investimento total acima, representando ${fmtCur(T.grossOpt)} (impostos inclusos).`,
+    a: (p,R) => [
+      `Modelo comercial: ${I18N.pt.model[p.model]}. Valores em ${p.cur}${p.tax?`, com impostos locais inclusos (gross-up de ${fmtNum(p.tax*100,2)}%)`:''}.`,
+      `Esforço estimado com base em ${fmtNum(p.hpd,1)} horas faturáveis por dia, ${p.dpw} dias úteis por semana${S.unit==='SP'?` e sprints de ${R.pw} semanas`:''}.`,
+      `Início do projeto em ${fmtDate(parseDate(p.start))}; alterações na data de início podem exigir replanejamento do cronograma.`,
+      `Prazo de pagamento: ${p.terms} dias a partir da emissão da nota fiscal.`,
+      `Escopo, prazo e investimento baseiam-se nas informações disponíveis nesta data; mudanças serão tratadas via processo formal de change request.`,
+      `Esta proposta é válida por ${p.valid} dias.`
+    ],
+    foot: (p) => `${p.vendor} · Proposta Comercial · ${p.client} — ${p.project}`
+  },
+  es: {
+    tag:'Propuesta Comercial', prepared:'Preparado para', date:'Fecha', ref:'Referencia', validity:'Válida hasta',
+    s1:'Resumen Ejecutivo', s2:'Cronograma de Entrega', s3:'Composición del Equipo', s4:'Inversión', s5:'Cronograma de Pagos', s6:'Supuestos Comerciales', s7:'Alcance Opcional',
+    duration:'Duración', peak:'Pico del equipo', effort:'Esfuerzo total', invest:'Inversión total',
+    phase:'Fase', period:'Sprints', dates:'Fechas', hours:'Horas', net:'Neto de impuestos', gross:'Impuestos incluidos', share:'% del total', total:'Total',
+    role:'Rol', level:'Nivel', loc:'Ubicación', avgFte:'FTE promedio', rateH:'Tarifa / hora', amount:'Monto',
+    event:'Evento de facturación', invDate:'Facturación', due:'Vencimiento',
+    sp:'Sprint', wk:'Semana', weeks:'semanas', sprints:'sprints', fte:'FTE',
+    model:{fp:'Precio Fijo', tm:'Time & Material'},
+    payTxt:{milestone:'La facturación se realiza al concluir y aceptar cada fase.', monthly:'La facturación es mensual, según el esfuerzo consumido en el período.', install:'La inversión total se factura en cuotas mensuales iguales.'},
+    trig:{phase:'Conclusión de', month:'Medición mensual', inst:'Cuota'},
+    exec: (p,T,U) => `${p.vendor} se complace en presentar a ${p.client} esta propuesta comercial para la iniciativa <b>${p.project}</b>. El proyecto está planificado en <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>, del ${fmtDate(T.start)} al ${fmtDate(T.end)}, con un pico de ${fmtNum(T.peak,1)} FTE y un esfuerzo total de ${fmtNum(T.H)} horas.`,
+    execInv: (p,T) => `La inversión total es de <b>${fmtCur(T.gross)}</b> (impuestos incluidos), bajo el modelo comercial <b>${I18N.es.model[p.model]}</b>.`,
+    optTxt: (T) => `Los ítems a continuación no están incluidos en la inversión base y pueden activarse mediante aprobación formal. Inversión adicional: <b>${fmtCur(T.grossOpt)}</b> (impuestos incluidos).`,
+    optIncl: (T) => `Los ítems opcionales están incluidos en la inversión total, representando ${fmtCur(T.grossOpt)} (impuestos incluidos).`,
+    a: (p,R) => [
+      `Modelo comercial: ${I18N.es.model[p.model]}. Valores en ${p.cur}${p.tax?`, con impuestos locales incluidos (gross-up de ${fmtNum(p.tax*100,2)}%)`:''}.`,
+      `Esfuerzo estimado con base en ${fmtNum(p.hpd,1)} horas facturables por día, ${p.dpw} días hábiles por semana${S.unit==='SP'?` y sprints de ${R.pw} semanas`:''}.`,
+      `Inicio del proyecto el ${fmtDate(parseDate(p.start))}; cambios en la fecha de inicio pueden requerir replanificación.`,
+      `Plazo de pago: ${p.terms} días a partir de la fecha de factura.`,
+      `El alcance, plazo e inversión se basan en la información disponible a la fecha; los cambios se gestionarán mediante un proceso formal de control de cambios.`,
+      `Esta propuesta es válida por ${p.valid} días.`
+    ],
+    foot: (p) => `${p.vendor} · Propuesta Comercial · ${p.client} — ${p.project}`
+  }
+};
+$('p_lang').addEventListener('change', () => { if (S.result) { renderAnalysis(); renderDoc(); } });
+
+function miniGantt(R, L){
+  const N = R.periods.length, U = S.unit;
+  let h = `<div class="mg">`;
+  h += `<div class="r"><div></div><div class="ax" style="grid-template-columns:repeat(${N},1fr)">${R.periods.map((_,i)=>`<span style="text-align:center">${U}${i+1}</span>`).join('')}</div></div>`;
+  R.phases.forEach(ph => {
+    const l = ph.first/N*100, w = (ph.last-ph.first+1)/N*100;
+    h += `<div class="r"><div>${esc(ph.name)}</div><div class="bar"><i class="${ph.optional?'o':''}" style="left:${l}%;width:${w}%;${ph.optional?'':`background:${ph.color}`}"></i></div></div>`;
+  });
+  return h + `</div>`;
+}
+
+function renderDoc(){
+  const R = S.result; if (!R) return;
+  const p = R.p, T = R.T, L = I18N[p.lang], U = S.unit;
+  const today = new Date(); const tdy = new Date(Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()));
+  const per = ph => ph.first===ph.last ? `${U}${ph.first+1}` : `${U}${ph.first+1}–${U}${ph.last+1}`;
+  const inScopePh = R.phases.filter(ph => !ph.optional || p.inclOpt);
+  const optPh = R.phases.filter(ph => ph.optional);
+
+  let h = `<div class="cover">
+    <div class="tag">${L.tag}</div>
+    <h1 contenteditable>${esc(p.project)}</h1>
+    <h2 contenteditable>${esc(p.client)}</h2>
+    <div class="meta">
+      <div><span>${L.prepared}</span>${esc(p.client)}</div>
+      <div><span>${L.date}</span>${fmtDate(tdy)}</div>
+      <div><span>${L.validity}</span>${fmtDate(addDays(tdy, p.valid))}</div>
+      ${p.ref?`<div><span>${L.ref}</span>${esc(p.ref)}</div>`:''}
+    </div></div><div class="page">`;
+
+  // 1. Executive summary
+  h += `<h3 class="sec">1. ${L.s1}</h3>`;
+  if (p.context) h += `<p contenteditable>${esc(p.context)}</p>`;
+  h += `<p contenteditable>${L.exec(p,T,U)} ${L.execInv(p,T)}</p>`;
+  h += `<div class="hl"><div><span>${L.duration}</span><b>${T.nPer} ${U==='SP'?L.sprints:L.weeks}</b></div><div><span>${L.peak}</span><b>${fmtNum(T.peak,1)} ${L.fte}</b></div><div><span>${L.effort}</span><b>${fmtNum(T.H)} h</b></div><div><span>${L.invest}</span><b>${fmtCur(T.gross)}</b></div></div>`;
+
+  // 2. Timeline
+  h += `<h3 class="sec">2. ${L.s2}</h3>` + miniGantt(R, L);
+  h += `<table class="t"><thead><tr><th>${L.phase}</th><th>${U==='SP'?L.period:L.weeks}</th><th>${L.dates}</th><th class="n">${L.fte}</th></tr></thead><tbody>`;
+  R.phases.forEach(ph => {
+    const act = ph.fte.filter(v=>v>0); const avg = act.length ? act.reduce((a,b)=>a+b,0)/act.length : 0;
+    h += `<tr class="${ph.optional?'opt':''}"><td>${esc(ph.name)}${ph.optional?' *':''}</td><td>${per(ph)}</td><td>${fmtDate(ph.start)} – ${fmtDate(ph.end)}</td><td class="n">${fmtNum(avg,1)}</td></tr>`;
+  });
+  h += `</tbody></table>${optPh.length?`<p class="note">* ${L.s7}</p>`:''}`;
+
+  // 3. Team
+  h += `<h3 class="sec">3. ${L.s3}</h3><table class="t"><thead><tr><th>${L.role}</th><th>${L.level}</th><th>${L.loc}</th><th class="n">${L.avgFte}</th><th class="n">${L.hours}</th></tr></thead><tbody>`;
+  R.roles.filter(r => !r.optional || p.inclOpt).forEach(r => h += `<tr><td>${esc(r.role)}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td><td class="n">${fmtNum(r.avgFte,2)}</td><td class="n">${fmtNum(r.H)}</td></tr>`);
+  h += `<tr class="tot"><td colspan="4">${L.total}</td><td class="n">${fmtNum(T.H)}</td></tr></tbody></table>`;
+
+  // 4. Investment
+  h += `<h3 class="sec">4. ${L.s4}</h3><table class="t"><thead><tr><th>${L.phase}</th><th class="n">${L.hours}</th><th class="n">${L.net}</th><th class="n">${L.gross}</th><th class="n">${L.share}</th></tr></thead><tbody>`;
+  inScopePh.forEach(ph => {
+    const rr = R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt));
+    const H = rr.reduce((a,r)=>a+r.H,0), net = rr.reduce((a,r)=>a+r.net,0);
+    if (!H) return;
+    h += `<tr><td>${esc(ph.name)}</td><td class="n">${fmtNum(H)}</td><td class="n">${fmtCur(net)}</td><td class="n">${fmtCur(net/(1-p.tax))}</td><td class="n">${T.net?fmtNum(net/T.net*100,1):0}%</td></tr>`;
+  });
+  h += `<tr class="tot"><td>${L.total}</td><td class="n">${fmtNum(T.H)}</td><td class="n">${fmtCur(T.net)}</td><td class="n">${fmtCur(T.gross)}</td><td class="n">100%</td></tr></tbody></table>`;
+  if (p.model === 'tm'){
+    h += `<h3 style="color:var(--blue);font-size:14px;margin-top:18px">${L.rateH}</h3><table class="t"><thead><tr><th>${L.role}</th><th>${L.level}</th><th>${L.loc}</th><th class="n">${L.rateH} (${L.net})</th><th class="n">${L.rateH} (${L.gross})</th></tr></thead><tbody>`;
+    const seen = new Set();
+    R.roles.filter(r => !r.optional || p.inclOpt).forEach(r => { const k = r.role+r.level+r.location; if (seen.has(k)) return; seen.add(k);
+      h += `<tr><td>${esc(r.role)}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td><td class="n">${fmtCur(r.rateH,2)}</td><td class="n">${fmtCur(r.rateH/(1-p.tax),2)}</td></tr>`; });
+    h += `</tbody></table>`;
+  }
+
+  // 5. Payment
+  h += `<h3 class="sec">5. ${L.s5}</h3><p contenteditable>${L.payTxt[p.pay]}</p><table class="t"><thead><tr><th>#</th><th>${L.event}</th><th>${L.invDate}</th><th>${L.due}</th><th class="n">%</th><th class="n">${L.gross}</th></tr></thead><tbody>`;
+  R.pays.forEach((x,i) => {
+    const ev = x.trigger==='phase' ? `${L.trig.phase} ${esc(x.label)}` : x.trigger==='month' ? `${L.trig.month} – ${fmtMonth(x.label)}` : `${L.trig.inst} ${x.label}/${p.inst}`;
+    h += `<tr><td>${i+1}</td><td>${ev}</td><td>${fmtDate(x.when)}</td><td>${fmtDate(x.due)}</td><td class="n">${fmtNum(x.pct*100,1)}%</td><td class="n">${fmtCur(x.gross)}</td></tr>`;
+  });
+  h += `<tr class="tot"><td colspan="5">${L.total}</td><td class="n">${fmtCur(T.gross)}</td></tr></tbody></table>`;
+
+  // 6. Optional
+  let sec = 6;
+  if (optPh.length || T.netOpt){
+    h += `<h3 class="sec">${sec++}. ${L.s7}</h3><p>${p.inclOpt ? L.optIncl(T) : L.optTxt(T)}</p><table class="t"><thead><tr><th>${L.phase}</th><th>${L.period}</th><th class="n">${L.hours}</th><th class="n">${L.gross}</th></tr></thead><tbody>`;
+    R.phases.forEach(ph => {
+      const rr = R.rows.filter(r => r.phase === ph.name && r.optional); if (!rr.length) return;
+      const H = rr.reduce((a,r)=>a+r.H,0), net = rr.reduce((a,r)=>a+r.net,0);
+      h += `<tr><td>${esc(ph.name)}</td><td>${per(ph)}</td><td class="n">${fmtNum(H)}</td><td class="n">${fmtCur(net/(1-p.tax))}</td></tr>`;
+    });
+    h += `</tbody></table>`;
+  }
+
+  // 7. Assumptions
+  h += `<h3 class="sec">${sec}. ${L.s6}</h3><ul contenteditable>${[...L.a(p,R), ...p.assump].map(a => `<li>${esc(a)}</li>`).join('')}</ul>`;
+  h += `<div class="foot">${esc(L.foot(p))}</div></div>`;
+  $('doc').innerHTML = h;
+}
+
+/* =====================================================================
+   EXPORTS
+===================================================================== */
+function exportExcel(){
+  if (!S.result) recalc(false); const R = S.result; if (!R) return;
+  const p = R.p, T = R.T, U = S.unit, wb = XLSX.utils.book_new();
+  const add = (name, aoa, widths) => { const ws = XLSX.utils.aoa_to_sheet(aoa); if (widths) ws['!cols'] = widths.map(w => ({wch:w})); XLSX.utils.book_append_sheet(wb, ws, name); };
+  const r2 = v => Math.round(v*100)/100;
+  add('Summary', [
+    ['Commercial Proposal — Calculation Summary'], [],
+    ['Vendor', p.vendor], ['Client', p.client], ['Project', p.project], ['Reference', p.ref],
+    ['Model', p.model==='fp'?'Fixed Price':'T&M'], ['Currency', p.cur], ['Start', iso(T.start)], ['End', iso(T.end)],
+    ['Duration (' + (U==='SP'?'sprints':'weeks') + ')', T.nPer], ['Weeks', T.weeks], ['Hours per period/FTE', R.hpp],
+    ['Pricing mode', p.mode==='rate'?'Rate card':'Cost + GM%'], ['Target GM%', p.gm], ['Contingency %', p.cont], ['Discount %', p.disc], ['Tax gross-up %', p.tax],
+    ['Include optional', p.inclOpt ? 'Yes':'No'], [],
+    ['Total hours', r2(T.H)], ['Total cost', r2(T.cost)], ['Total net price', r2(T.net)], ['Total gross price', r2(T.gross)], ['GM %', r2(T.gm*100)],
+    ['Blended rate/h (net)', r2(T.blended)], ['Peak FTE', T.peak], ['Avg FTE', r2(T.avgFte)], ['Optional (gross)', r2(T.grossOpt)]
+  ], [32, 28]);
+  const hdr = ['Phase','Activity','Role','Level','Location','Optional', ...R.periods.map((_,i)=>U+(i+1)), 'Total FTE-periods','Hours','Rate/h applied','Net','Cost'];
+  add('Timeline', [hdr, ...R.rows.map(r => [r.phase, r.activity, r.role, r.level, r.location, r.optional?'Y':'', ...r.alloc, r.alloc.reduce((a,b)=>a+b,0), r2(r.H), r2(r.rateH), r2(r.net), r2(r.cost)])]);
+  add('Rate Card', [['Role','Level','Location','Cost/h','Rate/h'], ...Object.values(S.rates).map(r => [r.role, r.level, r.location, num(r.cost), num(r.rate)])], [30,10,14,10,10]);
+  add('By Phase', [['Phase','Optional','Start period','End period','Start date','End date','Hours','Net','Gross','Cost'], ...R.phases.map(ph => [ph.name, ph.optional?'Y':'', U+(ph.first+1), U+(ph.last+1), iso(ph.start), iso(ph.end), r2(ph.H), r2(ph.net), r2(ph.gross), r2(ph.cost)])], [34,8,10,10,12,12,10,14,14,14]);
+  add('By Role', [['Role','Level','Location','Optional','Avg FTE','Peak FTE','Hours','Rate/h','Net','Gross','Cost'], ...R.roles.map(r => [r.role, r.level, r.location, r.optional?'Y':'', r2(r.avgFte), r.peak, r2(r.H), r2(r.rateH), r2(r.net), r2(r.gross), r2(r.cost)])]);
+  add('By Period', [['Period','Start','End','FTE','Hours','Net','Gross','Cost'], ...R.periods.map((x,i) => [U+(i+1), iso(x.start), iso(x.end), x.fte, r2(x.H), r2(x.net), r2(x.net/(1-p.tax)), r2(x.cost)])]);
+  add('Monthly', [['Month','Hours','Net','Gross','Cost'], ...R.months.map(m => [m.key, r2(m.H), r2(m.net), r2(m.gross), r2(m.cost)])]);
+  add('Payments', [['#','Event','Invoice date','Due date','%','Net','Gross'], ...R.pays.map((x,i) => [i+1, String(x.label), iso(x.when), iso(x.due), r2(x.pct*100), r2(x.net), r2(x.gross)])], [5,34,12,12,8,14,14]);
+  XLSX.writeFile(wb, `Proposal_${(p.client+'_'+p.project).replace(/[^\w]+/g,'_')}.xlsx`);
+}
+function exportWord(){
+  if (!S.result) return;
+  const css = [...document.styleSheets].map(s => { try { return [...s.cssRules].map(r => r.cssText).join('\n'); } catch(e){ return ''; } }).join('\n');
+  const html = `<html><head><meta charset="utf-8"><style>${css} #doc{box-shadow:none}</style></head><body>${$('doc').outerHTML}</body></html>`;
+  const blob = new Blob(['\ufeff', html], {type:'application/msword'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `Proposal_${(S.result.p.client+'_'+S.result.p.project).replace(/[^\w]+/g,'_')}.doc`; a.click();
+}
+
+/* =====================================================================
+   TEMPLATE & EXAMPLE
+===================================================================== */
+function exampleData(){
+  // Illustrative data only — replace rates with the official rate card
+  const N = 12, z = () => new Array(N).fill(0);
+  const fill = (s, e, v) => { const a = z(); for (let i = s; i <= e; i++) a[i-1] = v; return a; };
+  const rows = [
+    ['Mobilization & Assessment','','Project Manager','Q4','Brazil','',fill(1,2,1)],
+    ['Mobilization & Assessment','','Data Architect','Q4','Brazil','',fill(1,2,1)],
+    ['Mobilization & Assessment','','Business Analyst','Q3','Brazil','',fill(1,2,1)],
+    ['Ingestion Migration','','Data Engineer','Q3','Brazil','',fill(3,8,2)],
+    ['Ingestion Migration','','Data Architect','Q4','Brazil','',fill(3,8,0.5)],
+    ['Transformation (dbt / Medallion)','','Analytics Engineer','Q3','Brazil','',fill(5,10,2)],
+    ['Transformation (dbt / Medallion)','','Data Engineer','Q3','Brazil','',fill(9,10,1)],
+    ['Transformation (dbt / Medallion)','','Business Analyst','Q3','Brazil','',fill(5,10,0.5)],
+    ['UAT & Go-Live','','Tester','Q2','Brazil','',fill(9,11,1)],
+    ['UAT & Go-Live','','Data Engineer','Q3','Brazil','',fill(11,11,1)],
+    ['Hypercare','','Data Engineer','Q3','Brazil','',fill(12,12,1)],
+    ['Project Management','','Project Manager','Q4','Brazil','',fill(3,12,0.5)],
+    ['Dashboards Squad','','Data Visualization Analyst','Q3','Brazil','Y',fill(11,12,2)]
+  ];
+  const rates = [
+    ['Project Manager','Q4','Brazil',170,260], ['Data Architect','Q4','Brazil',185,280], ['Business Analyst','Q3','Brazil',125,190],
+    ['Data Engineer','Q3','Brazil',130,200], ['Analytics Engineer','Q3','Brazil',130,200], ['Tester','Q2','Brazil',90,140],
+    ['Data Visualization Analyst','Q3','Brazil',125,190]
+  ];
+  return {N, rows, rates};
+}
+function downloadTemplate(){
+  if (typeof XLSX === 'undefined') return alert('SheetJS não carregou (verifique internet).');
+  const ex = exampleData(), wb = XLSX.utils.book_new();
+  const hdr = ['Phase','Activity','Role','Level','Location','Optional', ...Array.from({length:ex.N},(_,i)=>'SP'+(i+1))];
+  const ws = XLSX.utils.aoa_to_sheet([hdr, ...ex.rows.map(r => [r[0],r[1],r[2],r[3],r[4],r[5],...r[6].map(v=>v||'')])]);
+  ws['!cols'] = [{wch:32},{wch:16},{wch:26},{wch:7},{wch:10},{wch:9}, ...Array(ex.N).fill({wch:6})];
+  XLSX.utils.book_append_sheet(wb, ws, 'Timeline');
+  const rc = XLSX.utils.aoa_to_sheet([['Role','Level','Location','Cost/h','Rate/h'], ...ex.rates]);
+  rc['!cols'] = [{wch:26},{wch:7},{wch:10},{wch:9},{wch:9}];
+  XLSX.utils.book_append_sheet(wb, rc, 'Rate Card');
+  const lf = XLSX.utils.aoa_to_sheet([['Phase','Role','Level','Location','Start','End','FTE','Optional'],
+    ['Assessment','Project Manager','Q4','Brazil','SP1','SP2',1,''], ['Build','Data Engineer','Q3','Brazil','SP3','SP8',2,'']]);
+  XLSX.utils.book_append_sheet(wb, lf, 'Alt format (list)');
+  const ins = XLSX.utils.aoa_to_sheet([
+    ['How to use'], ['1. Fill the "Timeline" sheet: one row per Phase + Role, FTE allocation per sprint (SP1, SP2…). Use W1, W2… for weekly plans.'],
+    ['2. Mark optional scope with "Y" in the Optional column.'], ['3. Fill the "Rate Card" sheet with Cost/h and/or Rate/h (net of taxes).'],
+    ['4. Upload the file in the app. Rates in this template are illustrative only.'], ['Alternative: list format with Start / End / FTE (see "Alt format (list)").']]);
+  ins['!cols'] = [{wch:110}];
+  XLSX.utils.book_append_sheet(wb, ins, 'Instructions');
+  XLSX.writeFile(wb, 'Timeline_Template.xlsx');
+}
+function loadExample(){
+  const ex = exampleData();
+  S.rows = ex.rows.map(r => ({phase:r[0], activity:r[1], role:r[2], level:r[3], location:r[4], optional:r[5]==='Y', alloc:r[6]}));
+  S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.rates = {};
+  ex.rates.forEach(r => S.rates[rkey({role:r[0], level:r[1], location:r[2]})] = {role:r[0], level:r[1], location:r[2], cost:r[3], rate:r[4]});
+  $('p_client').value ||= 'Client'; $('p_project').value ||= 'Data & Analytics Modernization';
+  afterTimelineLoaded('Exemplo carregado (12 sprints, rates ilustrativos — substitua pelo rate card oficial).');
+}
+
+/* =====================================================================
+   SAVE / OPEN SCENARIO
+===================================================================== */
+const PARAM_IDS = ['p_vendor','p_client','p_project','p_ref','p_start','p_lang','p_model','p_cur','p_context','p_pw','p_hpd','p_dpw','p_mode','p_gm','p_cont','p_disc','p_tax','p_inclOpt','p_pay','p_inst','p_terms','p_valid','p_assump'];
+function saveScenario(){
+  if (!S.rows.length) return alert('Carregue um timeline primeiro.');
+  const params = {}; PARAM_IDS.forEach(id => params[id] = $(id).type === 'checkbox' ? $(id).checked : $(id).value);
+  const data = {v:1, rows:S.rows, nPeriods:S.nPeriods, unit:S.unit, rates:S.rates, fileName:S.fileName, params};
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data,null,1)], {type:'application/json'}));
+  a.download = `Scenario_${($('p_client').value+'_'+$('p_project').value).replace(/[^\w]+/g,'_')}.json`; a.click();
+}
+function openScenario(file){
+  if (!file) return;
+  const fr = new FileReader();
+  fr.onload = e => {
+    try {
+      const d = JSON.parse(e.target.result);
+      Object.entries(d.params||{}).forEach(([id,v]) => { if ($(id)) { if ($(id).type==='checkbox') $(id).checked = v; else $(id).value = v; } });
+      S.rows = d.rows; S.nPeriods = d.nPeriods; S.unit = d.unit; S.rates = d.rates || {}; S.fileName = d.fileName || '';
+      afterTimelineLoaded(`Cenário "${esc(file.name)}" carregado.`);
+    } catch(err){ msg('tlMsg','err','❌ Arquivo de cenário inválido.'); }
+  };
+  fr.readAsText(file);
+}
+
+// invalidate on param change
+document.querySelectorAll('#tab-par input, #tab-par select, #tab-par textarea').forEach(el => el.addEventListener('change', () => { if (S.result) { S.result = null; } }));
+$('p_start').value = iso(nextMonday());
+</script>
+</body>
+</html>
