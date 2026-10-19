@@ -1,0 +1,21 @@
+{
+  "name": "proposalmaker",
+  "private": true,
+  "version": "2.0.0",
+  "description": "Gerador de proposta comercial a partir de timeline (100% local no navegador)",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "template": "node build.mjs --template",
+    "test": "node --test tests/engine.test.mjs tests/workbook.test.mjs",
+    "e2e": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "chart.js": "4.4.1",
+    "docx": "9.12.0",
+    "esbuild": "^0.25.0",
+    "exceljs": "4.4.0",
+    "playwright-core": "^1.50.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  }
+}
