@@ -114,10 +114,14 @@ try {
   const [dw] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => __pm.actions.word())]);
   const docxPath = path.join(outDir, 'p.docx'); await dw.saveAs(docxPath);
   assert.equal(fs.readFileSync(docxPath).subarray(0, 2).toString(), 'PK');
+  const [dp] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => __pm.actions.pptx())]);
+  const pptxPath = path.join(outDir, 'p.pptx'); await dp.saveAs(pptxPath);
+  assert.equal(fs.readFileSync(pptxPath).subarray(0, 2).toString(), 'PK');
+  assert.ok(fs.statSync(pptxPath).size > 20000);
   const [dt] = await Promise.all([page.waitForEvent('download'), page.evaluate(() => __pm.actions.template())]);
   const tplPath = path.join(outDir, 't.xlsx'); await dt.saveAs(tplPath);
   assert.equal(fs.readFileSync(tplPath).subarray(0, 2).toString(), 'PK');
-  ok('Word (.docx) e template Excel gerados offline');
+  ok('Word (.docx), PowerPoint (.pptx) e template Excel gerados offline');
 
   /* 9. extras online sem internet: aviso, alternativa manual, app segue funcionando */
   await page.evaluate(() => { document.getElementById('p_cur').value = 'USD'; document.getElementById('p_rcur').value = 'BRL'; });

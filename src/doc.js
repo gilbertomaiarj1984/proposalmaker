@@ -30,6 +30,7 @@ const I18N = {
     model:{fp:'Fixed Price', tm:'Time & Material'},
     payTxt:{milestone:'Invoices are issued upon completion and acceptance of each phase.', monthly:'Invoices are issued monthly based on the effort consumed in the period.', install:'The total investment is invoiced in equal monthly installments.'},
     trig:{phase:'Completion of', month:'Monthly measurement', inst:'Installment'},
+    monthlyBilling:'Monthly billing (taxes included)',
     taxes:'Taxes', taxLine:(list,tot)=>`Taxes included in the price: ${list} (total ${tot}).`,
     relNote:'The timeline is expressed in relative periods; calendar dates will be defined at project kickoff.',
     exec:(p,T,U,f,rel)=>`${p.vendor} is pleased to present this commercial proposal to ${p.client} for the <b>${p.project}</b> initiative. The engagement is planned over <b>${T.nPer} ${U==='SP'?'sprints':'weeks'} (${T.weeks} weeks)</b>${rel?'':`, from ${f.date(T.start)} to ${f.date(T.end)}`}, with a peak team of ${f.nf(T.peak,1)} FTE and a total effort of ${f.nf(T.H)} hours.`,
@@ -58,6 +59,7 @@ const I18N = {
     model:{fp:'Preço Fixo', tm:'Time & Material'},
     payTxt:{milestone:'O faturamento ocorre na conclusão e aceite de cada fase.', monthly:'O faturamento é mensal, conforme o esforço consumido no período.', install:'O investimento total é faturado em parcelas mensais iguais.'},
     trig:{phase:'Conclusão de', month:'Medição mensal', inst:'Parcela'},
+    monthlyBilling:'Faturamento mensal (com impostos)',
     taxes:'Impostos', taxLine:(list,tot)=>`Impostos incluídos no preço: ${list} (total ${tot}).`,
     relNote:'O cronograma está expresso em períodos relativos; as datas de calendário serão definidas no início do projeto.',
     exec:(p,T,U,f,rel)=>`A ${p.vendor} tem a satisfação de apresentar à ${p.client} esta proposta comercial para a iniciativa <b>${p.project}</b>. O projeto está planejado em <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>${rel?'':`, de ${f.date(T.start)} a ${f.date(T.end)}`}, com pico de ${f.nf(T.peak,1)} FTE e esforço total de ${f.nf(T.H)} horas.`,
@@ -86,6 +88,7 @@ const I18N = {
     model:{fp:'Precio Fijo', tm:'Time & Material'},
     payTxt:{milestone:'La facturación se realiza al concluir y aceptar cada fase.', monthly:'La facturación es mensual, según el esfuerzo consumido en el período.', install:'La inversión total se factura en cuotas mensuales iguales.'},
     trig:{phase:'Conclusión de', month:'Medición mensual', inst:'Cuota'},
+    monthlyBilling:'Facturación mensual (impuestos incluidos)',
     taxes:'Impuestos', taxLine:(list,tot)=>`Impuestos incluidos en el precio: ${list} (total ${tot}).`,
     relNote:'El cronograma se expresa en períodos relativos; las fechas de calendario se definirán al inicio del proyecto.',
     exec:(p,T,U,f,rel)=>`${p.vendor} se complace en presentar a ${p.client} esta propuesta comercial para la iniciativa <b>${p.project}</b>. El proyecto está planificado en <b>${T.nPer} ${U==='SP'?'sprints':'semanas'} (${T.weeks} semanas)</b>${rel?'':`, del ${f.date(T.start)} al ${f.date(T.end)}`}, con un pico de ${f.nf(T.peak,1)} FTE y un esfuerzo total de ${f.nf(T.H)} horas.`,
@@ -152,7 +155,7 @@ function build(R, opts){
       const wk = m.kind === 'kick' ? 1 : weekOf(idx);
       return {cells:[m.name, m.periodLabel, `${L.weekWord} ${wk}`].concat(rel ? [] : [f.date(m.when)]), cls: m.optional ? 'opt' : ''};
     });
-    B.push({t:'table', head, rows});
+    B.push({t:'table', head, rows, isTimeline:true});
   } else {
     const view = E.timelineView(R, {gran: tl.gran, mode: tl.mode, fte: tl.fte});
     B.push({t:'timeline', view});

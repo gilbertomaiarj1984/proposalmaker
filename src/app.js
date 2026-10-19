@@ -40,7 +40,7 @@ window.addEventListener('error', e => { console.error(e.error || e.message); toa
 window.addEventListener('unhandledrejection', e => { console.error(e.reason); toast('Falha: ' + ((e.reason && e.reason.message) || e.reason || 'erro desconhecido'), 'err', 8000); });
 
 /* ---------------- bibliotecas embutidas (carregadas sob demanda) ---------------- */
-const LIBS = {xlsx: 'XLSX', chart: 'Chart', exceljs: 'ExcelJS', docx: 'docx'};
+const LIBS = {xlsx: 'XLSX', chart: 'Chart', exceljs: 'ExcelJS', docx: 'docx', pptx: 'PptxGenJS'};
 const libPromises = {};
 function loadLib(name){
   const g = LIBS[name];
@@ -478,6 +478,14 @@ async function exportWord(){
     Store.download(blob, fileBase() + '.docx');
   } catch(e){ toast('Não foi possível gerar o Word: ' + e.message, 'err', 9000); }
 }
+async function exportPptx(){
+  const R = S.result || recalc(false); if (!R) return toast('Carregue um timeline primeiro.', 'warn');
+  try {
+    const G = await loadLib('pptx');
+    const pres = PptxExport.build(G, DocModel.build(R), R, S.edits);
+    Store.download(await pres.write({outputType: 'blob'}), fileBase() + '.pptx');
+  } catch(e){ toast('Não foi possível gerar o PowerPoint: ' + e.message, 'err', 9000); }
+}
 async function downloadTemplate(){
   try {
     const Ex = await loadLib('exceljs');
@@ -630,7 +638,7 @@ const actions = {
   'tax-add': () => { S.taxes.push({name: 'Imposto', pct: 0}); renderTaxes(); markDirty(); },
   'tax-del': b => { if (S.taxes.length > 1){ S.taxes.splice(+b.dataset.i, 1); renderTaxes(); S.result = null; markDirty(); } },
   'fx-online': fxOnline, 'fx-cached': fxCached, 'holidays-online': holidaysOnline,
-  'restore-texts': restoreTexts, word: exportWord,
+  'restore-texts': restoreTexts, word: exportWord, pptx: exportPptx,
   print: () => { if (!S.result) recalc(false); window.print(); }
 };
 document.addEventListener('click', e => {

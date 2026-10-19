@@ -10,7 +10,14 @@ seu computador.
 3. **Parâmetros & Rate Card**: início (data, mês ou sem data), calendário, preço, moeda/câmbio, impostos, faturamento.
 4. **Análise**: alertas (taxas faltando, GM% baixo…), KPIs, gráficos, sensibilidade desconto × contingência.
 5. **Proposta**: escolha idioma e timeline (barras, fases + perfis ou só marcos; por sprint ou semana; com/sem FTE),
-   edite os textos direto na página e exporte **PDF** (imprimir), **Word (.docx)** ou salve o **Excel**.
+   edite os textos direto na página e exporte **PDF** (imprimir), **Word (.docx)**, **PowerPoint (.pptx)** ou salve o **Excel**.
+
+## PowerPoint editável
+Um slide por seção da proposta (capa, sumário executivo, cronograma, time, investimento, pagamentos, opcionais e
+premissas). Tudo é nativo do PowerPoint — texto, tabelas, formas e gráfico, sem imagens — e respeita idioma, textos
+editados e as opções de timeline. **A timeline sempre ocupa um único slide**: com muitas linhas, a altura das linhas e a fonte
+reduzem até caber (e a tabela de fases/datas entra no mesmo slide quando couber). Demais tabelas longas continuam em outro
+slide, com o cabeçalho repetido.
 
 ## O Excel como "banco" de cada proposta
 Cada proposta é **um arquivo `.xlsx`**. A edição acontece no navegador; o Excel guarda o resultado:
@@ -42,5 +49,5 @@ npm test           # testes do motor de cálculo e do arquivo Excel (compara fó
 npm run e2e        # teste no Chromium com a rede bloqueada
 ```
 Estrutura de `src/`: `engine.js` (cálculo puro), `doc.js` (modelo do documento), `workbook.js` (arquivo Excel),
-`docx-export.js` (Word), `net.js` (extras online), `storage.js` (IndexedDB e arquivos), `app.js` (interface).
+`docx-export.js` (Word), `pptx-export.js` (PowerPoint), `net.js` (extras online), `storage.js` (IndexedDB e arquivos), `app.js` (interface).
 **Edite `src/` e rode `npm run build`** — o HTML na raiz é gerado.

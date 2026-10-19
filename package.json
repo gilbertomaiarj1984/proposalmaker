@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node build.mjs",
     "template": "node build.mjs --template",
-    "test": "node --test tests/engine.test.mjs tests/workbook.test.mjs",
+    "test": "node --test tests/engine.test.mjs tests/workbook.test.mjs tests/pptx.test.mjs",
     "e2e": "node tests/e2e.mjs"
   },
   "devDependencies": {
@@ -16,6 +16,7 @@
     "esbuild": "^0.25.0",
     "exceljs": "4.4.0",
     "playwright-core": "^1.50.0",
+    "pptxgenjs": "^4.0.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }
