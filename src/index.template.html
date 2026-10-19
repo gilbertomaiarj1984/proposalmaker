@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gerador de Proposta Comercial a partir de Timeline</title>
+<style>
+/*STYLES*/
+</style>
+</head>
+<body>
+<header class="app">
+  <h1>📊 Timeline → Proposta Comercial</h1>
+  <div class="actions">
+    <button class="btn light" data-act="template" title="Baixar o modelo de planilha de timeline">⬇ Template Excel</button>
+    <button class="btn light" data-act="example">▶ Exemplo</button>
+    <button class="btn light" data-act="open" title="Abrir uma proposta (.xlsx) salva pelo app">📂 Abrir proposta</button>
+    <button class="btn light" data-act="save" title="Salvar a proposta no arquivo Excel">💾 Salvar</button>
+    <button class="btn light" data-act="saveas">Salvar como…</button>
+    <button class="btn light" data-act="library">🗂 Propostas</button>
+    <button id="netpill" class="pill chk" data-act="netcheck" title="Testar acesso aos recursos online (câmbio e feriados)">Conexão: verificar</button>
+    <span id="savebar" role="status" aria-live="polite"></span>
+  </div>
+</header>
+<div id="netbar" role="status" aria-live="polite"></div>
+
+<nav class="tabs" role="tablist" aria-label="Etapas">
+  <button role="tab" id="tabbtn-tl" data-tab="tl" aria-controls="tab-tl" aria-selected="true">1. Timeline</button>
+  <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Rate Card</button>
+  <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>3. Análise financeira</button>
+  <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>4. Proposta</button>
+</nav>
+
+<main>
+<!-- ================= TAB 1: TIMELINE ================= -->
+<section class="tab active" id="tab-tl" role="tabpanel" aria-labelledby="tabbtn-tl">
+  <div class="card">
+    <h2>Upload do timeline</h2>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Selecionar arquivo de timeline ou de proposta">
+      <strong>Arraste aqui o timeline (.xlsx, .xlsm, .csv) ou uma proposta salva pelo app</strong>
+      <p>ou clique para selecionar</p>
+      <p class="hint">Se o arquivo tiver uma aba <code>Rate Card</code>, ela também é importada automaticamente.</p>
+    </div>
+    <input type="file" id="tlFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+    <div id="tlMsg" aria-live="polite"></div>
+    <div class="row" style="margin-top:12px">
+      <label class="f" style="max-width:260px">Unidade do período
+        <select id="p_unit">
+          <option value="auto">Detectar automaticamente</option>
+          <option value="SP">Sprint</option>
+          <option value="W">Semana</option>
+        </select></label>
+      <span class="hint">Use para forçar a unidade quando o arquivo traz só números em Start/End.</span>
+    </div>
+    <details style="margin-top:10px">
+      <summary class="hint" style="cursor:pointer">Formatos aceitos</summary>
+      <div class="hint" style="margin-top:8px;line-height:1.7">
+        <b>A) Matriz (recomendado):</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Optional</code> + uma coluna por período: <code>SP1, SP2…</code> (sprints) ou <code>W1, W2…</code> (semanas), com a alocação em FTE (ex.: 1, 0,5, 50%).<br>
+        <b>B) Lista:</b> colunas <code>Phase</code>, <code>Role</code>, <code>Level</code>, <code>Start</code>, <code>End</code>, <code>FTE</code> (Start/End como número ou "SP5").<br>
+        Também são aceitos cabeçalhos em português/espanhol: Fase, Frente, Onda, Perfil, Nível, Local, Opcional, Início, Fim, Alocação.<br>
+        <b>Rate Card (opcional):</b> aba com <code>Role</code>, <code>Level</code>, <code>Location</code>, <code>Cost/h</code>, <code>Rate/h</code>.<br>
+        <b>Proposta salva pelo app (.xlsx):</b> reabre com todos os parâmetros, rate card, impostos e textos editados.
+      </div>
+    </details>
+  </div>
+  <div class="card" id="tlView" style="display:none">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="tlTitle">Timeline importado</h2>
+      <button class="btn" data-act="go-par">Próximo: parâmetros →</button>
+    </div>
+    <div class="scroll" id="gantt"></div>
+    <p class="hint">Valores = FTE alocado por período. Linhas em itálico/laranja são itens opcionais.</p>
+  </div>
+</section>
+
+<!-- ================= TAB 2: PARAMS ================= -->
+<section class="tab" id="tab-par" role="tabpanel" aria-labelledby="tabbtn-par">
+  <div class="card">
+    <h2>Dados da proposta</h2>
+    <div class="grid">
+      <label class="f">Fornecedor<input id="p_vendor" value="TCS"></label>
+      <label class="f">Cliente<input id="p_client" placeholder="Ex.: Roche"></label>
+      <label class="f">Projeto<input id="p_project" placeholder="Ex.: Analytics Modernization"></label>
+      <label class="f">Referência / CRM ID<input id="p_ref" placeholder="CRM ID"></label>
+      <label class="f">Modelo de contratação
+        <select id="p_model"><option value="fp">Fixed Price</option><option value="tm">Time &amp; Material</option></select></label>
+    </div>
+    <p class="hint" style="margin-top:8px">O idioma da proposta e as opções de timeline ficam na aba “4. Proposta”.</p>
+    <label class="f" style="margin-top:12px">Contexto / objetivo (aparece no Executive Summary)
+      <textarea id="p_context" placeholder="Ex.: Modernize the analytics platform, migrating ingestion and transformation layers to a governed Medallion architecture…"></textarea></label>
+  </div>
+
+  <div class="card">
+    <h2>Início e calendário</h2>
+    <div class="grid">
+      <label class="f">Início do projeto
+        <select id="p_startmode">
+          <option value="date">Data específica</option>
+          <option value="month">Mês (primeiro dia útil)</option>
+          <option value="none">Sem data — timeline relativo (SP1, SP2…)</option>
+        </select></label>
+      <label class="f" id="lbl_start">Data de início<input type="date" id="p_start"></label>
+      <label class="f" id="lbl_startm">Mês de início<input type="month" id="p_startm"></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="chk"><input type="checkbox" id="p_hol" checked> Considerar feriados nacionais do Brasil (calculados no próprio app)</label>
+    </div>
+    <label class="f" style="margin-top:10px"><span>Feriados adicionais / recessos (um por linha: <code>AAAA-MM-DD nome</code>)</span>
+      <textarea id="p_holx" style="min-height:60px" placeholder="2026-12-24 Recesso de fim de ano"></textarea></label>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sec sm" data-act="holidays-online">Conferir feriados online (BrasilAPI)</button>
+      <span class="hint" id="holInfo"></span>
+    </div>
+    <div id="holMsg" aria-live="polite"></div>
+    <p class="hint">Com data ou mês, o cronograma se ajusta ao calendário: o início avança para o próximo dia útil, cada período termina em dia útil e feriados não entram na distribuição mensal. Sem data, a proposta mostra apenas períodos relativos.</p>
+  </div>
+
+  <div class="card">
+    <h2>Premissas de esforço e preço</h2>
+    <div class="grid">
+      <label class="f">Semanas por período (sprint)<input type="number" id="p_pw" value="2" min="1" step="1"></label>
+      <label class="f">Horas faturáveis / dia<input type="number" id="p_hpd" value="8" min="1" step="0.5"></label>
+      <label class="f">Dias úteis / semana<input type="number" id="p_dpw" value="5" min="1" max="7"></label>
+      <label class="f">Modo de precificação
+        <select id="p_mode"><option value="rate">Rate/h do rate card</option><option value="gm">Custo/h + GM% alvo</option></select></label>
+      <label class="f">GM% alvo (modo custo)<input type="number" id="p_gm" value="35" step="0.5"></label>
+      <label class="f">GM% mínimo (gera alerta)<input type="number" id="p_gmmin" value="0" step="0.5"></label>
+      <label class="f">Contingência / risco %<input type="number" id="p_cont" value="0" step="0.5"></label>
+      <label class="f">Contingência entra…
+        <select id="p_contmode"><option value="price">só no preço (vira margem)</option><option value="both">no preço e no custo (reserva consumida)</option></select></label>
+      <label class="f">Desconto comercial %<input type="number" id="p_disc" value="0" step="0.5"></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <label class="chk"><input type="checkbox" id="p_inclOpt"> Incluir itens opcionais no total da proposta</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Moeda e câmbio</h2>
+    <div class="grid">
+      <label class="f">Moeda da proposta
+        <select id="p_cur"><option>BRL</option><option>USD</option><option>EUR</option><option>MXN</option><option>COP</option><option>ARS</option></select></label>
+      <label class="f">Moeda do rate card
+        <select id="p_rcur"><option>BRL</option><option>USD</option><option>EUR</option><option>MXN</option><option>COP</option><option>ARS</option></select></label>
+      <label class="f">Câmbio (1 moeda do rate card = X da proposta)<input type="number" id="p_fx" value="1" step="0.0001" min="0"></label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn sec sm" data-act="fx-online">Buscar cotação online</button>
+      <button class="btn sec sm" data-act="fx-cached" id="btnFxCached" style="display:none">Usar última cotação salva</button>
+    </div>
+    <div id="fxMsg" aria-live="polite"></div>
+    <p class="hint">Se as moedas forem diferentes, as taxas do rate card são convertidas pelo câmbio informado. Sem internet, digite o câmbio manualmente.</p>
+  </div>
+
+  <div class="card">
+    <h2>Impostos</h2>
+    <div id="taxList"></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sec sm" data-act="tax-add">+ Adicionar imposto</button>
+      <label class="chk"><input type="checkbox" id="p_taxshow"> Detalhar impostos na proposta</label>
+      <span class="hint" id="taxTotal"></span>
+    </div>
+    <p class="hint">O preço com impostos é calculado por gross-up: líquido ÷ (1 − soma dos percentuais). Os valores do rate card são líquidos de impostos.</p>
+  </div>
+
+  <div class="card">
+    <h2>Faturamento</h2>
+    <div class="grid">
+      <label class="f">Modelo de pagamento
+        <select id="p_pay">
+          <option value="milestone">Marcos por fase (fim da fase)</option>
+          <option value="monthly">Mensal pelo consumo (T&amp;M)</option>
+          <option value="install">Parcelas mensais iguais</option>
+        </select></label>
+      <label class="f">Nº de parcelas (se iguais)<input type="number" id="p_inst" value="6" min="1"></label>
+      <label class="f">Prazo de pagamento (dias)<input type="number" id="p_terms" value="30" min="0"></label>
+      <label class="f">Validade da proposta (dias)<input type="number" id="p_valid" value="30" min="1"></label>
+    </div>
+    <label class="f" style="margin-top:12px">Premissas adicionais (uma por linha)
+      <textarea id="p_assump" placeholder="Client will provide access to source systems and environments by Sprint 1.&#10;Licenses and cloud consumption are not included."></textarea></label>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h2>Rate Card</h2>
+      <div class="row">
+        <button class="btn sec" data-act="rc-import">Importar rate card (.xlsx/.csv)</button>
+        <input type="file" id="rcFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+        <button class="btn sec" data-act="rc-gm">Calcular Rate/h = Custo/(1–GM%)</button>
+      </div>
+    </div>
+    <p class="hint">Perfis identificados no timeline. Preencha Custo/h e/ou Rate/h (valores líquidos de impostos, na moeda do rate card). Campos vazios ficam destacados.</p>
+    <div id="rcMsg" aria-live="polite"></div>
+    <div class="scroll" style="max-height:none"><table class="t" id="rcTable"></table></div>
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button class="btn" data-act="calc">Calcular proposta →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TAB 3: ANALYSIS ================= -->
+<section class="tab" id="tab-ana" role="tabpanel" aria-labelledby="tabbtn-ana">
+  <div class="checklist" id="checklist" aria-label="Verificações da proposta"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="two">
+    <div class="card"><h2>Alocação (FTE) por período</h2><div class="chartbox"><canvas id="chFte" role="img" aria-label="Gráfico de alocação por período"></canvas></div><div id="chFteMsg"></div></div>
+    <div class="card"><h2>Faturamento por mês (com impostos)</h2><div class="chartbox"><canvas id="chMonth" role="img" aria-label="Gráfico de faturamento mensal"></canvas></div><div id="chMonthMsg"></div></div>
+  </div>
+  <div class="card"><h2>Investimento por fase</h2><div id="tbPhase"></div></div>
+  <div class="card"><h2>Investimento por perfil</h2><div id="tbRole"></div></div>
+  <div class="two">
+    <div class="card"><h2>Distribuição mensal</h2><div id="tbMonth"></div></div>
+    <div class="card"><h2>Cronograma de pagamentos</h2><div id="tbPay"></div></div>
+  </div>
+  <div class="card"><h2>Sensibilidade: desconto × contingência</h2>
+    <p class="hint">Preço com impostos e GM% para cada combinação (demais parâmetros iguais aos atuais). Amarelo = abaixo do GM% mínimo; vermelho = GM% negativo.</p>
+    <div class="scroll" style="max-height:none"><div id="tbSens"></div></div></div>
+  <div class="row noprint" style="justify-content:flex-end;gap:10px">
+    <button class="btn sec" data-act="save">💾 Salvar proposta (.xlsx)</button>
+    <button class="btn" data-act="go-doc">Ver proposta →</button>
+  </div>
+</section>
+
+<!-- ================= TAB 4: PROPOSAL ================= -->
+<section class="tab" id="tab-doc" role="tabpanel" aria-labelledby="tabbtn-doc">
+  <div class="card noprint">
+    <div class="doc-opts">
+      <label class="f">Idioma da proposta
+        <select id="p_lang"><option value="en">English</option><option value="pt">Português</option><option value="es">Español</option></select></label>
+      <label class="f">Timeline
+        <select id="p_tlmode">
+          <option value="bars">Fases (barras)</option>
+          <option value="roles">Fases + perfis</option>
+          <option value="milestones">Apenas marcos</option>
+        </select></label>
+      <label class="f">Escala
+        <select id="p_tlgran"><option value="period">Por sprint / período</option><option value="week">Por semana</option></select></label>
+      <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="p_tlfte" checked> Mostrar FTE</label>
+    </div>
+    <details style="margin-top:10px">
+      <summary class="hint" style="cursor:pointer">Marcos adicionais (modo “Apenas marcos”)</summary>
+      <label class="f" style="margin-top:8px"><span>Um por linha: <code>Nome | SP6</code>, <code>Nome | W12</code> ou <code>Nome | AAAA-MM-DD</code></span>
+        <textarea id="p_tlmiles" style="min-height:70px" placeholder="Go-live | SP11&#10;Assinatura do contrato | 2026-11-10"></textarea></label>
+    </details>
+  </div>
+  <div class="row noprint" style="justify-content:space-between;margin-bottom:14px">
+    <span class="hint">Clique nos textos para editar; as edições ficam salvas na proposta (por idioma). Texto em amarelo = editado.</span>
+    <div class="row">
+      <button class="btn sec" data-act="restore-texts">Restaurar textos originais</button>
+      <button class="btn sec" data-act="save">💾 Salvar (.xlsx)</button>
+      <button class="btn sec" data-act="word">⬇ Word (.docx)</button>
+      <button class="btn teal" data-act="print">🖨 Imprimir / Salvar PDF</button>
+    </div>
+  </div>
+  <div id="doc"></div>
+</section>
+</main>
+
+<dialog id="dlgLib" aria-labelledby="dlgLibTitle">
+  <div class="dh"><h2 id="dlgLibTitle">Propostas (arquivos Excel)</h2><button class="btn light sm" data-act="lib-close">Fechar</button></div>
+  <div class="db" id="libBody"></div>
+</dialog>
+
+<div class="toast-wrap" id="toasts" aria-live="polite"></div>
+
+<!--LIBS-->
+<script>
+/*SCRIPTS*/
+</script>
+</body>
+</html>
