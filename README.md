@@ -9,20 +9,52 @@ seu computador.
 2. **Timeline** (aba 1): defina os **parâmetros do timeline** (sprint ou semana, nº de períodos, semanas por sprint,
    horas/dia, dias úteis e início por data, mês ou sem data) e **monte a timeline na própria tela**: fases, perfil e
    **nível por combo** (dá para cadastrar novos), FTE digitado ou **pintado com arrastar**, com desfazer/refazer e
-   prévia da proposta. Ou abra um Excel existente.
-3. **Parâmetros & Perfis** (aba 2): calendário, premissas de preço, **desconto**, moeda/câmbio, impostos, faturamento
-   e as taxas de cada perfil/nível.
-4. **Análise**: alertas (taxas faltando, GM% baixo…), KPIs, gráficos, sensibilidade desconto × contingência.
-5. **Proposta**: idioma e opções de timeline (barras, fases + perfis ou só marcos; por sprint ou semana; com/sem FTE),
+   prévia da proposta. Ou abra um Excel existente. Em cada fase dá para inserir **entregáveis** (◆) e dá para criar até
+   **3 cenários** de timeline/alocação.
+3. **Parâmetros & Perfis** (aba 2): dados da proposta (**cliente**), calendário, premissas de preço, **desconto**,
+   moeda/câmbio, impostos, faturamento e, no fim da página, **Perfis e taxas** do cliente selecionado.
+4. **Cenários**: painel comparativo dos cenários (prazo, esforço, equipe, preço, margem…).
+5. **Análise**: alertas (taxas faltando, GM% baixo…), KPIs, gráficos, sensibilidade desconto × contingência.
+6. **Proposta**: idioma e opções de timeline (barras, fases + perfis ou só marcos; por sprint ou semana; com/sem FTE),
    edição dos textos na página e exportação em **PDF** (imprimir), **Word (.docx)**, **PowerPoint (.pptx)** ou **Excel**.
 
 A **barra superior** mostra sempre qual proposta está aberta: cliente — projeto, referência, arquivo, preço total,
 margem (GM) e o status de gravação.
 
-## Perfis e níveis
-Os perfis são cadastrados com **nível**, local e taxas (Custo/h e Rate/h). Na timeline, cada linha escolhe o **perfil**
-por uma combo e o **nível** por outra; níveis novos podem ser adicionados na hora e perfis novos entram no cadastro
-(aba `Perfis` do Excel). Um perfil só exige taxa se estiver realmente alocado.
+## Catálogo de perfis e taxas (segundo arquivo Excel)
+Perfis e taxas **não ficam mais no arquivo da proposta**: vêm de um **catálogo** (`Perfis_e_Taxas.xlsx`) com **uma aba por
+cliente** (inicialmente `Roche` e `JnJ`). O app lê cada aba pelos títulos das colunas, então clientes podem ter layouts
+diferentes — ex.: JnJ tem só *Role*, *Experience level* e *rate sem impostos (BRL)*; Roche tem também local e custo.
+* **📚 Catálogo** (topo): abre o arquivo (Chrome/Edge lembram dele e gravam direto; outros navegadores baixam o `.xlsx`).
+* Em *Dados da proposta* (aba 2, ou no seletor da aba 1) **escolha o cliente** ou crie um novo com **＋ Novo**: o app
+  **pergunta em qual cliente basear** (copia perfis, níveis e formatação) ou cria uma aba em branco; cada cliente novo
+  gera uma **aba nova** no catálogo.
+* No fim da aba 2, **Perfis e taxas** mostra só os dados do cliente selecionado e permite editar/adicionar/excluir; as
+  edições são gravadas na aba do cliente, **preservando a formatação** do arquivo original.
+* A proposta guarda apenas uma **cópia das taxas usadas** (colunas `Cost/h (catálogo)` e `Rate/h (catálogo)` na aba
+  `Modelo`) para recalcular sem o catálogo. Ao reabrir com o catálogo carregado, o **catálogo prevalece** e o app avisa
+  se as taxas mudaram, com o impacto no preço (antes → depois).
+* `npm run catalog` regenera o arquivo de exemplo (os dados de Roche são ilustrativos; JnJ usa as linhas do print).
+
+Na timeline, cada linha escolhe o **perfil** por uma combo e o **nível** por outra; níveis novos podem ser adicionados na
+hora. Um perfil só exige taxa se estiver realmente alocado.
+
+## Entregáveis por fase
+Em cada fase, o botão **◆** adiciona entregáveis (ficam abaixo das linhas da fase). Por padrão são **distribuídos
+igualmente** no tempo alocado da fase (e acompanham a fase se a alocação mudar); ajuste **início/fim** nas caixas
+(ou clique numa célula: define o fim; Shift+clique: define o início) e o entregável vira **manual** — sempre dentro da
+janela da fase. **⇄ distribuir igualmente** volta tudo ao automático. Aparecem como ◆ na timeline (tela, Word e
+PowerPoint), numa tabela *Entregáveis* e nos marcos (opção *Mostrar entregáveis* na aba Proposta).
+
+## Cenários e comparativo
+Cada proposta aceita **até 3 cenários** (barra acima do editor: ＋ Novo, ⧉ Duplicar, ✎ Renomear, 🗑 Excluir). Timeline,
+alocação, entregáveis e parâmetros do timeline (unidade, semanas por sprint, início…) são **por cenário**; preços,
+impostos, desconto e textos são comuns. A aba **3. Cenários** compara lado a lado: cartões com a forma da equipe, tabela
+com o melhor valor em verde e a diferença em relação ao cenário ativo (prazo, datas, esforço, pico/FTE médio, fases,
+entregáveis, preço de lista, desconto, preço final, GM%, rate médio, alertas), gráficos de FTE por período e de preço ×
+margem, e uma leitura automática das diferenças. **Usar este cenário** o torna ativo: análise, proposta e exportações
+sempre usam o cenário ativo (o nome aparece na barra superior). No Excel: abas `Cenarios` (lista e parâmetros),
+`Cen_n` (matriz dos cenários inativos) e `Entregaveis`; `Modelo` é sempre o cenário ativo, com as fórmulas.
 
 ## Desconto
 Ordem de cálculo: preço de lista (taxa × horas) → contingência → **desconto** → impostos (gross-up).
@@ -41,8 +73,8 @@ slide, com o cabeçalho repetido.
 
 ## O Excel como "banco" de cada proposta
 Cada proposta é **um arquivo `.xlsx`**. A edição acontece no navegador; o Excel guarda o resultado:
-parâmetros, timeline, perfis/níveis e taxas, impostos, descontos e os textos editados (abas `Parametros`, `Modelo`,
-`Perfis`, `Impostos`, `Descontos`, `Textos`), além de abas de auditoria com **fórmulas** (`Resumo`, `PorFase`).
+parâmetros, timeline, cópia das taxas usadas, impostos, descontos, entregáveis, cenários e os textos editados (abas
+`Parametros`, `Modelo`, `Impostos`, `Descontos`, `Entregaveis`, `Cenarios`/`Cen_n`, `Textos`), além de abas de auditoria com **fórmulas** (`Resumo`, `PorFase`).
 
 * **Salvar como…** / **Salvar**: no Chrome/Edge grava direto no arquivo e, depois disso, **cada alteração é
   gravada automaticamente** nele. Em outros navegadores o `.xlsx` é baixado.
@@ -66,9 +98,10 @@ O botão *Conexão* no topo testa o acesso e a faixa amarela avisa quando algo e
 npm install
 npm run build      # gera gerador_proposta_comercial.html (arquivo único) a partir de src/
 npm run template   # regenera Timeline_Template.xlsx (mesma função do botão do app)
+npm run catalog    # regenera Perfis_e_Taxas.xlsx (catálogo de exemplo, uma aba por cliente)
 npm test           # testes do motor de cálculo e do arquivo Excel (compara fórmulas com o LibreOffice, se instalado)
 npm run e2e        # teste no Chromium com a rede bloqueada
 ```
 Estrutura de `src/`: `engine.js` (cálculo puro), `doc.js` (modelo do documento), `workbook.js` (arquivo Excel),
-`docx-export.js` (Word), `pptx-export.js` (PowerPoint), `net.js` (extras online), `storage.js` (IndexedDB e arquivos), `app.js` (interface).
+`catalog.js` (catálogo de perfis e taxas), `editor.js` (editor de timeline), `docx-export.js` (Word), `pptx-export.js` (PowerPoint), `net.js` (extras online), `storage.js` (IndexedDB e arquivos), `app.js` (interface).
 **Edite `src/` e rode `npm run build`** — o HTML na raiz é gerado.

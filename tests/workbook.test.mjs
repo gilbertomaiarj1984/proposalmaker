@@ -108,3 +108,46 @@ test('proposta ainda sem perfis alocados também é gravada e reaberta (linhas v
   const back0 = Workbook.read(XLSX, XLSX.read(new Uint8Array(await wb0.xlsx.writeBuffer()), {type:'array'}));
   assert.equal(back0.rows.length, 1); assert.equal(back0.rows[0].phase, 'Fase 1');
 });
+
+test('cenários e entregáveis: ida e volta no Excel (Modelo = ativo; demais em Cen_n)', async () => {
+  const st = exampleState();
+  const rowsB = st.rows.map(r => ({...r, alloc: r.alloc.map(v => v * 2)}));   // cenário B: equipe dobrada (outra alocação)
+  const delA = [{id:1, phase:st.rows[0].phase, name:'Plano do projeto', start:0, end:0, manual:false}, {id:2, phase:st.rows[0].phase, name:'Relatório final', start:1, end:1, manual:true}];
+  const delB = [{id:1, phase:st.rows[0].phase, name:'Plano acelerado', start:0, end:0, manual:true}];
+  const scen = [
+    {id:1, name:'Base', rows:st.rows, nPeriods:12, unit:'SP', deliverables:delA, tl:{p_pw:'2', p_unit:'SP'}},
+    {id:3, name:'Acelerado', rows:rowsB, nPeriods:10, unit:'W', deliverables:delB, tl:{p_pw:'1', p_unit:'W'}}
+  ];
+  const full = {...st, deliverables: delA, scenarios: scen, active: 0};
+  const R = run({...full, deliverables: delA});
+  R.deliverables = R.deliverables || [];
+  const buf = await (await Workbook.buildProposal(ExcelJS, full, R)).xlsx.writeBuffer();
+  const rd = XLSX.read(new Uint8Array(buf), {type:'array'});
+  assert.ok(rd.SheetNames.includes('Cenarios') && rd.SheetNames.includes('Cen_3') && !rd.SheetNames.includes('Cen_1'), rd.SheetNames.join());
+  const back = Workbook.read(XLSX, rd);
+  assert.equal(back.scenarios.length, 2); assert.equal(back.active, 0);
+  const [a, b] = back.scenarios;
+  assert.equal(a.name, 'Base'); assert.equal(b.name, 'Acelerado'); assert.equal(b.id, 3);
+  assert.deepEqual(a.rows[3].alloc, st.rows[3].alloc);
+  assert.deepEqual(b.rows[3].alloc.slice(0, 10), rowsB[3].alloc.slice(0, 10));
+  assert.equal(b.unit, 'W'); assert.equal(b.nPeriods, 10); assert.equal(b.tl.p_pw, '1');
+  assert.deepEqual(back.deliverables.map(d => [d.name, d.start, d.end, d.manual]), [['Plano do projeto', 0, 0, false], ['Relatório final', 1, 1, true]]);
+  assert.deepEqual(b.deliverables.map(d => [d.name, d.start, d.end, d.manual]), [['Plano acelerado', 0, 0, true]]);
+  assert.equal(Object.values(back.rates).find(r => r.role === 'Tester').rate, 140, 'taxas do cenário inativo também voltam');
+  // ativo = B: Modelo traz B e Cen_1 traz A
+  const full2 = {...st, rows: rowsB, nPeriods: 10, unit: 'W', deliverables: delB, scenarios: scen, active: 1};
+  const back2 = Workbook.read(XLSX, XLSX.read(new Uint8Array(await (await Workbook.buildProposal(ExcelJS, full2, run(full2))).xlsx.writeBuffer()), {type:'array'}));
+  assert.equal(back2.active, 1); assert.equal(back2.scenarios[0].rows.length, st.rows.length);
+  assert.deepEqual(back2.rows[3].alloc.slice(0, 10), rowsB[3].alloc.slice(0, 10));
+});
+
+test('proposta com um único cenário não ganha abas de cenário e mantém os entregáveis', async () => {
+  const st = exampleState();
+  const dl = [{id:1, phase:st.rows[0].phase, name:'Entrega única', start:0, end:1, manual:true}];
+  const full = {...st, deliverables: dl};
+  const rd = XLSX.read(new Uint8Array(await (await Workbook.buildProposal(ExcelJS, full, run(full))).xlsx.writeBuffer()), {type:'array'});
+  assert.ok(!rd.SheetNames.includes('Cenarios') && rd.SheetNames.includes('Entregaveis'));
+  const back = Workbook.read(XLSX, rd);
+  assert.equal(back.scenarios, null);
+  assert.deepEqual(back.deliverables.map(d => [d.name, d.start, d.end]), [['Entrega única', 0, 1]]);
+});

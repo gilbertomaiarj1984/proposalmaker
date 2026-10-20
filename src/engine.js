@@ -252,6 +252,7 @@ function parseParams(raw, extra){
       mode: ['bars','roles','milestones'].includes(raw.p_tlmode) ? raw.p_tlmode : 'bars',
       gran: raw.p_tlgran === 'week' ? 'week' : 'period',
       fte: raw.p_tlfte === undefined ? true : !!raw.p_tlfte,
+      deliv: raw.p_tldeliv === undefined ? true : !!raw.p_tldeliv,
       miles: parseMilestoneLines(raw.p_tlmiles)
     }
   };
@@ -288,6 +289,20 @@ function buildCalendar(p, N, unit, ctx){
   const pEnd = i => { const s = pStart(i), e = prevWork(addDays(effStart, (i + 1) * pw * 7 - 1)); return e < s ? s : e; };
 
   return {relative, pw, hol, holNames, baseDate, isWork, nextWork, prevWork, effStart, startAdjusted, pStart, pEnd};
+}
+
+/* ---------------- entregáveis por fase ---------------- */
+// entregável = {id, phase, name, start, end, manual}; start/end são índices de período (0-based) dentro da janela ativa da fase
+const clampDeliv = (d, first, last) => { const s = Math.max(first, Math.min(last, Math.round(+d.start) || 0)); return {start: s, end: Math.max(s, Math.min(last, Math.round(+d.end) || s))}; };
+// distribui igualmente os entregáveis NÃO manuais da fase em fatias consecutivas do intervalo [first,last]; devolve cópia
+function distributeDeliv(list, phase, first, last){
+  const mine = list.filter(d => d.phase === phase && !d.manual), n = mine.length, L = last - first + 1;
+  const pos = new Map(mine.map((d, i) => [d, i]));
+  return list.map(d => {
+    if (!pos.has(d)) return d;
+    const i = pos.get(d), s = first + Math.floor(i * L / n), e = Math.max(s, first + Math.floor((i + 1) * L / n) - 1);
+    return {...d, start: Math.min(s, last), end: Math.min(e, last)};
+  });
 }
 
 /* ---------------- cálculo principal ---------------- */
@@ -440,7 +455,15 @@ function compute(model, p, ctx){
   if (T.netOpt && !p.inclOpt) issues.push({level:'info', code:'optional_excluded', data:{gross: T.grossOpt}});
   if (firstP < 0) issues.push({level:'err', code:'no_active_scope', data:{}});
 
-  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc, gmFloor, dGlobal, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
+  // entregáveis: só de fases com alocação; sempre dentro da janela ativa da fase
+  let dlist = (model.deliverables || []).filter(d => d.name && phases.some(ph => ph.name === d.phase));
+  phases.forEach(ph => { dlist = distributeDeliv(dlist, ph.name, ph.first, ph.last); });   // os não manuais se distribuem igualmente na janela da fase
+  const deliverables = dlist.map(d => {
+    const ph = phases.find(x => x.name === d.phase), c = clampDeliv(d, ph.first, ph.last);
+    return {id: d.id, phase: d.phase, name: d.name, manual: !!d.manual, start: c.start, end: c.end, startDate: pStart(c.start), endDate: pEnd(c.end), color: ph.color, optional: ph.optional};
+  }).sort((a, b) => phases.findIndex(x => x.name === a.phase) - phases.findIndex(x => x.name === b.phase) || a.end - b.end || a.start - b.start);
+
+  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc, gmFloor, dGlobal, deliverables, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
     start: effStart, startBase: baseDate, startAdjusted, holidays: [...hol].sort().map(d => ({date:d, name: holNames[d] || ''})), isWork};
 }
 
@@ -470,6 +493,11 @@ function timelineView(R, o){
   R.phases.forEach(ph => {
     const cells = cols.map(c => ph.fte[c.period] || 0);
     rows.push({kind:'phase', label: ph.name, optional: ph.optional, color: ph.color, cells, ...spans(cells)});
+    if (o.deliv !== false && o.mode !== 'milestones') (R.deliverables || []).filter(d => d.phase === ph.name).forEach(d => {
+      const dc = cols.map(c => c.period >= d.start && c.period <= d.end ? 1 : 0), sp = spans(dc);
+      let mark = -1; cols.forEach((c, i) => { if (c.period === d.end) mark = i; });
+      rows.push({kind:'deliv', label: d.name, optional: ph.optional, color: ph.color, cells: dc, mark, ...sp});
+    });
     if (o.mode === 'roles'){
       R.rows.filter(r => r.phase === ph.name).forEach(r => {
         const rc = cols.map(c => r.alloc[c.period] || 0);
@@ -496,6 +524,10 @@ function milestones(R, extraLines, labels){
   R.phases.filter(ph => ph.optional && !R.p.inclOpt).forEach(ph => {
     out.push({name: `${ph.name} — ${labels.done} *`, kind:'phase', when: ph.end, periodLabel: lab(ph.last), order: ph.last * 2 + 1, optional: true});
   });
+  if (labels.deliv !== false) (R.deliverables || []).forEach(d => {
+    if (d.optional && !R.p.inclOpt) return;
+    out.push({name: `${d.name} (${d.phase})`, kind:'deliv', when: d.endDate, periodLabel: lab(d.end), order: d.end * 2 + 1});
+  });
   (extraLines || []).forEach(m => {
     if (m.date){
       const d = parseDate(m.date);
@@ -515,8 +547,28 @@ function milestones(R, extraLines, labels){
   return out.sort((a,b) => a.order - b.order || a.when - b.when);
 }
 
+/* ---------------- comparação de cenários ---------------- */
+// métricas comparáveis de um resultado de compute (R pode ser null = cenário vazio)
+function scenarioMetrics(R){
+  if (!R) return null;
+  const T = R.T, sc = R.phases.filter(ph => !ph.optional || R.p.inclOpt);
+  return {nPer: T.nPer, weeks: T.weeks, start: T.start, end: T.end, H: T.H, peak: T.peak, avgFte: T.avgFte, listGross: T.listGross, gross: T.gross, discPct: T.discPct,
+    gm: T.gm, hasCost: T.cost > 0, blended: T.blended, nPhases: sc.length, nDeliv: R.deliverables.length, errs: R.issues.filter(i => i.level === 'err').length,
+    warns: R.issues.filter(i => i.level === 'warn').length, fte: R.periods.map(x => x.fte), relative: R.relative, unit: R.unit, pw: R.pw};
+}
+// índice do melhor cenário por métrica (empate = null); lista com null para cenário vazio
+function compareScenarios(ms){
+  const best = (key, dir, ok) => {
+    const c = ms.map((m, i) => ({i, v: m && (!ok || ok(m)) ? m[key] : null})).filter(x => x.v !== null && isFinite(x.v));
+    if (c.length < 2) return null;
+    const t = dir * Math.min(...c.map(x => dir * x.v)), w = c.filter(x => Math.abs(x.v - t) < 1e-9);
+    return w.length === c.length ? null : w.map(x => x.i);
+  };
+  return {weeks: best('weeks', 1), gross: best('gross', 1), gm: best('gm', -1, m => m.hasCost), peak: best('peak', 1), H: best('H', 1), blended: best('blended', -1)};
+}
+
 return { norm, esc, num, periodNum, isYes, rkey, parseDate, addDays, iso, monthKey, isValidIso, nextMonday,
   easter, holidaysBR, ALIAS, parseTimeline, parseRateRows, rateMatch, ensureRates, applyRateTable,
-  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones };
+  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones, distributeDeliv, clampDeliv, scenarioMetrics, compareScenarios };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Engine;

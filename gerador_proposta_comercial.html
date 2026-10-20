@@ -232,6 +232,27 @@ td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;colo
   #doc [contenteditable].edited{background:none}
 }
 
+/* entregáveis no editor */
+table.ed tr.dl td{height:30px;background:#FBFCFE} table.ed tr.dl td.l{background:#FBFCFE}
+table.ed tr.dlh td{background:#F8FAFC;border-bottom:0}
+table.ed .dm{font-size:13px;flex:none} table.ed input.dn{border:1px solid transparent;background:transparent;font:inherit;padding:3px 5px;border-radius:4px;flex:1;min-width:0}
+table.ed input.dn:hover,table.ed input.dn:focus{border-color:var(--line);background:#fff}
+table.ed input.dp{width:100%;border:1px solid transparent;background:transparent;font:inherit;font-size:12px;text-align:center;padding:3px 0;border-radius:4px;-moz-appearance:textfield}
+table.ed input.dp:hover,table.ed input.dp:focus{border-color:var(--line);background:#fff}
+table.ed td.dc{cursor:pointer;text-align:center;font-weight:700;font-size:13px} table.ed td.dc.out{background:repeating-linear-gradient(45deg,#F3F5F8 0 4px,#fff 4px 8px);cursor:not-allowed}
+/* cenários */
+.scbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 2px}
+.scchip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 14px 6px 6px;font:inherit;cursor:pointer;color:var(--text)}
+.scchip .scn{width:24px;height:24px;border-radius:50%;background:#E6ECF3;color:var(--navy);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.scchip.on{border-color:var(--navy);background:#EAF2FB;font-weight:600} .scchip.on .scn{background:var(--navy);color:#fff}
+.cmpgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
+.sccard{border:1px solid var(--line);border-radius:10px;padding:14px;background:#fff} .sccard.on{border-color:var(--navy);box-shadow:0 0 0 2px #EAF2FB}
+.sccard h3{margin:0 0 4px;font-size:15px;color:var(--navy)} .sccard .big{font-size:22px;font-weight:700;color:var(--navy)}
+.cmp{width:100%;border-collapse:collapse;font-size:13px} .cmp th,.cmp td{padding:7px 10px;border-bottom:1px solid #E6ECF3;text-align:right} .cmp th:first-child,.cmp td:first-child{text-align:left}
+.cmp thead th{background:var(--navy);color:#fff} .cmp td.best{background:#E6F6EC;font-weight:700;color:#14683A} .cmp .dl{display:block;font-size:11px;color:var(--muted);font-weight:400}
+.cmp td.best .dl{color:#14683A} .insights li{margin:4px 0}
+.mini{display:flex;gap:2px;align-items:flex-end;height:46px;margin:8px 0}.mini i{flex:1;background:var(--navy);opacity:.8;min-width:3px;border-radius:2px 2px 0 0}
+
 </style>
 </head>
 <body>
@@ -257,8 +278,9 @@ td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;colo
 <nav class="tabs" role="tablist" aria-label="Etapas">
   <button role="tab" id="tabbtn-tl" data-tab="tl" aria-controls="tab-tl" aria-selected="true">1. Timeline</button>
   <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Perfis</button>
-  <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>3. Análise financeira</button>
-  <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>4. Proposta</button>
+  <button role="tab" id="tabbtn-cen" data-tab="cen" aria-controls="tab-cen" aria-selected="false" disabled>3. Cenários</button>
+  <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>4. Análise financeira</button>
+  <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>5. Proposta</button>
 </nav>
 
 <main>
@@ -330,6 +352,8 @@ td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;colo
     <div class="card">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Timeline — editor</h2><button class="btn" data-act="go-par">Próximo: parâmetros →</button></div>
       <div class="hint" style="margin-top:4px">Escolha o <b>perfil</b> e o <b>nível</b> pelas combos (dá para cadastrar novos); o local vem do cadastro. Cada alteração entra na proposta e é gravada no Excel.</div>
+      <div class="scbar" id="scBar" role="group" aria-label="Cenários da proposta"></div>
+      <div class="hint" id="scHint" style="margin-bottom:6px"></div>
       <div class="toolbar">
         <button class="btn" id="edAddPhase">+ Fase</button>
         <span class="sep"></span>
@@ -356,7 +380,7 @@ td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;colo
 
     <div class="card">
       <h2>Como fica na proposta</h2>
-      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 4).</div>
+      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 5).</div>
       <div class="pvdoc" style="margin-top:10px"><div id="edPv"></div></div>
     </div>
   </div>
@@ -524,7 +548,22 @@ td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;colo
   </div>
 </section>
 
-<!-- ================= TAB 3: ANALYSIS ================= -->
+<!-- ================= TAB 3: CENÁRIOS ================= -->
+<section class="tab" id="tab-cen" role="tabpanel" aria-labelledby="tabbtn-cen">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Comparativo de cenários</h2><span class="hint">Até 3 cenários por proposta · preços, impostos e desconto são comuns a todos</span></div>
+    <div id="cenCards" class="cmpgrid" style="margin-top:12px"></div>
+  </div>
+  <div class="card"><h2>Indicadores lado a lado</h2><div class="scroll" style="max-height:none"><div id="cenTable"></div></div></div>
+  <div class="two">
+    <div class="card"><h2>Alocação (FTE) por período</h2><div class="chartbox"><canvas id="chCenFte" role="img" aria-label="Alocação por período em cada cenário"></canvas></div><div id="chCenFteMsg"></div></div>
+    <div class="card"><h2>Preço × margem</h2><div class="chartbox"><canvas id="chCenPrice" role="img" aria-label="Preço e margem por cenário"></canvas></div><div id="chCenPriceMsg"></div></div>
+  </div>
+  <div class="card"><h2>O que muda entre os cenários</h2><ul class="insights" id="cenInsights"></ul></div>
+  <div class="row noprint" style="justify-content:flex-end;gap:10px"><button class="btn" data-act="go-ana">Análise do cenário ativo →</button></div>
+</section>
+
+<!-- ================= TAB 4: ANALYSIS ================= -->
 <section class="tab" id="tab-ana" role="tabpanel" aria-labelledby="tabbtn-ana">
   <div class="checklist" id="checklist" aria-label="Verificações da proposta"></div>
   <div class="kpis" id="kpis"></div>
@@ -547,7 +586,7 @@ td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;colo
   </div>
 </section>
 
-<!-- ================= TAB 4: PROPOSAL ================= -->
+<!-- ================= TAB 5: PROPOSAL ================= -->
 <section class="tab" id="tab-doc" role="tabpanel" aria-labelledby="tabbtn-doc">
   <div class="card noprint">
     <div class="doc-opts">
@@ -562,6 +601,7 @@ td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;colo
       <label class="f">Escala
         <select id="p_tlgran"><option value="period">Por sprint / período</option><option value="week">Por semana</option></select></label>
       <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="p_tlfte" checked> Mostrar FTE</label>
+      <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="p_tldeliv" checked> Mostrar entregáveis</label>
     </div>
     <details style="margin-top:10px">
       <summary class="hint" style="cursor:pointer">Marcos adicionais (modo “Apenas marcos”)</summary>
@@ -1099,6 +1139,7 @@ function parseParams(raw, extra){
       mode: ['bars','roles','milestones'].includes(raw.p_tlmode) ? raw.p_tlmode : 'bars',
       gran: raw.p_tlgran === 'week' ? 'week' : 'period',
       fte: raw.p_tlfte === undefined ? true : !!raw.p_tlfte,
+      deliv: raw.p_tldeliv === undefined ? true : !!raw.p_tldeliv,
       miles: parseMilestoneLines(raw.p_tlmiles)
     }
   };
@@ -1135,6 +1176,20 @@ function buildCalendar(p, N, unit, ctx){
   const pEnd = i => { const s = pStart(i), e = prevWork(addDays(effStart, (i + 1) * pw * 7 - 1)); return e < s ? s : e; };
 
   return {relative, pw, hol, holNames, baseDate, isWork, nextWork, prevWork, effStart, startAdjusted, pStart, pEnd};
+}
+
+/* ---------------- entregáveis por fase ---------------- */
+// entregável = {id, phase, name, start, end, manual}; start/end são índices de período (0-based) dentro da janela ativa da fase
+const clampDeliv = (d, first, last) => { const s = Math.max(first, Math.min(last, Math.round(+d.start) || 0)); return {start: s, end: Math.max(s, Math.min(last, Math.round(+d.end) || s))}; };
+// distribui igualmente os entregáveis NÃO manuais da fase em fatias consecutivas do intervalo [first,last]; devolve cópia
+function distributeDeliv(list, phase, first, last){
+  const mine = list.filter(d => d.phase === phase && !d.manual), n = mine.length, L = last - first + 1;
+  const pos = new Map(mine.map((d, i) => [d, i]));
+  return list.map(d => {
+    if (!pos.has(d)) return d;
+    const i = pos.get(d), s = first + Math.floor(i * L / n), e = Math.max(s, first + Math.floor((i + 1) * L / n) - 1);
+    return {...d, start: Math.min(s, last), end: Math.min(e, last)};
+  });
 }
 
 /* ---------------- cálculo principal ---------------- */
@@ -1287,7 +1342,15 @@ function compute(model, p, ctx){
   if (T.netOpt && !p.inclOpt) issues.push({level:'info', code:'optional_excluded', data:{gross: T.grossOpt}});
   if (firstP < 0) issues.push({level:'err', code:'no_active_scope', data:{}});
 
-  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc, gmFloor, dGlobal, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
+  // entregáveis: só de fases com alocação; sempre dentro da janela ativa da fase
+  let dlist = (model.deliverables || []).filter(d => d.name && phases.some(ph => ph.name === d.phase));
+  phases.forEach(ph => { dlist = distributeDeliv(dlist, ph.name, ph.first, ph.last); });   // os não manuais se distribuem igualmente na janela da fase
+  const deliverables = dlist.map(d => {
+    const ph = phases.find(x => x.name === d.phase), c = clampDeliv(d, ph.first, ph.last);
+    return {id: d.id, phase: d.phase, name: d.name, manual: !!d.manual, start: c.start, end: c.end, startDate: pStart(c.start), endDate: pEnd(c.end), color: ph.color, optional: ph.optional};
+  }).sort((a, b) => phases.findIndex(x => x.name === a.phase) - phases.findIndex(x => x.name === b.phase) || a.end - b.end || a.start - b.start);
+
+  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc, gmFloor, dGlobal, deliverables, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
     start: effStart, startBase: baseDate, startAdjusted, holidays: [...hol].sort().map(d => ({date:d, name: holNames[d] || ''})), isWork};
 }
 
@@ -1317,6 +1380,11 @@ function timelineView(R, o){
   R.phases.forEach(ph => {
     const cells = cols.map(c => ph.fte[c.period] || 0);
     rows.push({kind:'phase', label: ph.name, optional: ph.optional, color: ph.color, cells, ...spans(cells)});
+    if (o.deliv !== false && o.mode !== 'milestones') (R.deliverables || []).filter(d => d.phase === ph.name).forEach(d => {
+      const dc = cols.map(c => c.period >= d.start && c.period <= d.end ? 1 : 0), sp = spans(dc);
+      let mark = -1; cols.forEach((c, i) => { if (c.period === d.end) mark = i; });
+      rows.push({kind:'deliv', label: d.name, optional: ph.optional, color: ph.color, cells: dc, mark, ...sp});
+    });
     if (o.mode === 'roles'){
       R.rows.filter(r => r.phase === ph.name).forEach(r => {
         const rc = cols.map(c => r.alloc[c.period] || 0);
@@ -1343,6 +1411,10 @@ function milestones(R, extraLines, labels){
   R.phases.filter(ph => ph.optional && !R.p.inclOpt).forEach(ph => {
     out.push({name: `${ph.name} — ${labels.done} *`, kind:'phase', when: ph.end, periodLabel: lab(ph.last), order: ph.last * 2 + 1, optional: true});
   });
+  if (labels.deliv !== false) (R.deliverables || []).forEach(d => {
+    if (d.optional && !R.p.inclOpt) return;
+    out.push({name: `${d.name} (${d.phase})`, kind:'deliv', when: d.endDate, periodLabel: lab(d.end), order: d.end * 2 + 1});
+  });
   (extraLines || []).forEach(m => {
     if (m.date){
       const d = parseDate(m.date);
@@ -1362,9 +1434,29 @@ function milestones(R, extraLines, labels){
   return out.sort((a,b) => a.order - b.order || a.when - b.when);
 }
 
+/* ---------------- comparação de cenários ---------------- */
+// métricas comparáveis de um resultado de compute (R pode ser null = cenário vazio)
+function scenarioMetrics(R){
+  if (!R) return null;
+  const T = R.T, sc = R.phases.filter(ph => !ph.optional || R.p.inclOpt);
+  return {nPer: T.nPer, weeks: T.weeks, start: T.start, end: T.end, H: T.H, peak: T.peak, avgFte: T.avgFte, listGross: T.listGross, gross: T.gross, discPct: T.discPct,
+    gm: T.gm, hasCost: T.cost > 0, blended: T.blended, nPhases: sc.length, nDeliv: R.deliverables.length, errs: R.issues.filter(i => i.level === 'err').length,
+    warns: R.issues.filter(i => i.level === 'warn').length, fte: R.periods.map(x => x.fte), relative: R.relative, unit: R.unit, pw: R.pw};
+}
+// índice do melhor cenário por métrica (empate = null); lista com null para cenário vazio
+function compareScenarios(ms){
+  const best = (key, dir, ok) => {
+    const c = ms.map((m, i) => ({i, v: m && (!ok || ok(m)) ? m[key] : null})).filter(x => x.v !== null && isFinite(x.v));
+    if (c.length < 2) return null;
+    const t = dir * Math.min(...c.map(x => dir * x.v)), w = c.filter(x => Math.abs(x.v - t) < 1e-9);
+    return w.length === c.length ? null : w.map(x => x.i);
+  };
+  return {weeks: best('weeks', 1), gross: best('gross', 1), gm: best('gm', -1, m => m.hasCost), peak: best('peak', 1), H: best('H', 1), blended: best('blended', -1)};
+}
+
 return { norm, esc, num, periodNum, isYes, rkey, parseDate, addDays, iso, monthKey, isValidIso, nextMonday,
   easter, holidaysBR, ALIAS, parseTimeline, parseRateRows, rateMatch, ensureRates, applyRateTable,
-  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones };
+  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones, distributeDeliv, clampDeliv, scenarioMetrics, compareScenarios };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
 
@@ -1397,7 +1489,7 @@ const I18N = {
     role:'Role', level:'Level', loc:'Location', avgFte:'Avg. FTE', rateH:'Rate / hour', amount:'Amount',
     event:'Billing event', invDate:'Invoice date', due:'Due date',
     sp:'Sprint', wk:'Week', weeks:'weeks', sprints:'sprints', fte:'FTE', weekWord:'Week', monthWord:'Month',
-    milestone:'Milestone', target:'Target', endOf:'End of', plusDays:d=>`+${d} days`, kick:'Project kickoff', done:'completed',
+    milestone:'Milestone', deliverables:'Deliverables', deliverable:'Deliverable', target:'Target', endOf:'End of', plusDays:d=>`+${d} days`, kick:'Project kickoff', done:'completed',
     model:{fp:'Fixed Price', tm:'Time & Material'},
     payTxt:{milestone:'Invoices are issued upon completion and acceptance of each phase.', monthly:'Invoices are issued monthly based on the effort consumed in the period.', install:'The total investment is invoiced in equal monthly installments.'},
     trig:{phase:'Completion of', month:'Monthly measurement', inst:'Installment'},
@@ -1426,7 +1518,7 @@ const I18N = {
     role:'Perfil', level:'Nível', loc:'Local', avgFte:'FTE médio', rateH:'Valor / hora', amount:'Valor',
     event:'Evento de faturamento', invDate:'Faturamento', due:'Vencimento',
     sp:'Sprint', wk:'Semana', weeks:'semanas', sprints:'sprints', fte:'FTE', weekWord:'Semana', monthWord:'Mês',
-    milestone:'Marco', target:'Previsão', endOf:'Fim do', plusDays:d=>`+${d} dias`, kick:'Início do projeto', done:'concluída',
+    milestone:'Marco', deliverables:'Entregáveis', deliverable:'Entregável', target:'Previsão', endOf:'Fim do', plusDays:d=>`+${d} dias`, kick:'Início do projeto', done:'concluída',
     model:{fp:'Preço Fixo', tm:'Time & Material'},
     payTxt:{milestone:'O faturamento ocorre na conclusão e aceite de cada fase.', monthly:'O faturamento é mensal, conforme o esforço consumido no período.', install:'O investimento total é faturado em parcelas mensais iguais.'},
     trig:{phase:'Conclusão de', month:'Medição mensal', inst:'Parcela'},
@@ -1455,7 +1547,7 @@ const I18N = {
     role:'Rol', level:'Nivel', loc:'Ubicación', avgFte:'FTE promedio', rateH:'Tarifa / hora', amount:'Monto',
     event:'Evento de facturación', invDate:'Facturación', due:'Vencimiento',
     sp:'Sprint', wk:'Semana', weeks:'semanas', sprints:'sprints', fte:'FTE', weekWord:'Semana', monthWord:'Mes',
-    milestone:'Hito', target:'Previsión', endOf:'Fin de', plusDays:d=>`+${d} días`, kick:'Inicio del proyecto', done:'concluida',
+    milestone:'Hito', deliverables:'Entregables', deliverable:'Entregable', target:'Previsión', endOf:'Fin de', plusDays:d=>`+${d} días`, kick:'Inicio del proyecto', done:'concluida',
     model:{fp:'Precio Fijo', tm:'Time & Material'},
     payTxt:{milestone:'La facturación se realiza al concluir y aceptar cada fase.', monthly:'La facturación es mensual, según el esfuerzo consumido en el período.', install:'La inversión total se factura en cuotas mensuales iguales.'},
     trig:{phase:'Conclusión de', month:'Medición mensual', inst:'Cuota'},
@@ -1528,7 +1620,7 @@ function build(R, opts){
     });
     B.push({t:'table', head, rows, isTimeline:true});
   } else {
-    const view = E.timelineView(R, {gran: tl.gran, mode: tl.mode, fte: tl.fte});
+    const view = E.timelineView(R, {gran: tl.gran, mode: tl.mode, fte: tl.fte, deliv: tl.deliv});
     B.push({t:'timeline', view});
     const head = [{text:L.phase}, {text:U==='SP'?L.period:L.weeks}].concat(rel ? [] : [{text:L.dates}]).concat(tl.fte ? [{text:L.fte, num:true}] : []);
     const rows = R.phases.map(ph => {
@@ -1536,6 +1628,12 @@ function build(R, opts){
       return {cells:[ph.name + (ph.optional ? ' *' : ''), per(ph)].concat(rel ? [] : [`${f.date(ph.start)} – ${f.date(ph.end)}`]).concat(tl.fte ? [f.nf(avg,1)] : []), cls: ph.optional ? 'opt' : ''};
     });
     B.push({t:'table', head, rows});
+  }
+  if (tl.deliv !== false && tl.mode !== 'milestones' && R.deliverables.length){
+    B.push({t:'sub', text:L.deliverables});
+    const dh = [{text:L.deliverable}, {text:L.phase}, {text:U==='SP'?L.period:L.weeks}].concat(rel ? [] : [{text:L.target}]);
+    B.push({t:'table', head: dh, rows: R.deliverables.map(d => ({
+      cells:[d.name + (d.optional ? ' *' : ''), d.phase, per({first:d.start, last:d.end})].concat(rel ? [] : [f.date(d.endDate)]), cls: d.optional ? 'opt' : ''}))});
   }
   if (optPh.length) B.push({t:'note', text:`* ${L.s7}`});
 
@@ -1679,8 +1777,9 @@ function toHtml(doc, edits){
         h += `<tr><th class="lab"></th>${v.cols.map(c => `<th>${e(c.label)}</th>`).join('')}</tr></thead><tbody>`;
         v.rows.forEach(r => {
           h += `<tr class="${r.kind}${r.optional ? ' optrow' : ''}"><td class="lab">${e(r.label)}${r.optional && r.kind==='phase' ? ' *' : ''}</td>`;
-          r.cells.forEach(val => {
+          r.cells.forEach((val, ci) => {
             const on = val > 0;
+            if (r.kind === 'deliv'){ h += `<td class="${on ? 'on' : ''}" style="${on ? `background:${r.color}55;` : ''}text-align:center;color:${r.color}">${ci === r.mark ? '◆' : ''}</td>`; return; }
             const style = on ? `background:${r.color}${r.kind==='role' ? 'AA' : ''};${r.optional ? 'background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.35) 0 3px,transparent 3px 6px);' : ''}` : '';
             h += `<td class="${on ? 'on' : ''}" style="${style}">${on && v.showFte ? e(String(Math.round(val*10)/10).replace('.', doc.lang==='en' ? '.' : ',')) : ''}</td>`;
           });
@@ -1726,7 +1825,7 @@ const PARAM_DEFS = [
   ['p_disctarget','Preço final alvo, com impostos (modo target)','num'], ['p_discshow','Exibição do desconto (embedded/line)','text'],
   ['p_inclOpt','Incluir itens opcionais no total','bool'], ['p_taxshow','Detalhar impostos na proposta','bool'],
   ['p_pay','Modelo de pagamento (milestone/monthly/install)','text'], ['p_inst','Nº de parcelas (se iguais)','num'], ['p_terms','Prazo de pagamento (dias)','num'], ['p_valid','Validade da proposta (dias)','num'],
-  ['p_tlmode','Timeline: modo (bars/roles/milestones)','text'], ['p_tlgran','Timeline: granularidade (period/week)','text'], ['p_tlfte','Timeline: mostrar FTE','bool'],
+  ['p_tlmode','Timeline: modo (bars/roles/milestones)','text'], ['p_tlgran','Timeline: granularidade (period/week)','text'], ['p_tlfte','Timeline: mostrar FTE','bool'], ['p_tldeliv','Timeline: mostrar entregáveis','bool'],
   ['p_tlmiles','Timeline: marcos adicionais (Nome | SP6, W12 ou AAAA-MM-DD)','long'],
   ['p_context','Contexto / objetivo','long'], ['p_assump','Premissas adicionais (uma por linha)','long']
 ];
@@ -1967,6 +2066,33 @@ async function buildProposal(ExcelJS, st, R){
     R.holidays.forEach(h => hs.addRow([h.date, h.name])); hs.getColumn(1).width = 12; hs.getColumn(2).width = 34;
   }
 
+  /* ----- Entregáveis e cenários ----- */
+  const scs = st.scenarios && st.scenarios.length ? st.scenarios : null;
+  const activeId = scs ? scs[st.active || 0].id : 1;
+  const dl = [];   // [cenário, fase, entregável, início(1-based), fim(1-based), manual]
+  const dlist = scs ? scs.map((sc, i) => ({id: sc.id, list: i === (st.active || 0) ? (st.deliverables || []) : (sc.deliverables || [])})) : [{id: 1, list: st.deliverables || []}];
+  dlist.forEach(x => x.list.forEach(d => dl.push([x.id, d.phase, d.name, (d.start | 0) + 1, (d.end | 0) + 1, d.manual ? 'Y' : ''])));
+  if (dl.length){
+    const dsh = wb.addWorksheet('Entregaveis', {views:[{state:'frozen', ySplit:1}]});
+    dsh.addRow(['Cenário','Fase','Entregável','Início (período)','Fim (período)','Manual']); styleHeader(dsh);
+    dl.forEach(r => dsh.addRow(r));
+    [10,28,40,16,14,9].forEach((w, i) => dsh.getColumn(i+1).width = w);
+  }
+  if (scs && scs.length > 1){
+    const cs = wb.addWorksheet('Cenarios', {views:[{state:'frozen', ySplit:1}]});
+    cs.addRow(['Id','Nome','Ativo','Unidade','Períodos','p_unit','p_pw','p_hpd','p_dpw','p_startmode','p_start','p_startm','Aba']); styleHeader(cs);
+    scs.forEach((sc, i) => {
+      const act = i === (st.active || 0), tl = sc.tl || {};
+      cs.addRow([sc.id, sc.name, act ? 'Y' : '', act ? st.unit : sc.unit, act ? st.nPeriods : sc.nPeriods, ...['p_unit','p_pw','p_hpd','p_dpw','p_startmode','p_start','p_startm'].map(k => tl[k] === undefined ? '' : tl[k]), act ? 'Modelo' : 'Cen_' + sc.id]);
+      if (act) return;
+      const ws = wb.addWorksheet('Cen_' + sc.id, {views:[{state:'frozen', xSplit:6, ySplit:1}]});
+      ws.addRow(['Phase','Activity','Role','Level','Location','Optional', ...Array.from({length: sc.nPeriods}, (_, k) => sc.unit + (k+1)), 'Cost/h (catálogo)', 'Rate/h (catálogo)']); styleHeader(ws);
+      sc.rows.forEach(r => { const rt = (r.role && st.rates[E.rkey(r)]) || {}; ws.addRow([r.phase, r.activity, r.role, r.level || '', r.location || '', r.optional ? 'Y' : '', ...r.alloc.slice(0, sc.nPeriods).map(v => v || null), E.num(rt.cost) || null, E.num(rt.rate) || null]); });
+      [26,14,24,7,10,9].forEach((w, k) => ws.getColumn(k+1).width = w);
+    });
+    [6,22,7,9,10,10,8,8,8,12,12,10,10].forEach((w, i) => cs.getColumn(i+1).width = w);
+  }
+
   /* ----- Textos editados ----- */
   const xs = wb.addWorksheet('Textos');
   xs.addRow(['Chave','Texto (HTML simples)']); styleHeader(xs);
@@ -2017,13 +2143,16 @@ function read(XLSX, wb){
   const rates = {};
   const rcName = wb.SheetNames.find(n => /^(perfis|rate ?card)$/i.test(n));
   if (rcName) E.parseRateRows(aoa(rcName)).forEach(t => { rates[E.rkey(t)] = {role: t.role, level: t.level, location: t.location, cost: t.cost || '', rate: t.rate || ''}; });
-  const hdr = modelo.find(r => r.some(c => E.norm(c) === 'role')) || [];
-  const iCost = hdr.findIndex(c => E.norm(c) === 'cost/h (catalogo)'), iRate = hdr.findIndex(c => E.norm(c) === 'rate/h (catalogo)');
-  if (iCost >= 0 || iRate >= 0) t.rows.forEach(r => {
-    if (!r.role || r.srcLine === undefined) return;
-    const line = modelo[r.srcLine] || [], c = iCost >= 0 ? E.num(line[iCost]) : 0, rt = iRate >= 0 ? E.num(line[iRate]) : 0, k = E.rkey(r);
-    if (!rates[k] || c || rt) rates[k] = {role: r.role, level: r.level, location: r.location, cost: c || (rates[k] && rates[k].cost) || '', rate: rt || (rates[k] && rates[k].rate) || ''};
-  });
+  const applySnap = (sheet, parsed) => {
+    const hdr = sheet.find(r => r.some(c => E.norm(c) === 'role')) || [];
+    const iCost = hdr.findIndex(c => E.norm(c) === 'cost/h (catalogo)'), iRate = hdr.findIndex(c => E.norm(c) === 'rate/h (catalogo)');
+    if (iCost >= 0 || iRate >= 0) parsed.rows.forEach(r => {
+      if (!r.role || r.srcLine === undefined) return;
+      const line = sheet[r.srcLine] || [], c = iCost >= 0 ? E.num(line[iCost]) : 0, rt = iRate >= 0 ? E.num(line[iRate]) : 0, k = E.rkey(r);
+      if (!rates[k] || c || rt) rates[k] = {role: r.role, level: r.level, location: r.location, cost: c || (rates[k] && rates[k].cost) || '', rate: rt || (rates[k] && rates[k].rate) || ''};
+    });
+  };
+  applySnap(modelo, t);
   E.ensureRates(rates, t.rows);
 
   const phaseDisc = {};
@@ -2034,7 +2163,30 @@ function read(XLSX, wb){
   const tx = aoa('Textos');
   if (tx) tx.slice(1).forEach(r => { if (r[0]) edits[String(r[0])] = String(r[1] ?? ''); });
 
-  return {raw, taxes, phaseDisc, catalogName: (wb.Sheets['_meta'] && wb.Sheets['_meta']['E1']) ? String(wb.Sheets['_meta']['E1'].v || '') : '', rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
+  // cenários (opcional) e entregáveis
+  let scenarios = null, active = 0, deliverables = [];
+  const dsh = aoa('Entregaveis'), allD = [];
+  if (dsh) dsh.slice(1).forEach((r, i) => { if (r[1] !== '' && r[2] !== '') allD.push({sc: Number(r[0]) || 1, d: {id: i + 1, phase: String(r[1]), name: String(r[2]), start: Math.max(0, (E.num(r[3]) || 1) - 1), end: Math.max(0, (E.num(r[4]) || 1) - 1), manual: E.isYes(r[5])}}); });
+  const csr = aoa('Cenarios');
+  if (csr && csr.length > 1){
+    const h = csr[0].map(x => String(x));
+    scenarios = csr.slice(1).filter(r => r[0] !== '').map((r, i) => {
+      const o = {}; h.forEach((k, j) => { o[k] = r[j]; });
+      const id = Number(o.Id) || i + 1, isAct = E.isYes(o.Ativo);
+      const tl = {}; ['p_unit','p_pw','p_hpd','p_dpw','p_startmode','p_start','p_startm'].forEach(k => { if (o[k] !== '' && o[k] !== undefined) tl[k] = String(o[k] instanceof Date ? E.iso(o[k]) : o[k]); });
+      const sc = {id, name: String(o.Nome || 'Cenário ' + (i + 1)), tl, deliverables: allD.filter(x => x.sc === id).map(x => x.d)};
+      if (isAct){ active = i; sc.rows = t.rows; sc.nPeriods = t.nPeriods; sc.unit = t.unit; deliverables = sc.deliverables; }
+      else {
+        const m = aoa('Cen_' + id);
+        let pt = null; try { pt = m ? E.parseTimeline(m, {unit: o.Unidade === 'W' ? 'W' : 'SP', keepEmpty: true}) : null; } catch(e){ pt = null; }
+        if (pt){ applySnap(m, pt); sc.rows = pt.rows; sc.nPeriods = pt.nPeriods; sc.unit = pt.unit; E.ensureRates(rates, pt.rows); }
+        else { sc.rows = []; sc.nPeriods = 12; sc.unit = 'SP'; }
+      }
+      return sc;
+    });
+  } else deliverables = allD.map(x => x.d);
+
+  return {scenarios, active, deliverables, raw, taxes, phaseDisc, catalogName: (wb.Sheets['_meta'] && wb.Sheets['_meta']['E1']) ? String(wb.Sheets['_meta']['E1'].v || '') : '', rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
 }
 
 return { APP_ID, FORMAT, PARAM_DEFS, BOOLS, colName, exampleData, emptyResult, buildTemplate, buildProposal, isProposalWorkbook, read };
@@ -2054,6 +2206,7 @@ const PAGE_W = 11906, PAGE_H = 16838, MARGIN = 1134, CONTENT_W = PAGE_W - 2 * MA
 
 const decode = s => String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&');
 
+const tintHex = h => { const n = [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); return n.map(c => Math.round(c + (255 - c) * 0.65).toString(16).padStart(2, '0')).join('').toUpperCase(); };
 function build(d, doc, edits){
   const { Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, ShadingType, AlignmentType, Footer, PageNumber,
           BorderStyle, PageBreak, VerticalAlign, HeightRule, TableLayoutType } = d;
@@ -2177,7 +2330,7 @@ function build(d, doc, edits){
           const colr = r.color.replace('#', '');
           rows.push(new TableRow({cantSplit: true, children: [
             cell(r.label + (r.optional && r.kind === 'phase' ? ' *' : ''), lab, {bold: r.kind === 'phase', color: r.kind === 'phase' ? NAVY : MUTED, italics: r.optional, size: 16}),
-            ...r.cells.map(val => cell(val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : '', cw,
+            ...r.cells.map((val, ci) => r.kind === 'deliv' ? cell(ci === r.mark ? '◆' : '', cw, {fill: val > 0 ? tintHex(colr) : 'F0F3F7', color: colr, bold: true, center: true, size: small, tight: true, borders: {top: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, bottom: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, left: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, right: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}}}) : cell(val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : '', cw,
               {fill: val > 0 ? colr : 'F0F3F7', color: 'FFFFFF', bold: true, center: true, size: small, tight: true, borders: {top: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, bottom: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, left: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, right: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}}}))
           ]}));
         });
@@ -2425,11 +2578,11 @@ function build(PptxGenJS, doc, R, edits){
     }
     hdr.push([{text: '', options: {fill: {color: LIGHT}, fontSize: fs, fontFace: FONT, margin: 0}}, ...v.cols.map(col => ({text: col.label, options: {align: 'center', valign: 'middle', bold: true, color: NAVY, fill: {color: LIGHT}, fontSize: fs, fontFace: FONT, margin: 0, border}}))]);
     const data = v.rows.map((r, k) => {
-      const base = r.color.replace('#', ''), fill = r.kind === 'role' ? tint(base, 0.35) : base;
+      const base = r.color.replace('#', ''), fill = r.kind === 'role' ? tint(base, 0.35) : r.kind === 'deliv' ? tint(base, 0.6) : base;
       const lab = r.label + (r.optional && r.kind === 'phase' ? ' *' : '');
       return [
-        {text: lab, options: {bold: r.kind === 'phase', italic: r.optional, color: r.kind === 'phase' ? NAVY : MUTED, fontSize: labFs, fontFace: FONT, valign: 'middle', margin: [0, 0.08, 0, r.kind === 'role' ? 0.25 : 0.08], border: [{type: 'none'}, {type: 'none'}, {pt: 0.5, color: LINE}, {type: 'none'}]}},
-        ...r.cells.map(val => ({text: val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : '', options: {align: 'center', valign: 'middle', bold: true, color: 'FFFFFF', fontSize: fs, fontFace: FONT, margin: 0, fill: {color: val > 0 ? fill : 'F0F3F7'}, border}}))
+        {text: lab, options: {bold: r.kind === 'phase', italic: r.optional, color: r.kind === 'phase' ? NAVY : MUTED, fontSize: labFs, fontFace: FONT, valign: 'middle', margin: [0, 0.08, 0, r.kind === 'role' ? 0.25 : r.kind === 'deliv' ? 0.4 : 0.08], border: [{type: 'none'}, {type: 'none'}, {pt: 0.5, color: LINE}, {type: 'none'}]}},
+        ...r.cells.map((val, ci) => ({text: r.kind === 'deliv' ? (ci === r.mark ? '◆' : '') : (val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : ''), options: {align: 'center', valign: 'middle', bold: true, color: r.kind === 'deliv' ? base : 'FFFFFF', fontSize: fs, fontFace: FONT, margin: 0, fill: {color: val > 0 ? fill : 'F0F3F7'}, border}}))
       ];
     });
     c.s.addTable([...hdr, ...data], {x: MX, y: c.y, w: W, colW: [labW, ...new Array(n).fill(cw)], rowH: [...new Array(nHdr).fill(hdrH), ...rowH], autoPage: false, objectName: 'Timeline'});
@@ -2907,6 +3060,15 @@ function TimelineEditor(ctx){
     S.rows.forEach(r => { let g = map.get(r.phase); if (!g){ g = {name: r.phase, rows: []}; map.set(r.phase, g); out.push(g); } g.rows.push(r); });
     return out;
   }
+  // janela ativa da fase (primeiro/último período com alocação) e entregáveis já posicionados (os não manuais se distribuem sozinhos)
+  const phaseWin = rows => { const a = new Array(S.nPeriods).fill(0); rows.forEach(r => r.alloc.forEach((v, i) => { a[i] += v; })); const f = a.findIndex(v => v > 0); return f < 0 ? null : {first: f, last: a.length - 1 - [...a].reverse().findIndex(v => v > 0)}; };
+  function placed(g){
+    const w = phaseWin(g.rows); if (!w) return {w: null, list: []};
+    let list = (S.deliverables || []).filter(d => d.phase === g.name);
+    list = E.distributeDeliv(list, g.name, w.first, w.last).map(d => ({...d, ...E.clampDeliv(d, w.first, w.last)}));
+    return {w, list};
+  }
+  const nextDelId = () => (S.deliverables || []).reduce((m, d) => Math.max(m, d.id || 0), 0) + 1;
   const flatten = gs => { S.rows = gs.flatMap(g => g.rows); };
   const catalog = () => Object.values(S.rates).filter(r => r.role).sort((a, b) => a.role.localeCompare(b.role) || a.level.localeCompare(b.level));
   const missingRate = (r, p) => p.mode === 'rate' ? !(E.num(r.rate) > 0) : !(E.num(r.cost) > 0);
@@ -2914,11 +3076,11 @@ function TimelineEditor(ctx){
 
   /* ---------------- histórico ---------------- */
   const tlRaw = () => { const o = {}; TL_IDS.forEach(id => { const el = $(id); if (el) o[id] = el.value; }); return o; };
-  const snap = () => JSON.stringify({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, raw: tlRaw()});   // as taxas vivem no catálogo: desfazer não as altera
+  const snap = () => JSON.stringify({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, deliverables: S.deliverables, raw: tlRaw()});   // as taxas vivem no catálogo: desfazer não as altera
   function pushHist(){ hist.push(snap()); if (hist.length > 100) hist.shift(); fut.length = 0; }
   function restore(str){
     const o = JSON.parse(str);
-    S.rows = o.rows; S.nPeriods = o.nPeriods; S.unit = o.unit; ctx.setRaw(o.raw);
+    S.rows = o.rows; S.nPeriods = o.nPeriods; S.unit = o.unit; S.deliverables = o.deliverables || []; ctx.setRaw(o.raw);
     changed(); render();
   }
   function undo(){ if (!hist.length) return; fut.push(snap()); restore(hist.pop()); }
@@ -2954,7 +3116,7 @@ function TimelineEditor(ctx){
       </div></td><td class="l c2"></td><td class="l c3"></td><td class="l c4"><span class="hint">${allOpt ? 'opc.' : ''}</span></td>`;
       sum.forEach(v => h += `<td class="cell" style="${v ? `background:${color}` : ''}">${v ? nfPT(v, 1) : ''}</td>`);
       h += `<td class="sum">${nfPT(sum.reduce((a, b) => a + b, 0), 1)}</td>
-        <td><div class="row-actions"><button class="xbtn" title="Adicionar perfil à fase" aria-label="Adicionar perfil" data-ed="addrow" data-g="${esc(g.name)}">＋</button><button class="xbtn" title="Excluir fase" aria-label="Excluir fase" data-ed="delphase" data-g="${esc(g.name)}">🗑</button></div></td></tr>`;
+        <td><div class="row-actions"><button class="xbtn" title="Adicionar perfil à fase" aria-label="Adicionar perfil" data-ed="addrow" data-g="${esc(g.name)}">＋</button><button class="xbtn" title="Adicionar entregável à fase" aria-label="Adicionar entregável" data-ed="adddel" data-g="${esc(g.name)}">◆</button><button class="xbtn" title="Excluir fase" aria-label="Excluir fase" data-ed="delphase" data-g="${esc(g.name)}">🗑</button></div></td></tr>`;
       if (isCol) return;
       g.rows.forEach(r => {
         const rid = idOf(r), has = !!r.role, rt = has ? rateOf(r) : null, noRate = has && (!rt || missingRate(rt, p));
@@ -2971,6 +3133,24 @@ function TimelineEditor(ctx){
         h += `<td class="sum">${nfPT(tot, 1)}</td>
           <td><div class="row-actions"><button class="xbtn" title="Duplicar linha" aria-label="Duplicar linha" data-ed="dup" data-r="${rid}">⧉</button><button class="xbtn" title="Excluir linha" aria-label="Excluir linha" data-ed="delrow" data-r="${rid}">×</button></div></td></tr>`;
       });
+      // entregáveis da fase: posicionados dentro da janela ativa da fase
+      const pl = placed(g);
+      if (pl.w && pl.list.length){
+        h += `<tr class="dlh"><td class="l c1" colspan="4" style="padding:2px 8px 2px 30px;font-size:11px;color:var(--muted)">Entregáveis da fase · ${pl.list.some(d => d.manual) ? 'alguns com datas manuais' : 'distribuídos igualmente'} <button class="btn sec sm" style="padding:1px 8px;font-size:11px" data-ed="distdel" data-g="${esc(g.name)}" title="Redistribui todos os entregáveis igualmente no tempo da fase">⇄ distribuir igualmente</button></td>${'<td></td>'.repeat(N)}<td></td><td></td></tr>`;
+        pl.list.forEach(d => {
+          h += `<tr class="dl" data-d="${d.id}"><td class="l c1" style="padding-left:30px"><div class="name" style="width:240px"><span class="dm" style="color:${color}">◆</span><input class="dn" value="${esc(d.name)}" data-ed="dname" data-d="${d.id}" placeholder="Nome do entregável" aria-label="Nome do entregável"></div></td>
+            <td class="l c2" style="padding:0 2px"><input class="dp" type="number" min="${pl.w.first + 1}" max="${pl.w.last + 1}" value="${d.start + 1}" data-ed="dstart" data-d="${d.id}" aria-label="Início do entregável (${U})" title="Início (${U}${pl.w.first + 1}–${U}${pl.w.last + 1})"></td>
+            <td class="l c3" style="padding:0 2px"><input class="dp" type="number" min="${pl.w.first + 1}" max="${pl.w.last + 1}" value="${d.end + 1}" data-ed="dend" data-d="${d.id}" aria-label="Fim do entregável (${U})" title="Fim (${U}${pl.w.first + 1}–${U}${pl.w.last + 1}) — a data de entrega"></td>
+            <td class="l c4"><span class="hint" title="${d.manual ? 'Datas ajustadas manualmente' : 'Distribuído automaticamente'}">${d.manual ? 'manual' : 'auto'}</span></td>`;
+          for (let i = 0; i < N; i++){
+            const inW = i >= pl.w.first && i <= pl.w.last, on = i >= d.start && i <= d.end;
+            h += `<td class="cell dc ${inW ? '' : 'out'}" ${inW ? `data-d="${d.id}" data-i="${i}"` : ''} style="${on ? `background:${color}55;` : ''}color:${color}" title="${inW ? 'Clique: define o fim · Shift+clique: define o início' : 'Fora do período da fase'}">${i === d.end ? '◆' : ''}</td>`;
+          }
+          h += `<td class="sum"></td><td><div class="row-actions"><button class="xbtn" title="Excluir entregável" aria-label="Excluir entregável" data-ed="deldel" data-d="${d.id}">×</button></div></td></tr>`;
+        });
+      } else if (!pl.w && (S.deliverables || []).some(d => d.phase === g.name)){
+        h += `<tr class="dlh"><td class="l c1" colspan="4" style="padding:2px 8px 2px 30px;font-size:11px;color:var(--err)">Há entregáveis nesta fase, mas ela ainda não tem alocação.</td>${'<td></td>'.repeat(N)}<td></td><td></td></tr>`;
+      }
     });
     const peak = Math.max(0, ...colTot);
     h += `<tr class="foot"><td class="l c1">Total FTE por período</td><td class="l c2"></td><td class="l c3"></td><td class="l c4"></td>${colTot.map(v => `<td>${v ? nfPT(v, 1) : '–'}</td>`).join('')}<td>${nfPT(peak, 1)} pico</td><td></td></tr></tbody>`;
@@ -3020,10 +3200,13 @@ function TimelineEditor(ctx){
     else if (a === 'delphase'){
       const rows = groupRows(g);
       if (rows.some(x => x.alloc.some(v => v > 0)) && !confirm(`Excluir a fase "${g}" e suas ${rows.length} linha(s)?`)) return;
-      mutate(() => { S.rows = S.rows.filter(x => x.phase !== g); });
+      mutate(() => { S.rows = S.rows.filter(x => x.phase !== g); S.deliverables = (S.deliverables || []).filter(d => d.phase !== g); });
     }
     else if (a === 'delrow') mutate(() => { S.rows.splice(S.rows.indexOf(r), 1); });
     else if (a === 'dup') mutate(() => { S.rows.splice(S.rows.indexOf(r) + 1, 0, {...r, _id: undefined, alloc: r.alloc.slice()}); });
+    else if (a === 'adddel') mutate(() => { collapsed.delete(g); const n = (S.deliverables || []).filter(d => d.phase === g).length + 1; S.deliverables = [...(S.deliverables || []), {id: nextDelId(), phase: g, name: `Entregável ${n}`, start: 0, end: 0, manual: false}]; });
+    else if (a === 'distdel') mutate(() => { S.deliverables = S.deliverables.map(d => d.phase === g ? {...d, manual: false} : d); });
+    else if (a === 'deldel') mutate(() => { S.deliverables = S.deliverables.filter(d => String(d.id) !== b.dataset.d); });
     else if (a === 'combo') openCombo(b, r);
     else if (a === 'lvcombo') openLevel(b, r);
   });
@@ -3033,8 +3216,10 @@ function TimelineEditor(ctx){
     else if (a === 'pname'){
       const old = t.dataset.g, name = t.value.trim();
       if (!name || name === old){ t.value = old; return; }
-      mutate(() => { S.rows.forEach(r => { if (r.phase === old) r.phase = name; }); if (collapsed.delete(old)) collapsed.add(name); if (S.phaseDisc && S.phaseDisc[old] !== undefined){ S.phaseDisc[name] = S.phaseDisc[old]; delete S.phaseDisc[old]; } });
+      mutate(() => { S.rows.forEach(r => { if (r.phase === old) r.phase = name; }); if (collapsed.delete(old)) collapsed.add(name); S.deliverables = (S.deliverables || []).map(d => d.phase === old ? {...d, phase: name} : d); if (S.phaseDisc && S.phaseDisc[old] !== undefined){ S.phaseDisc[name] = S.phaseDisc[old]; delete S.phaseDisc[old]; } });
     }
+    else if (a === 'dname'){ const nm = t.value.trim() || 'Entregável'; mutate(() => { S.deliverables = S.deliverables.map(d => String(d.id) === t.dataset.d ? {...d, name: nm} : d); }, true); }
+    else if (a === 'dstart' || a === 'dend') setDelSpan(t.dataset.d, a === 'dstart' ? 'start' : 'end', Math.round(E.num(t.value)) - 1);
     else if (t.dataset.cell){
       const r = rowById(t.dataset.r), i = +t.dataset.i, txt = String(t.value).trim();
       let v = 0;
@@ -3060,6 +3245,19 @@ function TimelineEditor(ctx){
     else if (e.key === 'Escape'){ render(true); }
   });
   $('edGrid').addEventListener('focusin', e => { if (e.target.dataset && e.target.dataset.cell) e.target.select(); });
+
+  // ajusta início/fim de um entregável (vira "manual"); mantém início ≤ fim e dentro da janela da fase
+  function setDelSpan(id, which, idx){
+    const g = groups().find(x => (S.deliverables || []).some(d => String(d.id) === String(id) && d.phase === x.name)); if (!g) return;
+    const pl = placed(g), cur = pl.list.find(d => String(d.id) === String(id)); if (!cur || !pl.w) return;
+    let s0 = cur.start, e0 = cur.end; idx = Math.max(pl.w.first, Math.min(pl.w.last, idx));
+    if (which === 'start'){ s0 = idx; if (e0 < s0) e0 = s0; } else { e0 = idx; if (s0 > e0) s0 = e0; }
+    mutate(() => { S.deliverables = S.deliverables.map(d => String(d.id) === String(id) ? {...d, start: s0, end: e0, manual: true} : d); });
+  }
+  $('edGrid').addEventListener('click', e => {
+    const td = e.target.closest('td.dc[data-d]'); if (!td) return;
+    setDelSpan(td.dataset.d, e.shiftKey ? 'start' : 'end', +td.dataset.i);
+  });
 
   /* ---------------- modo pintar ---------------- */
   function paintCell(td, r, i){
@@ -3229,7 +3427,7 @@ function TimelineEditor(ctx){
 
   /* ---------------- novo timeline vazio ---------------- */
   function startEmpty(){
-    S.rows = [blank('Fase 1')]; S.nPeriods = 12; S.unit = 'SP'; S.edits = {};
+    S.rows = [blank('Fase 1')]; S.deliverables = []; S.nPeriods = 12; S.unit = 'SP'; S.edits = {};
     $('p_unit').value = 'SP'; resetHistory(); fit();
   }
 
@@ -3251,6 +3449,7 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const S = {
   rows: [], nPeriods: 0, unit: 'SP', rates: {}, fileName: '', fileLabel: '', saveText: '', saveKind: 'dirty',
   taxes: [{name: 'PIS/COFINS/ISS', pct: 5.65}], phaseDisc: {}, edits: {},
+  deliverables: [], scen: [], active: 0,   // cenários (até 3): a cópia de trabalho (rows/deliverables/parâmetros do timeline) é a do cenário ativo
   // catálogo de perfis e taxas (arquivo Excel, uma aba por cliente); snapRates = taxas gravadas na proposta (detecção de mudança)
   cat: {loaded: false, name: '', handle: null, buffer: null, clients: [], skipped: [], dirty: false, saving: false, version: 0, status: '', kind: 'dirty', needsPerm: false},
   catClient: '', snapRates: {}, drift: null,
@@ -3317,8 +3516,75 @@ function setRaw(o){
   syncStartUI();
 }
 const P = () => E.parseParams(raw(), {taxes: S.taxes, phaseDisc: S.phaseDisc});
-const model = () => ({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates});
-const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName, catalogName: S.cat.name});
+const model = () => ({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, deliverables: S.deliverables});
+const TL_IDS = ['p_unit', 'p_pw', 'p_hpd', 'p_dpw', 'p_startmode', 'p_start', 'p_startm'];
+const tlRaw = () => { const o = {}; TL_IDS.forEach(id => { const el = $(id); if (el) o[id] = el.value; }); return o; };
+const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName, catalogName: S.cat.name,
+  deliverables: S.deliverables, scenarios: (commitScen(), S.scen), active: S.active});
+
+/* ---------------- cenários (até 3 por proposta) ---------------- */
+const MAX_SCEN = 3;
+const clone = o => JSON.parse(JSON.stringify(o));
+const scenName = i => 'Cenário ' + 'ABC'[i];
+function newScen(id, name){ return {id, name, rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, deliverables: S.deliverables, tl: tlRaw()}; }
+// um único cenário a partir da cópia de trabalho (carga/novo/exemplo)
+function resetScen(list, active){
+  if (list && list.length){ S.scen = list; S.active = Math.min(active || 0, list.length - 1); const sc = S.scen[S.active]; S.deliverables = sc.deliverables || []; }
+  else { S.scen = [newScen(1, scenName(0))]; S.active = 0; }
+}
+// grava a cópia de trabalho no cenário ativo
+function commitScen(){
+  if (!S.scen.length) return;
+  const sc = S.scen[S.active]; if (!sc) return;
+  sc.rows = S.rows; sc.nPeriods = S.nPeriods; sc.unit = S.unit; sc.deliverables = S.deliverables; sc.tl = tlRaw();
+}
+function loadScen(i, quiet){
+  if (i === S.active && !quiet) return;
+  commitScen();
+  S.active = i; const sc = S.scen[i];
+  S.rows = sc.rows; S.nPeriods = sc.nPeriods; S.unit = sc.unit; S.deliverables = sc.deliverables || []; sc.deliverables = S.deliverables;
+  if (sc.tl) setRaw(sc.tl);
+  $('p_unit').value = S.unit; syncStartUI();
+  E.ensureRates(S.rates, S.rows);
+  S.result = null; ED.resetHistory(); afterLoad(false); renderScenBar();
+  if (!quiet) markDirty();
+}
+function addScen(dup){
+  if (S.scen.length >= MAX_SCEN) return toast('Limite de 3 cenários por proposta.', 'warn');
+  commitScen();
+  const id = Math.max(0, ...S.scen.map(x => x.id)) + 1, src = S.scen[S.active];
+  const base = dup ? clone({rows: src.rows.map(r => ({...r, _id: undefined})), deliverables: src.deliverables, tl: src.tl}) : {rows: [{phase: 'Fase 1', activity: '', role: '', level: '', location: '', optional: false, alloc: new Array(src.nPeriods).fill(0)}], deliverables: [], tl: src.tl};
+  const name = dup ? `${src.name} (cópia)` : scenName(S.scen.length);
+  S.scen.push({id, name, rows: base.rows, nPeriods: src.nPeriods, unit: src.unit, deliverables: base.deliverables, tl: base.tl});
+  loadScen(S.scen.length - 1);
+  toast(dup ? `Cenário “${name}” criado a partir de “${src.name}”.` : `Cenário “${name}” criado (vazio): monte o timeline e a alocação.`, 'ok');
+}
+function delScen(i){
+  if (S.scen.length <= 1) return;
+  if (!confirm(`Excluir o cenário “${S.scen[i].name}”?`)) return;
+  commitScen();
+  const cur = S.scen[S.active], del = S.scen[i];
+  S.scen.splice(i, 1);
+  const keep = del === cur ? S.scen[Math.min(i, S.scen.length - 1)] : cur;
+  S.active = -1;   // força a recarga da cópia de trabalho
+  loadScen(S.scen.indexOf(keep), true); markDirty();
+}
+function renameScen(i, name){ name = String(name || '').trim(); if (!name) return; S.scen[i].name = name; renderScenBar(); updateIdent(); markDirty(); }
+function computeScen(i){
+  commitScen();
+  const sc = S.scen[i]; if (!sc || !sc.rows.length) return null;
+  try { return E.compute({rows: sc.rows, nPeriods: sc.nPeriods, unit: sc.unit, rates: S.rates, deliverables: sc.deliverables}, E.parseParams({...raw(), ...sc.tl}, {taxes: S.taxes, phaseDisc: S.phaseDisc}), {today: new Date()}); }
+  catch(e){ return null; }
+}
+const allRows = () => { commitScen(); return S.scen.length ? S.scen.flatMap(sc => sc.rows) : S.rows; };
+function renderScenBar(){
+  const box = $('scBar'); if (!box) return;
+  const many = S.scen.length > 1;
+  box.innerHTML = S.scen.map((sc, i) => `<button class="scchip ${i === S.active ? 'on' : ''}" data-sc="${i}" aria-pressed="${i === S.active}" title="Trocar para este cenário"><span class="scn">${esc(scenName(i).slice(-1))}</span>${esc(sc.name)}</button>`).join('') +
+    (S.scen.length < MAX_SCEN ? '<button class="btn sec sm" data-act="sc-new" title="Novo cenário vazio (herda os parâmetros do timeline)">＋ Novo cenário</button><button class="btn sec sm" data-act="sc-dup" title="Copia timeline, alocação e entregáveis do cenário atual">⧉ Duplicar</button>' : '') +
+    '<button class="btn sec sm" data-act="sc-ren" title="Renomear o cenário atual">✎ Renomear</button>' + (many ? '<button class="btn sec sm" data-act="sc-del" title="Excluir o cenário atual">🗑 Excluir</button><button class="btn sm" data-act="go-cen">Comparar cenários →</button>' : '');
+  $('scHint').textContent = many ? `Você está editando o cenário “${S.scen[S.active].name}”. Preços, impostos e desconto são comuns; timeline, alocação e entregáveis são de cada cenário. A análise, a proposta e as exportações usam o cenário ativo.` : 'Dica: crie até 3 cenários (ex.: ritmo normal × acelerado × reduzido) e compare prazo, custo, margem e pico de equipe.';
+}
 
 function syncStartUI(){
   const m = $('p_startmode').value;
@@ -3327,7 +3593,7 @@ function syncStartUI(){
 }
 
 /* ---------------- abas ---------------- */
-const TABS = ['tl', 'par', 'ana', 'doc'];
+const TABS = ['tl', 'par', 'cen', 'ana', 'doc'];
 function goTab(t){
   if ((t === 'ana' || t === 'doc') && !S.result && !recalc(false)) return;
   TABS.forEach(x => {
@@ -3337,6 +3603,7 @@ function goTab(t){
   });
   if (t === 'ana') drawCharts();
   if (t === 'par') renderDiscount();
+  if (t === 'cen') renderCompare();
   window.scrollTo(0, 0);
 }
 function enableTabs(n){ TABS.forEach((x, i) => { $('tabbtn-' + x).disabled = i > n; }); }
@@ -3388,6 +3655,7 @@ function updateIdent(){
   const parts = [];
   if (has){
     if (ref) parts.push(`<span>Ref. ${esc(ref)}</span>`);
+    if (S.scen.length > 1) parts.push(`<span title="Cenário ativo (a análise, a proposta e as exportações usam este)">◐ ${esc(S.scen[S.active].name)}</span>`);
     if (vendor) parts.push(`<span>${esc(vendor)}</span>`);
     parts.push(S.handle ? `<span title="Arquivo onde a proposta é gravada">📄 ${esc(S.handle.name)}</span>` : (S.fileLabel ? `<span title="O arquivo original não é alterado">📂 origem: ${esc(S.fileLabel)}</span>` : '<span>📄 sem arquivo</span>'));
     const R = safeCompute();
@@ -3471,7 +3739,7 @@ async function actOpen(){
 }
 function actNew(){
   if (S.rows.length && S.dirty && !confirm('Há alterações ainda não gravadas em Excel. Começar uma proposta nova mesmo assim?')) return;
-  ED.startEmpty(); S.phaseDisc = {};
+  ED.startEmpty(); S.phaseDisc = {}; S.deliverables = []; resetScen();
   S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.fileName = ''; S.fileLabel = ''; S.result = null; S.dirty = false;
   S.rates = {}; S.snapRates = {}; S.catClient = ''; S.drift = null;
   ['p_client', 'p_project', 'p_ref', 'p_context', 'p_assump'].forEach(id => { $(id).value = ''; });
@@ -3511,7 +3779,7 @@ async function loadBuffer(buf, name, handle){
     catch(e){ errors.push(`${esc(n)}: ${esc(e.message)}`); }
   }
   if (!parsed) throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
-  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit;
+  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit; S.deliverables = []; resetScen();
   // um timeline "bruto" nunca é sobrescrito: a proposta só passa a ser gravada depois de "Salvar como…"
   S.fileName = name; S.fileLabel = name; S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.edits = {}; S.phaseDisc = {}; S.snapRates = {}; S.catClient = '';
   E.ensureRates(S.rates, S.rows);
@@ -3526,21 +3794,23 @@ async function loadBuffer(buf, name, handle){
 }
 // mostra o editor (e, se for uma carga nova, reinicia histórico e abas)
 function afterLoad(reset){
-  if (reset){ ED.resetHistory(); enableTabs(1); }
   const has = S.rows.length > 0;
+  if (reset){ ED.resetHistory(); enableTabs(has ? 2 : 1); }
   $('tlEmpty').style.display = has ? 'none' : ''; $('tlEditor').style.display = has ? 'block' : 'none';
   if (reset) bindCatalog(); else { renderClientUI(); renderRateTable(); renderCatalogBar(); }
-  if (has) ED.render(); renderDiscount(); updateFileBar(); updateIdent();
+  if (has) ED.render(); renderDiscount(); renderScenBar(); updateFileBar(); updateIdent();
 }
 function applyState(st){
   S.rows = st.rows; S.nPeriods = st.nPeriods; S.unit = st.unit; S.rates = st.rates || {};
   S.snapRates = JSON.parse(JSON.stringify(S.rates)); S.catClient = ''; S.drift = null;   // taxas gravadas na proposta (cópia) — o catálogo, se disponível, prevalece
   S.taxes = st.taxes && st.taxes.length ? st.taxes : [{name: 'Impostos', pct: 5.65}];
   S.phaseDisc = st.phaseDisc || {};
+  S.deliverables = st.deliverables || [];
   S.edits = st.edits || {}; S.fileName = st.fileName || '';
   E.ensureRates(S.rates, S.rows);
   setRaw(st.raw || {});
   $('p_unit').value = S.unit;
+  if (st.scenarios && st.scenarios.length){ st.scenarios[st.active || 0].rows = S.rows; resetScen(st.scenarios, st.active || 0); S.scen.forEach(sc => E.ensureRates(S.rates, sc.rows)); commitScen(); } else resetScen();
   renderTaxes(); S.result = null; refreshFxCachedBtn(); afterLoad(true);
   // as taxas passam a vir do catálogo do cliente (se carregado); senão, valem as gravadas na proposta
   if (S.cat.loaded) bindCatalog({drift: true, warnMissing: true});
@@ -3554,12 +3824,12 @@ function afterTimelineLoaded(info){
 function loadExample(){
   const ex = Workbook.exampleData();
   S.rows = ex.rows.map(r => ({phase: r[0], activity: r[1], role: r[2], level: r[3], location: r[4], optional: r[5] === 'Y', alloc: r[6]}));
-  S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.snapRates = {}; S.catClient = ''; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
+  S.deliverables = []; S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.snapRates = {}; S.catClient = ''; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
   E.ensureRates(S.rates, S.rows);
   E.applyRateTable(S.rates, ex.rates.map(r => ({role: r[0], level: r[1], location: r[2], cost: r[3], rate: r[4]})));
   if (!$('p_client').value) $('p_client').value = 'Client';
   if (!$('p_project').value) $('p_project').value = 'Data & Analytics Modernization';
-  $('p_unit').value = 'SP';
+  $('p_unit').value = 'SP'; resetScen();
   afterTimelineLoaded('Exemplo carregado (12 sprints, taxas ilustrativas — substitua pelas taxas oficiais dos perfis).');
 }
 async function importRateCard(file){
@@ -3637,7 +3907,7 @@ function rebuildRates(){
   const cl = boundClient(); if (!cl) return;
   const rates = {};
   liveEntries(cl).forEach(e => { const k = E.rkey(e); if (!rates[k]) rates[k] = {role: e.role, level: e.level, location: e.location, cost: e.cost, rate: e.rate}; });
-  S.rows.filter(r => r.role).forEach(r => { const k = E.rkey(r); if (!rates[k]) rates[k] = {...(S.snapRates[k] || {role: r.role, level: r.level, location: r.location, cost: '', rate: ''}), notInCatalog: true}; });
+  allRows().filter(r => r.role).forEach(r => { const k = E.rkey(r); if (!rates[k]) rates[k] = {...(S.snapRates[k] || {role: r.role, level: r.level, location: r.location, cost: '', rate: ''}), notInCatalog: true}; });
   S.rates = rates;
 }
 function refreshAfterRates(){
@@ -3946,7 +4216,7 @@ function recalc(go){
   try {
     const R = E.compute(model(), P(), {today: new Date()});
     if (!R){ toast('Escolha ao menos um perfil e preencha o FTE no timeline antes de calcular.', 'warn', 6000); return null; }
-    S.result = R; enableTabs(3);
+    S.result = R; enableTabs(4);
     renderAnalysis(); renderDoc();
     updateIdent(); renderDiscount();
     msg('rcMsg', R.missing.length ? 'warn' : '', R.missing.length ? `⚠ Sem ${R.p.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: ${esc(R.missing.join(', '))}. Esses perfis entram com valor zero.` : '');
@@ -4045,6 +4315,86 @@ async function drawCharts(){
     {label: 'Faturamento mensal', data: R.months.map(m => Math.round(m.gross)), backgroundColor: '#1B4F8C', yAxisID: 'y'},
     {label: 'Acumulado', type: 'line', data: R.months.map(m => Math.round(acc += m.gross)), borderColor: '#13A89E', backgroundColor: '#13A89E', yAxisID: 'y1', tension: .25}]},
     options: {maintainAspectRatio: false, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10}}}, scales: {y: {position: 'left'}, y1: {position: 'right', grid: {drawOnChartArea: false}}}}});
+}
+
+/* ---------------- comparativo de cenários (aba 3) ---------------- */
+const SC_COLORS = ['#1B4F8C', '#13A89E', '#E07A1F'];
+const cenCharts = {};
+function renderCompare(){
+  commitScen();
+  const Rs = S.scen.map((_, i) => computeScen(i)), M = Rs.map(E.scenarioMetrics), best = E.compareScenarios(M);
+  const cur = Rs.find(Boolean) ? Rs.find(Boolean).p.cur : $('p_cur').value, C = (v, d = 0) => curPT(v, cur, d);
+  const fdate = d => d.toLocaleDateString('pt-BR', {timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric'});
+  const base = M[S.active] || M.find(Boolean);
+  // cartões
+  $('cenCards').innerHTML = S.scen.map((sc, i) => {
+    const m = M[i], on = i === S.active;
+    const head = `<h3><span style="color:${SC_COLORS[i]}">●</span> ${esc(sc.name)}${on ? ' <span class="tag" style="background:#EAF2FB;color:var(--navy)">ativo</span>' : ''}</h3>`;
+    if (!m) return `<div class="sccard ${on ? 'on' : ''}">${head}<p class="hint">Cenário sem alocação: monte o timeline (escolha perfis e preencha o FTE).</p>${on ? '' : `<button class="btn sm" data-act="sc-use" data-i="${i}">Editar este cenário</button>`}</div>`;
+    const mx = Math.max(...m.fte, 1);
+    return `<div class="sccard ${on ? 'on' : ''}">${head}
+      <div class="big">${C(m.gross)}</div><div class="hint">preço final com impostos${m.hasCost ? ` · GM ${nfPT(m.gm * 100, 1)}%` : ''}</div>
+      <div class="mini" aria-hidden="true">${m.fte.map(v => `<i style="height:${Math.max(2, v / mx * 100)}%;background:${SC_COLORS[i]}" title="${nfPT(v, 1)} FTE"></i>`).join('')}</div>
+      <div>${m.nPer} ${m.unit === 'SP' ? 'sprints' : 'semanas'} (${nfPT(m.weeks)} sem.) · pico ${nfPT(m.peak, 1)} FTE · ${nfPT(m.H)} h</div>
+      <div class="hint">${m.relative ? 'datas relativas' : `${fdate(m.start)} → ${fdate(m.end)}`} · ${m.nPhases} fase(s) · ${m.nDeliv} entregável(is)</div>
+      <div class="row" style="margin-top:10px;gap:6px">${on ? '' : `<button class="btn sm" data-act="sc-use" data-i="${i}">Usar este cenário</button>`}<button class="btn sec sm" data-act="sc-dupi" data-i="${i}">⧉ Duplicar</button></div></div>`;
+  }).join('') + (S.scen.length < MAX_SCEN ? `<div class="sccard" style="display:flex;align-items:center;justify-content:center;border-style:dashed"><button class="btn sec" data-act="sc-new">＋ Novo cenário</button></div>` : '');
+
+  // tabela lado a lado (verde = melhor; diferença vs. o cenário ativo)
+  const delta = (v, b, fmt, pctMode) => (b === undefined || b === null || v === b) ? '' : `<span class="dl">${v > b ? '+' : '−'}${pctMode ? nfPT(Math.abs(v / b - 1) * 100, 1) + '%' : fmt(Math.abs(v - b))}</span>`;
+  const row = (label, get, fmt, bestKey, dm) => {
+    const cells = M.map((m, i) => {
+      if (!m) return '<td>—</td>';
+      const v = get(m), isBest = bestKey && best[bestKey] && best[bestKey].includes(i), b = base && i !== S.active ? get(base) : undefined;
+      return `<td class="${isBest ? 'best' : ''}">${fmt(v, m)}${dm && b !== undefined && typeof v === 'number' ? delta(v, b, dm.f, dm.pct) : ''}</td>`;
+    }).join('');
+    return `<tr><td>${label}</td>${cells}</tr>`;
+  };
+  $('cenTable').innerHTML = `<table class="cmp"><thead><tr><th></th>${S.scen.map((sc, i) => `<th>${esc(sc.name)}${i === S.active ? ' ●' : ''}</th>`).join('')}</tr></thead><tbody>` + [
+    row('Duração', m => m.weeks, (v, m) => `${m.nPer} ${m.unit === 'SP' ? 'sprints' : 'sem.'} · ${nfPT(v)} sem.`, 'weeks', {f: v => nfPT(v) + ' sem.'}),
+    row('Início', m => m.start, (v, m) => m.relative ? 'relativo' : fdate(v)), row('Fim previsto', m => m.end, (v, m) => m.relative ? 'relativo' : fdate(v)),
+    row('Esforço (horas)', m => m.H, v => nfPT(v), 'H', {f: v => nfPT(v) + ' h'}),
+    row('Pico da equipe (FTE)', m => m.peak, v => nfPT(v, 1), 'peak', {f: v => nfPT(v, 1)}), row('FTE médio', m => m.avgFte, v => nfPT(v, 1)),
+    row('Fases', m => m.nPhases, v => v), row('Entregáveis', m => m.nDeliv, v => v),
+    row('Preço de lista (c/ impostos)', m => m.listGross, v => C(v)), row('Desconto', m => m.discPct, v => nfPT(v * 100, 1) + '%'),
+    row('<b>Preço final (c/ impostos)</b>', m => m.gross, v => '<b>' + C(v) + '</b>', 'gross', {f: v => C(v), pct: true}),
+    row('GM% (margem bruta)', m => m.gm, (v, m) => m.hasCost ? nfPT(v * 100, 1) + '%' : '—', 'gm', {f: v => nfPT(v * 100, 1) + ' p.p.'}),
+    row('Rate médio /h (líquido)', m => m.blended, v => C(v, 2), 'blended', {f: v => C(v, 2)}),
+    row('Alertas', m => m.errs + m.warns, (v, m) => v ? `${m.errs ? m.errs + ' crítico(s) ' : ''}${m.warns ? m.warns + ' aviso(s)' : ''}` : 'nenhum')
+  ].join('') + '</tbody></table>';
+
+  // leitura automática das diferenças em relação ao cenário ativo
+  const ins = [], b0 = base, bi = M.indexOf(b0);
+  M.forEach((m, i) => {
+    if (!m || !b0 || i === bi) return;
+    const nm = S.scen[i].name, parts = [];
+    if (m.weeks !== b0.weeks) parts.push(`${m.weeks < b0.weeks ? 'entrega' : 'leva'} <b>${nfPT(Math.abs(m.weeks - b0.weeks))} semana(s) ${m.weeks < b0.weeks ? 'antes' : 'a mais'}</b>`);
+    if (Math.abs(m.gross - b0.gross) > 0.5) parts.push(`o preço é <b>${C(Math.abs(m.gross - b0.gross))} ${m.gross < b0.gross ? 'menor' : 'maior'}</b> (${nfPT(Math.abs(m.gross / b0.gross - 1) * 100, 1)}%)`);
+    if (m.hasCost && b0.hasCost && Math.abs(m.gm - b0.gm) > 0.0005) parts.push(`a margem é <b>${nfPT(Math.abs(m.gm - b0.gm) * 100, 1)} p.p. ${m.gm > b0.gm ? 'maior' : 'menor'}</b>`);
+    if (Math.abs(m.peak - b0.peak) > 0.05) parts.push(`o pico de equipe é <b>${nfPT(m.peak, 1)} FTE</b> (${m.peak > b0.peak ? '+' : '−'}${nfPT(Math.abs(m.peak - b0.peak), 1)})`);
+    ins.push(`<li><b>${esc(nm)}</b> vs. <b>${esc(S.scen[bi].name)}</b>: ${parts.length ? parts.join('; ') : 'sem diferenças relevantes'}.</li>`);
+  });
+  const lab = (k, w) => best[k] ? best[k].map(i => S.scen[i].name).join(' / ') + ' ' + w : null;
+  [lab('gross', 'tem o menor preço'), lab('weeks', 'tem o menor prazo'), lab('gm', 'tem a maior margem'), lab('peak', 'exige a menor equipe de pico')].filter(Boolean).forEach(t => ins.push(`<li>🏆 ${esc(t)}.</li>`));
+  if (M.filter(Boolean).length < 2) ins.push('<li class="hint">Crie ao menos dois cenários com alocação para ver as diferenças.</li>');
+  $('cenInsights').innerHTML = ins.join('');
+  drawCompareCharts(M);
+}
+async function drawCompareCharts(M){
+  let Chart;
+  try { Chart = await loadLib('chart'); }
+  catch(e){ ['chCenFteMsg', 'chCenPriceMsg'].forEach(i => msg(i, 'warn', 'Gráficos indisponíveis: ' + esc(e.message))); return; }
+  ['chCenFteMsg', 'chCenPriceMsg'].forEach(i => msg(i, '', ''));
+  Object.values(cenCharts).forEach(c => c.destroy());
+  const n = Math.max(1, ...M.map(m => m ? m.fte.length : 0));
+  cenCharts.fte = new Chart($('chCenFte'), {type: 'line', data: {labels: Array.from({length: n}, (_, i) => (M.find(Boolean) ? M.find(Boolean).unit : 'SP') + (i + 1)),
+    datasets: M.map((m, i) => m && ({label: S.scen[i].name, data: m.fte, borderColor: SC_COLORS[i], backgroundColor: SC_COLORS[i], stepped: true, pointRadius: 2})).filter(Boolean)},
+    options: {maintainAspectRatio: false, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10}}}, scales: {y: {beginAtZero: true, title: {display: true, text: 'FTE'}}}}});
+  const ok = M.map((m, i) => ({m, i})).filter(x => x.m);
+  cenCharts.price = new Chart($('chCenPrice'), {type: 'bar', data: {labels: ok.map(x => S.scen[x.i].name), datasets: [
+    {label: 'Preço final (c/ impostos)', data: ok.map(x => Math.round(x.m.gross)), backgroundColor: ok.map(x => SC_COLORS[x.i]), yAxisID: 'y'},
+    {label: 'GM%', type: 'line', data: ok.map(x => x.m.hasCost ? +(x.m.gm * 100).toFixed(1) : null), borderColor: '#C0392B', backgroundColor: '#C0392B', yAxisID: 'y1'}]},
+    options: {maintainAspectRatio: false, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10}}}, scales: {y: {position: 'left', beginAtZero: true}, y1: {position: 'right', grid: {drawOnChartArea: false}, title: {display: true, text: 'GM %'}}}}});
 }
 
 /* ---------------- render: proposta ---------------- */
@@ -4229,7 +4579,10 @@ const actions = {
   library: () => { const d = $('dlgLib'); if (!d.open) d.showModal(); renderLibrary(); },
   'lib-close': () => $('dlgLib').close(), 'lib-pick': libPick, 'lib-here': libHere, 'lib-refresh': () => { LIB.cache.clear(); renderLibrary(); },
   'lib-open': b => libOpen(+b.dataset.i), 'lib-compare': libCompare,
-  'go-par': () => goTab('par'), 'go-doc': () => goTab('doc'), calc: () => recalc(true),
+  'go-par': () => goTab('par'), 'go-cen': () => goTab('cen'), 'go-ana': () => { if (recalc(false)) goTab('ana'); },
+  'sc-new': () => addScen(false), 'sc-dup': () => addScen(true), 'sc-del': () => delScen(S.active),
+  'sc-ren': () => { const n = prompt('Nome do cenário:', S.scen[S.active].name); if (n !== null) renameScen(S.active, n); },
+  'sc-use': b => { loadScen(+b.dataset.i); renderCompare(); }, 'sc-dupi': b => { if (+b.dataset.i !== S.active) loadScen(+b.dataset.i, true); addScen(true); renderCompare(); }, 'go-doc': () => goTab('doc'), calc: () => recalc(true),
   'disc-apply': b => { $('p_discmode').value = 'pct'; $('p_disc').value = b.dataset.v; S.result = null; markDirty(); renderDiscount(); toast(`Desconto geral de ${nfPT(+b.dataset.v, 1)}% aplicado.`, 'ok', 3000); },
   catalog: () => { const d = $('dlgCat'); if (!d.open) d.showModal(); renderCatalogDialog(); },
   'cat-close': () => $('dlgCat').close(), 'cat-open': catalogOpen, 'cat-create': catalogCreate, 'cat-save': catalogSave, 'cat-reconnect': catalogReconnect,
@@ -4257,7 +4610,7 @@ document.addEventListener('click', e => {
 });
 
 /* ---------------- mudança de parâmetros ---------------- */
-const DOC_ONLY = new Set(['p_lang', 'p_tlmode', 'p_tlgran', 'p_tlfte', 'p_tlmiles']);
+const DOC_ONLY = new Set(['p_lang', 'p_tlmode', 'p_tlgran', 'p_tlfte', 'p_tldeliv', 'p_tlmiles']);
 document.querySelector('main').addEventListener('change', e => {
   const id = e.target.id; if (!id || !id.startsWith('p_') || id === 'p_clientsel' || id === 'p_clientsel1') return;
   S.result = null;
@@ -4314,7 +4667,8 @@ function init(){
   });
 }
 init();
-window.__pm = {S, catalogLoad, boundClient, saveCatalog, createClient, rebuildRates, recalc, goTab, loadBuffer, applyState, snapshot, raw, setRaw, buildBlob, actions, renderLibrary}; // ganchos para testes
+$('scBar').addEventListener('click', e => { const b = e.target.closest('.scchip'); if (b) loadScen(+b.dataset.sc); });
+window.__pm = {S, addScen, loadScen, delScen, renameScen, computeScen, commitScen, renderCompare, catalogLoad, boundClient, saveCatalog, createClient, rebuildRates, recalc, goTab, loadBuffer, applyState, snapshot, raw, setRaw, buildBlob, actions, renderLibrary}; // ganchos para testes
 })();
 
 </script>

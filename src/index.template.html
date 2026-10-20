@@ -31,8 +31,9 @@
 <nav class="tabs" role="tablist" aria-label="Etapas">
   <button role="tab" id="tabbtn-tl" data-tab="tl" aria-controls="tab-tl" aria-selected="true">1. Timeline</button>
   <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Perfis</button>
-  <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>3. Análise financeira</button>
-  <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>4. Proposta</button>
+  <button role="tab" id="tabbtn-cen" data-tab="cen" aria-controls="tab-cen" aria-selected="false" disabled>3. Cenários</button>
+  <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>4. Análise financeira</button>
+  <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>5. Proposta</button>
 </nav>
 
 <main>
@@ -104,6 +105,8 @@
     <div class="card">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Timeline — editor</h2><button class="btn" data-act="go-par">Próximo: parâmetros →</button></div>
       <div class="hint" style="margin-top:4px">Escolha o <b>perfil</b> e o <b>nível</b> pelas combos (dá para cadastrar novos); o local vem do cadastro. Cada alteração entra na proposta e é gravada no Excel.</div>
+      <div class="scbar" id="scBar" role="group" aria-label="Cenários da proposta"></div>
+      <div class="hint" id="scHint" style="margin-bottom:6px"></div>
       <div class="toolbar">
         <button class="btn" id="edAddPhase">+ Fase</button>
         <span class="sep"></span>
@@ -130,7 +133,7 @@
 
     <div class="card">
       <h2>Como fica na proposta</h2>
-      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 4).</div>
+      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 5).</div>
       <div class="pvdoc" style="margin-top:10px"><div id="edPv"></div></div>
     </div>
   </div>
@@ -298,7 +301,22 @@
   </div>
 </section>
 
-<!-- ================= TAB 3: ANALYSIS ================= -->
+<!-- ================= TAB 3: CENÁRIOS ================= -->
+<section class="tab" id="tab-cen" role="tabpanel" aria-labelledby="tabbtn-cen">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Comparativo de cenários</h2><span class="hint">Até 3 cenários por proposta · preços, impostos e desconto são comuns a todos</span></div>
+    <div id="cenCards" class="cmpgrid" style="margin-top:12px"></div>
+  </div>
+  <div class="card"><h2>Indicadores lado a lado</h2><div class="scroll" style="max-height:none"><div id="cenTable"></div></div></div>
+  <div class="two">
+    <div class="card"><h2>Alocação (FTE) por período</h2><div class="chartbox"><canvas id="chCenFte" role="img" aria-label="Alocação por período em cada cenário"></canvas></div><div id="chCenFteMsg"></div></div>
+    <div class="card"><h2>Preço × margem</h2><div class="chartbox"><canvas id="chCenPrice" role="img" aria-label="Preço e margem por cenário"></canvas></div><div id="chCenPriceMsg"></div></div>
+  </div>
+  <div class="card"><h2>O que muda entre os cenários</h2><ul class="insights" id="cenInsights"></ul></div>
+  <div class="row noprint" style="justify-content:flex-end;gap:10px"><button class="btn" data-act="go-ana">Análise do cenário ativo →</button></div>
+</section>
+
+<!-- ================= TAB 4: ANALYSIS ================= -->
 <section class="tab" id="tab-ana" role="tabpanel" aria-labelledby="tabbtn-ana">
   <div class="checklist" id="checklist" aria-label="Verificações da proposta"></div>
   <div class="kpis" id="kpis"></div>
@@ -321,7 +339,7 @@
   </div>
 </section>
 
-<!-- ================= TAB 4: PROPOSAL ================= -->
+<!-- ================= TAB 5: PROPOSAL ================= -->
 <section class="tab" id="tab-doc" role="tabpanel" aria-labelledby="tabbtn-doc">
   <div class="card noprint">
     <div class="doc-opts">
@@ -336,6 +354,7 @@
       <label class="f">Escala
         <select id="p_tlgran"><option value="period">Por sprint / período</option><option value="week">Por semana</option></select></label>
       <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="p_tlfte" checked> Mostrar FTE</label>
+      <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="p_tldeliv" checked> Mostrar entregáveis</label>
     </div>
     <details style="margin-top:10px">
       <summary class="hint" style="cursor:pointer">Marcos adicionais (modo “Apenas marcos”)</summary>

@@ -24,7 +24,7 @@ const PARAM_DEFS = [
   ['p_disctarget','Preço final alvo, com impostos (modo target)','num'], ['p_discshow','Exibição do desconto (embedded/line)','text'],
   ['p_inclOpt','Incluir itens opcionais no total','bool'], ['p_taxshow','Detalhar impostos na proposta','bool'],
   ['p_pay','Modelo de pagamento (milestone/monthly/install)','text'], ['p_inst','Nº de parcelas (se iguais)','num'], ['p_terms','Prazo de pagamento (dias)','num'], ['p_valid','Validade da proposta (dias)','num'],
-  ['p_tlmode','Timeline: modo (bars/roles/milestones)','text'], ['p_tlgran','Timeline: granularidade (period/week)','text'], ['p_tlfte','Timeline: mostrar FTE','bool'],
+  ['p_tlmode','Timeline: modo (bars/roles/milestones)','text'], ['p_tlgran','Timeline: granularidade (period/week)','text'], ['p_tlfte','Timeline: mostrar FTE','bool'], ['p_tldeliv','Timeline: mostrar entregáveis','bool'],
   ['p_tlmiles','Timeline: marcos adicionais (Nome | SP6, W12 ou AAAA-MM-DD)','long'],
   ['p_context','Contexto / objetivo','long'], ['p_assump','Premissas adicionais (uma por linha)','long']
 ];
@@ -265,6 +265,33 @@ async function buildProposal(ExcelJS, st, R){
     R.holidays.forEach(h => hs.addRow([h.date, h.name])); hs.getColumn(1).width = 12; hs.getColumn(2).width = 34;
   }
 
+  /* ----- Entregáveis e cenários ----- */
+  const scs = st.scenarios && st.scenarios.length ? st.scenarios : null;
+  const activeId = scs ? scs[st.active || 0].id : 1;
+  const dl = [];   // [cenário, fase, entregável, início(1-based), fim(1-based), manual]
+  const dlist = scs ? scs.map((sc, i) => ({id: sc.id, list: i === (st.active || 0) ? (st.deliverables || []) : (sc.deliverables || [])})) : [{id: 1, list: st.deliverables || []}];
+  dlist.forEach(x => x.list.forEach(d => dl.push([x.id, d.phase, d.name, (d.start | 0) + 1, (d.end | 0) + 1, d.manual ? 'Y' : ''])));
+  if (dl.length){
+    const dsh = wb.addWorksheet('Entregaveis', {views:[{state:'frozen', ySplit:1}]});
+    dsh.addRow(['Cenário','Fase','Entregável','Início (período)','Fim (período)','Manual']); styleHeader(dsh);
+    dl.forEach(r => dsh.addRow(r));
+    [10,28,40,16,14,9].forEach((w, i) => dsh.getColumn(i+1).width = w);
+  }
+  if (scs && scs.length > 1){
+    const cs = wb.addWorksheet('Cenarios', {views:[{state:'frozen', ySplit:1}]});
+    cs.addRow(['Id','Nome','Ativo','Unidade','Períodos','p_unit','p_pw','p_hpd','p_dpw','p_startmode','p_start','p_startm','Aba']); styleHeader(cs);
+    scs.forEach((sc, i) => {
+      const act = i === (st.active || 0), tl = sc.tl || {};
+      cs.addRow([sc.id, sc.name, act ? 'Y' : '', act ? st.unit : sc.unit, act ? st.nPeriods : sc.nPeriods, ...['p_unit','p_pw','p_hpd','p_dpw','p_startmode','p_start','p_startm'].map(k => tl[k] === undefined ? '' : tl[k]), act ? 'Modelo' : 'Cen_' + sc.id]);
+      if (act) return;
+      const ws = wb.addWorksheet('Cen_' + sc.id, {views:[{state:'frozen', xSplit:6, ySplit:1}]});
+      ws.addRow(['Phase','Activity','Role','Level','Location','Optional', ...Array.from({length: sc.nPeriods}, (_, k) => sc.unit + (k+1)), 'Cost/h (catálogo)', 'Rate/h (catálogo)']); styleHeader(ws);
+      sc.rows.forEach(r => { const rt = (r.role && st.rates[E.rkey(r)]) || {}; ws.addRow([r.phase, r.activity, r.role, r.level || '', r.location || '', r.optional ? 'Y' : '', ...r.alloc.slice(0, sc.nPeriods).map(v => v || null), E.num(rt.cost) || null, E.num(rt.rate) || null]); });
+      [26,14,24,7,10,9].forEach((w, k) => ws.getColumn(k+1).width = w);
+    });
+    [6,22,7,9,10,10,8,8,8,12,12,10,10].forEach((w, i) => cs.getColumn(i+1).width = w);
+  }
+
   /* ----- Textos editados ----- */
   const xs = wb.addWorksheet('Textos');
   xs.addRow(['Chave','Texto (HTML simples)']); styleHeader(xs);
@@ -315,13 +342,16 @@ function read(XLSX, wb){
   const rates = {};
   const rcName = wb.SheetNames.find(n => /^(perfis|rate ?card)$/i.test(n));
   if (rcName) E.parseRateRows(aoa(rcName)).forEach(t => { rates[E.rkey(t)] = {role: t.role, level: t.level, location: t.location, cost: t.cost || '', rate: t.rate || ''}; });
-  const hdr = modelo.find(r => r.some(c => E.norm(c) === 'role')) || [];
-  const iCost = hdr.findIndex(c => E.norm(c) === 'cost/h (catalogo)'), iRate = hdr.findIndex(c => E.norm(c) === 'rate/h (catalogo)');
-  if (iCost >= 0 || iRate >= 0) t.rows.forEach(r => {
-    if (!r.role || r.srcLine === undefined) return;
-    const line = modelo[r.srcLine] || [], c = iCost >= 0 ? E.num(line[iCost]) : 0, rt = iRate >= 0 ? E.num(line[iRate]) : 0, k = E.rkey(r);
-    if (!rates[k] || c || rt) rates[k] = {role: r.role, level: r.level, location: r.location, cost: c || (rates[k] && rates[k].cost) || '', rate: rt || (rates[k] && rates[k].rate) || ''};
-  });
+  const applySnap = (sheet, parsed) => {
+    const hdr = sheet.find(r => r.some(c => E.norm(c) === 'role')) || [];
+    const iCost = hdr.findIndex(c => E.norm(c) === 'cost/h (catalogo)'), iRate = hdr.findIndex(c => E.norm(c) === 'rate/h (catalogo)');
+    if (iCost >= 0 || iRate >= 0) parsed.rows.forEach(r => {
+      if (!r.role || r.srcLine === undefined) return;
+      const line = sheet[r.srcLine] || [], c = iCost >= 0 ? E.num(line[iCost]) : 0, rt = iRate >= 0 ? E.num(line[iRate]) : 0, k = E.rkey(r);
+      if (!rates[k] || c || rt) rates[k] = {role: r.role, level: r.level, location: r.location, cost: c || (rates[k] && rates[k].cost) || '', rate: rt || (rates[k] && rates[k].rate) || ''};
+    });
+  };
+  applySnap(modelo, t);
   E.ensureRates(rates, t.rows);
 
   const phaseDisc = {};
@@ -332,7 +362,30 @@ function read(XLSX, wb){
   const tx = aoa('Textos');
   if (tx) tx.slice(1).forEach(r => { if (r[0]) edits[String(r[0])] = String(r[1] ?? ''); });
 
-  return {raw, taxes, phaseDisc, catalogName: (wb.Sheets['_meta'] && wb.Sheets['_meta']['E1']) ? String(wb.Sheets['_meta']['E1'].v || '') : '', rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
+  // cenários (opcional) e entregáveis
+  let scenarios = null, active = 0, deliverables = [];
+  const dsh = aoa('Entregaveis'), allD = [];
+  if (dsh) dsh.slice(1).forEach((r, i) => { if (r[1] !== '' && r[2] !== '') allD.push({sc: Number(r[0]) || 1, d: {id: i + 1, phase: String(r[1]), name: String(r[2]), start: Math.max(0, (E.num(r[3]) || 1) - 1), end: Math.max(0, (E.num(r[4]) || 1) - 1), manual: E.isYes(r[5])}}); });
+  const csr = aoa('Cenarios');
+  if (csr && csr.length > 1){
+    const h = csr[0].map(x => String(x));
+    scenarios = csr.slice(1).filter(r => r[0] !== '').map((r, i) => {
+      const o = {}; h.forEach((k, j) => { o[k] = r[j]; });
+      const id = Number(o.Id) || i + 1, isAct = E.isYes(o.Ativo);
+      const tl = {}; ['p_unit','p_pw','p_hpd','p_dpw','p_startmode','p_start','p_startm'].forEach(k => { if (o[k] !== '' && o[k] !== undefined) tl[k] = String(o[k] instanceof Date ? E.iso(o[k]) : o[k]); });
+      const sc = {id, name: String(o.Nome || 'Cenário ' + (i + 1)), tl, deliverables: allD.filter(x => x.sc === id).map(x => x.d)};
+      if (isAct){ active = i; sc.rows = t.rows; sc.nPeriods = t.nPeriods; sc.unit = t.unit; deliverables = sc.deliverables; }
+      else {
+        const m = aoa('Cen_' + id);
+        let pt = null; try { pt = m ? E.parseTimeline(m, {unit: o.Unidade === 'W' ? 'W' : 'SP', keepEmpty: true}) : null; } catch(e){ pt = null; }
+        if (pt){ applySnap(m, pt); sc.rows = pt.rows; sc.nPeriods = pt.nPeriods; sc.unit = pt.unit; E.ensureRates(rates, pt.rows); }
+        else { sc.rows = []; sc.nPeriods = 12; sc.unit = 'SP'; }
+      }
+      return sc;
+    });
+  } else deliverables = allD.map(x => x.d);
+
+  return {scenarios, active, deliverables, raw, taxes, phaseDisc, catalogName: (wb.Sheets['_meta'] && wb.Sheets['_meta']['E1']) ? String(wb.Sheets['_meta']['E1'].v || '') : '', rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
 }
 
 return { APP_ID, FORMAT, PARAM_DEFS, BOOLS, colName, exampleData, emptyResult, buildTemplate, buildProposal, isProposalWorkbook, read };

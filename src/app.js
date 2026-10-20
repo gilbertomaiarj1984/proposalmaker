@@ -12,6 +12,7 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const S = {
   rows: [], nPeriods: 0, unit: 'SP', rates: {}, fileName: '', fileLabel: '', saveText: '', saveKind: 'dirty',
   taxes: [{name: 'PIS/COFINS/ISS', pct: 5.65}], phaseDisc: {}, edits: {},
+  deliverables: [], scen: [], active: 0,   // cenários (até 3): a cópia de trabalho (rows/deliverables/parâmetros do timeline) é a do cenário ativo
   // catálogo de perfis e taxas (arquivo Excel, uma aba por cliente); snapRates = taxas gravadas na proposta (detecção de mudança)
   cat: {loaded: false, name: '', handle: null, buffer: null, clients: [], skipped: [], dirty: false, saving: false, version: 0, status: '', kind: 'dirty', needsPerm: false},
   catClient: '', snapRates: {}, drift: null,
@@ -78,8 +79,75 @@ function setRaw(o){
   syncStartUI();
 }
 const P = () => E.parseParams(raw(), {taxes: S.taxes, phaseDisc: S.phaseDisc});
-const model = () => ({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates});
-const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName, catalogName: S.cat.name});
+const model = () => ({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, deliverables: S.deliverables});
+const TL_IDS = ['p_unit', 'p_pw', 'p_hpd', 'p_dpw', 'p_startmode', 'p_start', 'p_startm'];
+const tlRaw = () => { const o = {}; TL_IDS.forEach(id => { const el = $(id); if (el) o[id] = el.value; }); return o; };
+const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName, catalogName: S.cat.name,
+  deliverables: S.deliverables, scenarios: (commitScen(), S.scen), active: S.active});
+
+/* ---------------- cenários (até 3 por proposta) ---------------- */
+const MAX_SCEN = 3;
+const clone = o => JSON.parse(JSON.stringify(o));
+const scenName = i => 'Cenário ' + 'ABC'[i];
+function newScen(id, name){ return {id, name, rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, deliverables: S.deliverables, tl: tlRaw()}; }
+// um único cenário a partir da cópia de trabalho (carga/novo/exemplo)
+function resetScen(list, active){
+  if (list && list.length){ S.scen = list; S.active = Math.min(active || 0, list.length - 1); const sc = S.scen[S.active]; S.deliverables = sc.deliverables || []; }
+  else { S.scen = [newScen(1, scenName(0))]; S.active = 0; }
+}
+// grava a cópia de trabalho no cenário ativo
+function commitScen(){
+  if (!S.scen.length) return;
+  const sc = S.scen[S.active]; if (!sc) return;
+  sc.rows = S.rows; sc.nPeriods = S.nPeriods; sc.unit = S.unit; sc.deliverables = S.deliverables; sc.tl = tlRaw();
+}
+function loadScen(i, quiet){
+  if (i === S.active && !quiet) return;
+  commitScen();
+  S.active = i; const sc = S.scen[i];
+  S.rows = sc.rows; S.nPeriods = sc.nPeriods; S.unit = sc.unit; S.deliverables = sc.deliverables || []; sc.deliverables = S.deliverables;
+  if (sc.tl) setRaw(sc.tl);
+  $('p_unit').value = S.unit; syncStartUI();
+  E.ensureRates(S.rates, S.rows);
+  S.result = null; ED.resetHistory(); afterLoad(false); renderScenBar();
+  if (!quiet) markDirty();
+}
+function addScen(dup){
+  if (S.scen.length >= MAX_SCEN) return toast('Limite de 3 cenários por proposta.', 'warn');
+  commitScen();
+  const id = Math.max(0, ...S.scen.map(x => x.id)) + 1, src = S.scen[S.active];
+  const base = dup ? clone({rows: src.rows.map(r => ({...r, _id: undefined})), deliverables: src.deliverables, tl: src.tl}) : {rows: [{phase: 'Fase 1', activity: '', role: '', level: '', location: '', optional: false, alloc: new Array(src.nPeriods).fill(0)}], deliverables: [], tl: src.tl};
+  const name = dup ? `${src.name} (cópia)` : scenName(S.scen.length);
+  S.scen.push({id, name, rows: base.rows, nPeriods: src.nPeriods, unit: src.unit, deliverables: base.deliverables, tl: base.tl});
+  loadScen(S.scen.length - 1);
+  toast(dup ? `Cenário “${name}” criado a partir de “${src.name}”.` : `Cenário “${name}” criado (vazio): monte o timeline e a alocação.`, 'ok');
+}
+function delScen(i){
+  if (S.scen.length <= 1) return;
+  if (!confirm(`Excluir o cenário “${S.scen[i].name}”?`)) return;
+  commitScen();
+  const cur = S.scen[S.active], del = S.scen[i];
+  S.scen.splice(i, 1);
+  const keep = del === cur ? S.scen[Math.min(i, S.scen.length - 1)] : cur;
+  S.active = -1;   // força a recarga da cópia de trabalho
+  loadScen(S.scen.indexOf(keep), true); markDirty();
+}
+function renameScen(i, name){ name = String(name || '').trim(); if (!name) return; S.scen[i].name = name; renderScenBar(); updateIdent(); markDirty(); }
+function computeScen(i){
+  commitScen();
+  const sc = S.scen[i]; if (!sc || !sc.rows.length) return null;
+  try { return E.compute({rows: sc.rows, nPeriods: sc.nPeriods, unit: sc.unit, rates: S.rates, deliverables: sc.deliverables}, E.parseParams({...raw(), ...sc.tl}, {taxes: S.taxes, phaseDisc: S.phaseDisc}), {today: new Date()}); }
+  catch(e){ return null; }
+}
+const allRows = () => { commitScen(); return S.scen.length ? S.scen.flatMap(sc => sc.rows) : S.rows; };
+function renderScenBar(){
+  const box = $('scBar'); if (!box) return;
+  const many = S.scen.length > 1;
+  box.innerHTML = S.scen.map((sc, i) => `<button class="scchip ${i === S.active ? 'on' : ''}" data-sc="${i}" aria-pressed="${i === S.active}" title="Trocar para este cenário"><span class="scn">${esc(scenName(i).slice(-1))}</span>${esc(sc.name)}</button>`).join('') +
+    (S.scen.length < MAX_SCEN ? '<button class="btn sec sm" data-act="sc-new" title="Novo cenário vazio (herda os parâmetros do timeline)">＋ Novo cenário</button><button class="btn sec sm" data-act="sc-dup" title="Copia timeline, alocação e entregáveis do cenário atual">⧉ Duplicar</button>' : '') +
+    '<button class="btn sec sm" data-act="sc-ren" title="Renomear o cenário atual">✎ Renomear</button>' + (many ? '<button class="btn sec sm" data-act="sc-del" title="Excluir o cenário atual">🗑 Excluir</button><button class="btn sm" data-act="go-cen">Comparar cenários →</button>' : '');
+  $('scHint').textContent = many ? `Você está editando o cenário “${S.scen[S.active].name}”. Preços, impostos e desconto são comuns; timeline, alocação e entregáveis são de cada cenário. A análise, a proposta e as exportações usam o cenário ativo.` : 'Dica: crie até 3 cenários (ex.: ritmo normal × acelerado × reduzido) e compare prazo, custo, margem e pico de equipe.';
+}
 
 function syncStartUI(){
   const m = $('p_startmode').value;
@@ -88,7 +156,7 @@ function syncStartUI(){
 }
 
 /* ---------------- abas ---------------- */
-const TABS = ['tl', 'par', 'ana', 'doc'];
+const TABS = ['tl', 'par', 'cen', 'ana', 'doc'];
 function goTab(t){
   if ((t === 'ana' || t === 'doc') && !S.result && !recalc(false)) return;
   TABS.forEach(x => {
@@ -98,6 +166,7 @@ function goTab(t){
   });
   if (t === 'ana') drawCharts();
   if (t === 'par') renderDiscount();
+  if (t === 'cen') renderCompare();
   window.scrollTo(0, 0);
 }
 function enableTabs(n){ TABS.forEach((x, i) => { $('tabbtn-' + x).disabled = i > n; }); }
@@ -149,6 +218,7 @@ function updateIdent(){
   const parts = [];
   if (has){
     if (ref) parts.push(`<span>Ref. ${esc(ref)}</span>`);
+    if (S.scen.length > 1) parts.push(`<span title="Cenário ativo (a análise, a proposta e as exportações usam este)">◐ ${esc(S.scen[S.active].name)}</span>`);
     if (vendor) parts.push(`<span>${esc(vendor)}</span>`);
     parts.push(S.handle ? `<span title="Arquivo onde a proposta é gravada">📄 ${esc(S.handle.name)}</span>` : (S.fileLabel ? `<span title="O arquivo original não é alterado">📂 origem: ${esc(S.fileLabel)}</span>` : '<span>📄 sem arquivo</span>'));
     const R = safeCompute();
@@ -232,7 +302,7 @@ async function actOpen(){
 }
 function actNew(){
   if (S.rows.length && S.dirty && !confirm('Há alterações ainda não gravadas em Excel. Começar uma proposta nova mesmo assim?')) return;
-  ED.startEmpty(); S.phaseDisc = {};
+  ED.startEmpty(); S.phaseDisc = {}; S.deliverables = []; resetScen();
   S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.fileName = ''; S.fileLabel = ''; S.result = null; S.dirty = false;
   S.rates = {}; S.snapRates = {}; S.catClient = ''; S.drift = null;
   ['p_client', 'p_project', 'p_ref', 'p_context', 'p_assump'].forEach(id => { $(id).value = ''; });
@@ -272,7 +342,7 @@ async function loadBuffer(buf, name, handle){
     catch(e){ errors.push(`${esc(n)}: ${esc(e.message)}`); }
   }
   if (!parsed) throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
-  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit;
+  S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit; S.deliverables = []; resetScen();
   // um timeline "bruto" nunca é sobrescrito: a proposta só passa a ser gravada depois de "Salvar como…"
   S.fileName = name; S.fileLabel = name; S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.edits = {}; S.phaseDisc = {}; S.snapRates = {}; S.catClient = '';
   E.ensureRates(S.rates, S.rows);
@@ -287,21 +357,23 @@ async function loadBuffer(buf, name, handle){
 }
 // mostra o editor (e, se for uma carga nova, reinicia histórico e abas)
 function afterLoad(reset){
-  if (reset){ ED.resetHistory(); enableTabs(1); }
   const has = S.rows.length > 0;
+  if (reset){ ED.resetHistory(); enableTabs(has ? 2 : 1); }
   $('tlEmpty').style.display = has ? 'none' : ''; $('tlEditor').style.display = has ? 'block' : 'none';
   if (reset) bindCatalog(); else { renderClientUI(); renderRateTable(); renderCatalogBar(); }
-  if (has) ED.render(); renderDiscount(); updateFileBar(); updateIdent();
+  if (has) ED.render(); renderDiscount(); renderScenBar(); updateFileBar(); updateIdent();
 }
 function applyState(st){
   S.rows = st.rows; S.nPeriods = st.nPeriods; S.unit = st.unit; S.rates = st.rates || {};
   S.snapRates = JSON.parse(JSON.stringify(S.rates)); S.catClient = ''; S.drift = null;   // taxas gravadas na proposta (cópia) — o catálogo, se disponível, prevalece
   S.taxes = st.taxes && st.taxes.length ? st.taxes : [{name: 'Impostos', pct: 5.65}];
   S.phaseDisc = st.phaseDisc || {};
+  S.deliverables = st.deliverables || [];
   S.edits = st.edits || {}; S.fileName = st.fileName || '';
   E.ensureRates(S.rates, S.rows);
   setRaw(st.raw || {});
   $('p_unit').value = S.unit;
+  if (st.scenarios && st.scenarios.length){ st.scenarios[st.active || 0].rows = S.rows; resetScen(st.scenarios, st.active || 0); S.scen.forEach(sc => E.ensureRates(S.rates, sc.rows)); commitScen(); } else resetScen();
   renderTaxes(); S.result = null; refreshFxCachedBtn(); afterLoad(true);
   // as taxas passam a vir do catálogo do cliente (se carregado); senão, valem as gravadas na proposta
   if (S.cat.loaded) bindCatalog({drift: true, warnMissing: true});
@@ -315,12 +387,12 @@ function afterTimelineLoaded(info){
 function loadExample(){
   const ex = Workbook.exampleData();
   S.rows = ex.rows.map(r => ({phase: r[0], activity: r[1], role: r[2], level: r[3], location: r[4], optional: r[5] === 'Y', alloc: r[6]}));
-  S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.snapRates = {}; S.catClient = ''; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
+  S.deliverables = []; S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.snapRates = {}; S.catClient = ''; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
   E.ensureRates(S.rates, S.rows);
   E.applyRateTable(S.rates, ex.rates.map(r => ({role: r[0], level: r[1], location: r[2], cost: r[3], rate: r[4]})));
   if (!$('p_client').value) $('p_client').value = 'Client';
   if (!$('p_project').value) $('p_project').value = 'Data & Analytics Modernization';
-  $('p_unit').value = 'SP';
+  $('p_unit').value = 'SP'; resetScen();
   afterTimelineLoaded('Exemplo carregado (12 sprints, taxas ilustrativas — substitua pelas taxas oficiais dos perfis).');
 }
 async function importRateCard(file){
@@ -398,7 +470,7 @@ function rebuildRates(){
   const cl = boundClient(); if (!cl) return;
   const rates = {};
   liveEntries(cl).forEach(e => { const k = E.rkey(e); if (!rates[k]) rates[k] = {role: e.role, level: e.level, location: e.location, cost: e.cost, rate: e.rate}; });
-  S.rows.filter(r => r.role).forEach(r => { const k = E.rkey(r); if (!rates[k]) rates[k] = {...(S.snapRates[k] || {role: r.role, level: r.level, location: r.location, cost: '', rate: ''}), notInCatalog: true}; });
+  allRows().filter(r => r.role).forEach(r => { const k = E.rkey(r); if (!rates[k]) rates[k] = {...(S.snapRates[k] || {role: r.role, level: r.level, location: r.location, cost: '', rate: ''}), notInCatalog: true}; });
   S.rates = rates;
 }
 function refreshAfterRates(){
@@ -707,7 +779,7 @@ function recalc(go){
   try {
     const R = E.compute(model(), P(), {today: new Date()});
     if (!R){ toast('Escolha ao menos um perfil e preencha o FTE no timeline antes de calcular.', 'warn', 6000); return null; }
-    S.result = R; enableTabs(3);
+    S.result = R; enableTabs(4);
     renderAnalysis(); renderDoc();
     updateIdent(); renderDiscount();
     msg('rcMsg', R.missing.length ? 'warn' : '', R.missing.length ? `⚠ Sem ${R.p.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: ${esc(R.missing.join(', '))}. Esses perfis entram com valor zero.` : '');
@@ -806,6 +878,86 @@ async function drawCharts(){
     {label: 'Faturamento mensal', data: R.months.map(m => Math.round(m.gross)), backgroundColor: '#1B4F8C', yAxisID: 'y'},
     {label: 'Acumulado', type: 'line', data: R.months.map(m => Math.round(acc += m.gross)), borderColor: '#13A89E', backgroundColor: '#13A89E', yAxisID: 'y1', tension: .25}]},
     options: {maintainAspectRatio: false, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10}}}, scales: {y: {position: 'left'}, y1: {position: 'right', grid: {drawOnChartArea: false}}}}});
+}
+
+/* ---------------- comparativo de cenários (aba 3) ---------------- */
+const SC_COLORS = ['#1B4F8C', '#13A89E', '#E07A1F'];
+const cenCharts = {};
+function renderCompare(){
+  commitScen();
+  const Rs = S.scen.map((_, i) => computeScen(i)), M = Rs.map(E.scenarioMetrics), best = E.compareScenarios(M);
+  const cur = Rs.find(Boolean) ? Rs.find(Boolean).p.cur : $('p_cur').value, C = (v, d = 0) => curPT(v, cur, d);
+  const fdate = d => d.toLocaleDateString('pt-BR', {timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric'});
+  const base = M[S.active] || M.find(Boolean);
+  // cartões
+  $('cenCards').innerHTML = S.scen.map((sc, i) => {
+    const m = M[i], on = i === S.active;
+    const head = `<h3><span style="color:${SC_COLORS[i]}">●</span> ${esc(sc.name)}${on ? ' <span class="tag" style="background:#EAF2FB;color:var(--navy)">ativo</span>' : ''}</h3>`;
+    if (!m) return `<div class="sccard ${on ? 'on' : ''}">${head}<p class="hint">Cenário sem alocação: monte o timeline (escolha perfis e preencha o FTE).</p>${on ? '' : `<button class="btn sm" data-act="sc-use" data-i="${i}">Editar este cenário</button>`}</div>`;
+    const mx = Math.max(...m.fte, 1);
+    return `<div class="sccard ${on ? 'on' : ''}">${head}
+      <div class="big">${C(m.gross)}</div><div class="hint">preço final com impostos${m.hasCost ? ` · GM ${nfPT(m.gm * 100, 1)}%` : ''}</div>
+      <div class="mini" aria-hidden="true">${m.fte.map(v => `<i style="height:${Math.max(2, v / mx * 100)}%;background:${SC_COLORS[i]}" title="${nfPT(v, 1)} FTE"></i>`).join('')}</div>
+      <div>${m.nPer} ${m.unit === 'SP' ? 'sprints' : 'semanas'} (${nfPT(m.weeks)} sem.) · pico ${nfPT(m.peak, 1)} FTE · ${nfPT(m.H)} h</div>
+      <div class="hint">${m.relative ? 'datas relativas' : `${fdate(m.start)} → ${fdate(m.end)}`} · ${m.nPhases} fase(s) · ${m.nDeliv} entregável(is)</div>
+      <div class="row" style="margin-top:10px;gap:6px">${on ? '' : `<button class="btn sm" data-act="sc-use" data-i="${i}">Usar este cenário</button>`}<button class="btn sec sm" data-act="sc-dupi" data-i="${i}">⧉ Duplicar</button></div></div>`;
+  }).join('') + (S.scen.length < MAX_SCEN ? `<div class="sccard" style="display:flex;align-items:center;justify-content:center;border-style:dashed"><button class="btn sec" data-act="sc-new">＋ Novo cenário</button></div>` : '');
+
+  // tabela lado a lado (verde = melhor; diferença vs. o cenário ativo)
+  const delta = (v, b, fmt, pctMode) => (b === undefined || b === null || v === b) ? '' : `<span class="dl">${v > b ? '+' : '−'}${pctMode ? nfPT(Math.abs(v / b - 1) * 100, 1) + '%' : fmt(Math.abs(v - b))}</span>`;
+  const row = (label, get, fmt, bestKey, dm) => {
+    const cells = M.map((m, i) => {
+      if (!m) return '<td>—</td>';
+      const v = get(m), isBest = bestKey && best[bestKey] && best[bestKey].includes(i), b = base && i !== S.active ? get(base) : undefined;
+      return `<td class="${isBest ? 'best' : ''}">${fmt(v, m)}${dm && b !== undefined && typeof v === 'number' ? delta(v, b, dm.f, dm.pct) : ''}</td>`;
+    }).join('');
+    return `<tr><td>${label}</td>${cells}</tr>`;
+  };
+  $('cenTable').innerHTML = `<table class="cmp"><thead><tr><th></th>${S.scen.map((sc, i) => `<th>${esc(sc.name)}${i === S.active ? ' ●' : ''}</th>`).join('')}</tr></thead><tbody>` + [
+    row('Duração', m => m.weeks, (v, m) => `${m.nPer} ${m.unit === 'SP' ? 'sprints' : 'sem.'} · ${nfPT(v)} sem.`, 'weeks', {f: v => nfPT(v) + ' sem.'}),
+    row('Início', m => m.start, (v, m) => m.relative ? 'relativo' : fdate(v)), row('Fim previsto', m => m.end, (v, m) => m.relative ? 'relativo' : fdate(v)),
+    row('Esforço (horas)', m => m.H, v => nfPT(v), 'H', {f: v => nfPT(v) + ' h'}),
+    row('Pico da equipe (FTE)', m => m.peak, v => nfPT(v, 1), 'peak', {f: v => nfPT(v, 1)}), row('FTE médio', m => m.avgFte, v => nfPT(v, 1)),
+    row('Fases', m => m.nPhases, v => v), row('Entregáveis', m => m.nDeliv, v => v),
+    row('Preço de lista (c/ impostos)', m => m.listGross, v => C(v)), row('Desconto', m => m.discPct, v => nfPT(v * 100, 1) + '%'),
+    row('<b>Preço final (c/ impostos)</b>', m => m.gross, v => '<b>' + C(v) + '</b>', 'gross', {f: v => C(v), pct: true}),
+    row('GM% (margem bruta)', m => m.gm, (v, m) => m.hasCost ? nfPT(v * 100, 1) + '%' : '—', 'gm', {f: v => nfPT(v * 100, 1) + ' p.p.'}),
+    row('Rate médio /h (líquido)', m => m.blended, v => C(v, 2), 'blended', {f: v => C(v, 2)}),
+    row('Alertas', m => m.errs + m.warns, (v, m) => v ? `${m.errs ? m.errs + ' crítico(s) ' : ''}${m.warns ? m.warns + ' aviso(s)' : ''}` : 'nenhum')
+  ].join('') + '</tbody></table>';
+
+  // leitura automática das diferenças em relação ao cenário ativo
+  const ins = [], b0 = base, bi = M.indexOf(b0);
+  M.forEach((m, i) => {
+    if (!m || !b0 || i === bi) return;
+    const nm = S.scen[i].name, parts = [];
+    if (m.weeks !== b0.weeks) parts.push(`${m.weeks < b0.weeks ? 'entrega' : 'leva'} <b>${nfPT(Math.abs(m.weeks - b0.weeks))} semana(s) ${m.weeks < b0.weeks ? 'antes' : 'a mais'}</b>`);
+    if (Math.abs(m.gross - b0.gross) > 0.5) parts.push(`o preço é <b>${C(Math.abs(m.gross - b0.gross))} ${m.gross < b0.gross ? 'menor' : 'maior'}</b> (${nfPT(Math.abs(m.gross / b0.gross - 1) * 100, 1)}%)`);
+    if (m.hasCost && b0.hasCost && Math.abs(m.gm - b0.gm) > 0.0005) parts.push(`a margem é <b>${nfPT(Math.abs(m.gm - b0.gm) * 100, 1)} p.p. ${m.gm > b0.gm ? 'maior' : 'menor'}</b>`);
+    if (Math.abs(m.peak - b0.peak) > 0.05) parts.push(`o pico de equipe é <b>${nfPT(m.peak, 1)} FTE</b> (${m.peak > b0.peak ? '+' : '−'}${nfPT(Math.abs(m.peak - b0.peak), 1)})`);
+    ins.push(`<li><b>${esc(nm)}</b> vs. <b>${esc(S.scen[bi].name)}</b>: ${parts.length ? parts.join('; ') : 'sem diferenças relevantes'}.</li>`);
+  });
+  const lab = (k, w) => best[k] ? best[k].map(i => S.scen[i].name).join(' / ') + ' ' + w : null;
+  [lab('gross', 'tem o menor preço'), lab('weeks', 'tem o menor prazo'), lab('gm', 'tem a maior margem'), lab('peak', 'exige a menor equipe de pico')].filter(Boolean).forEach(t => ins.push(`<li>🏆 ${esc(t)}.</li>`));
+  if (M.filter(Boolean).length < 2) ins.push('<li class="hint">Crie ao menos dois cenários com alocação para ver as diferenças.</li>');
+  $('cenInsights').innerHTML = ins.join('');
+  drawCompareCharts(M);
+}
+async function drawCompareCharts(M){
+  let Chart;
+  try { Chart = await loadLib('chart'); }
+  catch(e){ ['chCenFteMsg', 'chCenPriceMsg'].forEach(i => msg(i, 'warn', 'Gráficos indisponíveis: ' + esc(e.message))); return; }
+  ['chCenFteMsg', 'chCenPriceMsg'].forEach(i => msg(i, '', ''));
+  Object.values(cenCharts).forEach(c => c.destroy());
+  const n = Math.max(1, ...M.map(m => m ? m.fte.length : 0));
+  cenCharts.fte = new Chart($('chCenFte'), {type: 'line', data: {labels: Array.from({length: n}, (_, i) => (M.find(Boolean) ? M.find(Boolean).unit : 'SP') + (i + 1)),
+    datasets: M.map((m, i) => m && ({label: S.scen[i].name, data: m.fte, borderColor: SC_COLORS[i], backgroundColor: SC_COLORS[i], stepped: true, pointRadius: 2})).filter(Boolean)},
+    options: {maintainAspectRatio: false, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10}}}, scales: {y: {beginAtZero: true, title: {display: true, text: 'FTE'}}}}});
+  const ok = M.map((m, i) => ({m, i})).filter(x => x.m);
+  cenCharts.price = new Chart($('chCenPrice'), {type: 'bar', data: {labels: ok.map(x => S.scen[x.i].name), datasets: [
+    {label: 'Preço final (c/ impostos)', data: ok.map(x => Math.round(x.m.gross)), backgroundColor: ok.map(x => SC_COLORS[x.i]), yAxisID: 'y'},
+    {label: 'GM%', type: 'line', data: ok.map(x => x.m.hasCost ? +(x.m.gm * 100).toFixed(1) : null), borderColor: '#C0392B', backgroundColor: '#C0392B', yAxisID: 'y1'}]},
+    options: {maintainAspectRatio: false, plugins: {legend: {position: 'bottom', labels: {boxWidth: 10}}}, scales: {y: {position: 'left', beginAtZero: true}, y1: {position: 'right', grid: {drawOnChartArea: false}, title: {display: true, text: 'GM %'}}}}});
 }
 
 /* ---------------- render: proposta ---------------- */
@@ -990,7 +1142,10 @@ const actions = {
   library: () => { const d = $('dlgLib'); if (!d.open) d.showModal(); renderLibrary(); },
   'lib-close': () => $('dlgLib').close(), 'lib-pick': libPick, 'lib-here': libHere, 'lib-refresh': () => { LIB.cache.clear(); renderLibrary(); },
   'lib-open': b => libOpen(+b.dataset.i), 'lib-compare': libCompare,
-  'go-par': () => goTab('par'), 'go-doc': () => goTab('doc'), calc: () => recalc(true),
+  'go-par': () => goTab('par'), 'go-cen': () => goTab('cen'), 'go-ana': () => { if (recalc(false)) goTab('ana'); },
+  'sc-new': () => addScen(false), 'sc-dup': () => addScen(true), 'sc-del': () => delScen(S.active),
+  'sc-ren': () => { const n = prompt('Nome do cenário:', S.scen[S.active].name); if (n !== null) renameScen(S.active, n); },
+  'sc-use': b => { loadScen(+b.dataset.i); renderCompare(); }, 'sc-dupi': b => { if (+b.dataset.i !== S.active) loadScen(+b.dataset.i, true); addScen(true); renderCompare(); }, 'go-doc': () => goTab('doc'), calc: () => recalc(true),
   'disc-apply': b => { $('p_discmode').value = 'pct'; $('p_disc').value = b.dataset.v; S.result = null; markDirty(); renderDiscount(); toast(`Desconto geral de ${nfPT(+b.dataset.v, 1)}% aplicado.`, 'ok', 3000); },
   catalog: () => { const d = $('dlgCat'); if (!d.open) d.showModal(); renderCatalogDialog(); },
   'cat-close': () => $('dlgCat').close(), 'cat-open': catalogOpen, 'cat-create': catalogCreate, 'cat-save': catalogSave, 'cat-reconnect': catalogReconnect,
@@ -1018,7 +1173,7 @@ document.addEventListener('click', e => {
 });
 
 /* ---------------- mudança de parâmetros ---------------- */
-const DOC_ONLY = new Set(['p_lang', 'p_tlmode', 'p_tlgran', 'p_tlfte', 'p_tlmiles']);
+const DOC_ONLY = new Set(['p_lang', 'p_tlmode', 'p_tlgran', 'p_tlfte', 'p_tldeliv', 'p_tlmiles']);
 document.querySelector('main').addEventListener('change', e => {
   const id = e.target.id; if (!id || !id.startsWith('p_') || id === 'p_clientsel' || id === 'p_clientsel1') return;
   S.result = null;
@@ -1075,5 +1230,6 @@ function init(){
   });
 }
 init();
-window.__pm = {S, catalogLoad, boundClient, saveCatalog, createClient, rebuildRates, recalc, goTab, loadBuffer, applyState, snapshot, raw, setRaw, buildBlob, actions, renderLibrary}; // ganchos para testes
+$('scBar').addEventListener('click', e => { const b = e.target.closest('.scchip'); if (b) loadScen(+b.dataset.sc); });
+window.__pm = {S, addScen, loadScen, delScen, renameScen, computeScen, commitScen, renderCompare, catalogLoad, boundClient, saveCatalog, createClient, rebuildRates, recalc, goTab, loadBuffer, applyState, snapshot, raw, setRaw, buildBlob, actions, renderLibrary}; // ganchos para testes
 })();

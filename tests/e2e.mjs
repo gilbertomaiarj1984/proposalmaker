@@ -383,6 +383,81 @@ try {
   await ctx5.close();
   ok('catálogo: aba por cliente, perfil/nível/taxa vindos do cliente, edição grava no Excel (formato preservado), cliente novo pergunta a base, proposta sem perfis e aviso de mudança de taxas');
 
+  /* 12e. entregáveis por fase e cenários (até 3) com painel comparativo */
+  const ctx6 = await browser.newContext({acceptDownloads: true, viewport: {width: 1400, height: 900}});
+  const p6 = await newPage(ctx6); const e6 = p6.page;
+  await e6.evaluate(() => { document.getElementById('p_lang').value = 'pt'; document.getElementById('p_lang').dispatchEvent(new Event('change', {bubbles: true})); __pm.actions.example(); });
+  await e6.waitForSelector('#tlEditor', {state: 'visible'});
+  // entregáveis: adicionar dois na primeira fase; nascem "auto" e se distribuem pelo tempo da fase
+  const ph0 = await e6.evaluate(() => __pm.S.rows[0].phase);
+  await e6.locator('#edGrid tr.ph').first().hover();
+  await e6.locator('#edGrid tr.ph').first().locator('[data-ed="adddel"]').click();
+  await e6.locator('#edGrid tr.ph').first().locator('[data-ed="adddel"]').click();
+  assert.equal(await e6.evaluate(() => document.querySelectorAll('#edGrid tr.dl').length), 2);
+  const spans = () => e6.evaluate(() => [...document.querySelectorAll('#edGrid tr.dl')].map(tr => [...tr.querySelectorAll('input.dp')].map(i => +i.value)));
+  let sp = await spans();
+  assert.ok(sp[0][1] < sp[1][0] || sp[0][1] <= sp[1][1], 'distribuídos em sequência: ' + JSON.stringify(sp));
+  // renomear e fixar a data de entrega do 1º (vira manual) pela caixa "fim"
+  await e6.locator('#edGrid tr.dl input.dn').first().fill('Plano do projeto'); await e6.keyboard.press('Tab');
+  const win = await e6.evaluate(() => { const i = document.querySelector('#edGrid tr.dl input[data-ed="dend"]'); return [+i.min, +i.max]; });
+  await e6.locator('#edGrid tr.dl input[data-ed="dend"]').first().fill(String(win[1])); await e6.keyboard.press('Tab');
+  assert.deepEqual(await e6.evaluate(() => __pm.S.deliverables.map(d => [d.name, d.manual])), [['Plano do projeto', true], ['Entregável 2', false]]);
+  assert.equal((await spans())[0][1], win[1], 'fim = último período da fase');
+  // fora da janela da fase não aceita (limita); clique numa célula define o fim
+  await e6.locator('#edGrid tr.dl input[data-ed="dend"]').first().fill('99'); await e6.keyboard.press('Tab');
+  assert.equal((await spans())[0][1], win[1], 'limitado à janela da fase');
+  assert.ok(await e6.evaluate(() => document.querySelectorAll('#edGrid tr.dl td.dc.out').length) > 0, 'períodos fora da fase marcados');
+  assert.ok((await $text(e6, '#edPv')).includes('◆') && (await $text(e6, '#edPv')).includes('Plano do projeto'), 'losango e nome na prévia');
+  await e6.locator('#edGrid tr.dlh [data-ed="distdel"]').first().click();   // redistribui tudo
+  assert.deepEqual(await e6.evaluate(() => __pm.S.deliverables.map(d => d.manual)), [false, false]);
+  // aparece na proposta (tabela de entregáveis) e nos marcos
+  await e6.evaluate(() => { __pm.S.result = null; __pm.recalc(false); });
+  assert.match(await e6.evaluate(() => document.querySelector('#doc').innerText), /Entregáveis[\s\S]*Plano do projeto/);
+  // cenários: duplicar → cenário B editável de forma independente
+  assert.equal(await e6.evaluate(() => __pm.S.scen.length), 1);
+  await e6.click('#scBar [data-act="sc-dup"]');
+  assert.equal(await e6.evaluate(() => [__pm.S.scen.length, __pm.S.active, __pm.S.scen[1].name]).then(a => a.join('|')), '2|1|Cenário A (cópia)');
+  assert.equal(await e6.evaluate(() => __pm.S.deliverables.length), 2, 'entregáveis copiados');
+  await e6.evaluate(() => { __pm.S.rows.forEach(r => { r.alloc = r.alloc.map(v => v * 2); }); __pm.S.nPeriods = 10; __pm.S.rows.forEach(r => { r.alloc.length = 10; }); __pm.S.deliverables = []; });
+  await e6.evaluate(() => __pm.commitScen());
+  await e6.evaluate(() => __pm.renameScen(1, 'Acelerado'));
+  await e6.click('#scBar [data-sc="0"]');
+  assert.equal(await e6.evaluate(() => [__pm.S.nPeriods, __pm.S.deliverables.length].join('|')), '12|2', 'A manteve seus períodos e entregáveis');
+  // painel comparativo
+  await e6.click('#scBar [data-act="go-cen"]');
+  assert.equal(await e6.evaluate(() => document.querySelectorAll('#cenCards .sccard').length), 3, '2 cartões + "novo cenário"');
+  const cmp = await $text(e6, '#cenTable');
+  assert.match(cmp, /Preço final/); assert.match(cmp, /Pico da equipe/);
+  assert.ok(await e6.evaluate(() => document.querySelectorAll('#cenTable td.best').length) > 0, 'melhor valor destacado');
+  assert.match(await $text(e6, '#cenInsights'), /Acelerado.*vs\./);
+  await e6.waitForFunction(() => document.querySelector('#chCenFte') && !document.querySelector('#chCenFteMsg .msg'), null, {timeout: 8000});
+  // usar o cenário B: vira o ativo e a análise passa a usá-lo
+  await e6.click('#cenCards [data-act="sc-use"]');
+  assert.equal(await e6.evaluate(() => __pm.S.active), 1);
+  await e6.evaluate(() => { __pm.S.result = null; __pm.recalc(false); });
+  assert.equal(await e6.evaluate(() => __pm.S.result.nPeriods), 10, 'análise usa o cenário ativo');
+  assert.match(await $text(e6, '#pbSub'), /Acelerado|R\$/);
+  // limite de 3
+  await e6.evaluate(() => __pm.goTab('tl'));
+  await e6.click('#scBar [data-act="sc-new"]');
+  assert.equal(await e6.evaluate(() => __pm.S.scen.length), 3);
+  assert.equal(await e6.evaluate(() => document.querySelectorAll('#scBar [data-act="sc-new"]').length), 0, 'sem botão acima de 3');
+  // gravar em Excel e reabrir: cenários e entregáveis voltam
+  const buf64 = await e6.evaluate(async () => { const b = new Uint8Array(await (await __pm.buildBlob()).arrayBuffer()); let s = ''; b.forEach(c => s += String.fromCharCode(c)); return btoa(s); });
+  const sheets = XLSXlib.read(Buffer.from(buf64, 'base64'), {type: 'buffer'}).SheetNames;
+  assert.ok(['Cenarios', 'Entregaveis', 'Cen_1', 'Cen_2'].every(n => sheets.includes(n)) && !sheets.includes('Cen_3'), sheets.join());
+  await e6.evaluate(async (b64) => { const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)); await __pm.loadBuffer(bytes.buffer, 'p.xlsx', null); }, buf64);
+  assert.equal(await e6.evaluate(() => [__pm.S.scen.map(s => s.name).join(','), __pm.S.active, __pm.S.nPeriods].join('|')), 'Cenário A,Acelerado,Cenário C|2|10');
+  await e6.click('#scBar [data-sc="0"]');
+  assert.equal(await e6.evaluate(() => [__pm.S.nPeriods, __pm.S.deliverables.map(d => d.name).join(',')].join('|')), '12|Plano do projeto,Entregável 2');
+  // excluir cenário
+  e6.once('dialog', d => d.accept());
+  await e6.click('#scBar [data-act="sc-del"]');
+  assert.equal(await e6.evaluate(() => __pm.S.scen.length), 2);
+  assert.deepEqual(p6.errors, [], 'sem erros: ' + p6.errors.join(' | '));
+  await ctx6.close();
+  ok('entregáveis por fase (auto/manual, limite da fase, prévia e proposta) e até 3 cenários com painel comparativo, uso do ativo e persistência no Excel');
+
   /* 13. PDF (layout de impressão) */
   await page.evaluate(() => { __pm.S.result = null; __pm.recalc(false); __pm.goTab('doc'); });
   await page.pdf({path: path.join(outDir, 'proposta.pdf'), format: 'A4', preferCSSPageSize: true, printBackground: true});
