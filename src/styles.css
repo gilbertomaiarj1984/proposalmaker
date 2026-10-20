@@ -201,6 +201,11 @@ table.ed tr.foot td.l{text-align:left;padding:0 10px}
 .sugg ul{margin:0;padding-left:18px;line-height:1.7;font-size:13px}
 .sugg .chip{margin:2px 2px;font-size:12px;padding:3px 10px}
 .chip.bad{background:#FDECEC;color:var(--err);border-color:#f5c2c2}
+.catbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:var(--light);border-radius:8px;padding:8px 12px;margin:8px 0;font-size:13px}
+.catbar b{color:var(--navy)} .catbar .st{margin-left:2px}
+#btnCat.loaded{border-color:#59c28f} #btnCat.dirty{border-color:#e3b25d}
+.tag.warn{background:#FFF6E5;color:var(--warn)}
+td .tag{font-size:10px;border-radius:4px;padding:1px 5px;background:#FDECEC;color:var(--err);font-weight:600;margin-left:6px}
 @page{size:A4;margin:16mm 14mm 18mm}
 @page:first{margin:0}
 @media print{

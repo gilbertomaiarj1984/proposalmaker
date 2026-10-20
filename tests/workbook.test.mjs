@@ -44,6 +44,7 @@ test('ida e volta: gravar e ler devolve o mesmo estado', async () => {
   assert.equal(back.raw.p_discshow, undefined === back.raw.p_discshow ? undefined : back.raw.p_discshow);
   assert.equal(back.edits['pt:exec.ctx'], '<b>Texto</b> editado');
   assert.equal(Object.values(back.rates).find(r => r.role === 'Tester').rate, 140);
+  assert.ok(!rd.SheetNames.includes('Perfis') && !rd.SheetNames.includes('RateCard'), 'a proposta não traz o cadastro de perfis');
   const R2 = run({...back, raw:back.raw});
   assert.ok(Math.abs(R2.T.gross - R.T.gross) < 1e-6);
   assert.ok(Math.abs(R2.T.H - R.T.H) < 1e-9);
@@ -97,7 +98,8 @@ test('proposta ainda sem perfis alocados também é gravada e reaberta (linhas v
   assert.equal(back.rows.length, st.rows.length);
   assert.equal(back.rows[back.rows.length - 2].role, '');
   assert.equal(back.rows[back.rows.length - 1].role, 'Arquiteto');
-  assert.ok(back.rates['Sobra|Q1|Brazil'], 'perfil do catálogo sem uso é preservado');
+  assert.ok(!back.rates['Sobra|Q1|Brazil'], 'perfis não usados ficam só no catálogo, não na proposta');
+  assert.equal(back.rates['Arquiteto|Q5|Brazil'].rate, '', 'perfil usado sem taxa volta sem taxa');
   // sem nenhuma alocação
   const empty = {...st, rows:[{phase:'Fase 1', activity:'', role:'', level:'', location:'', optional:false, alloc:new Array(12).fill(0)}]};
   const R0 = Engine.compute({rows:empty.rows, nPeriods:12, unit:'SP', rates:empty.rates}, Engine.parseParams(empty.raw, {taxes:empty.taxes}), {});

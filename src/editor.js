@@ -31,11 +31,11 @@ function TimelineEditor(ctx){
 
   /* ---------------- histórico ---------------- */
   const tlRaw = () => { const o = {}; TL_IDS.forEach(id => { const el = $(id); if (el) o[id] = el.value; }); return o; };
-  const snap = () => JSON.stringify({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, raw: tlRaw()});
+  const snap = () => JSON.stringify({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, raw: tlRaw()});   // as taxas vivem no catálogo: desfazer não as altera
   function pushHist(){ hist.push(snap()); if (hist.length > 100) hist.shift(); fut.length = 0; }
   function restore(str){
     const o = JSON.parse(str);
-    S.rows = o.rows; S.nPeriods = o.nPeriods; S.unit = o.unit; S.rates = o.rates; ctx.setRaw(o.raw);
+    S.rows = o.rows; S.nPeriods = o.nPeriods; S.unit = o.unit; ctx.setRaw(o.raw);
     changed(); render();
   }
   function undo(){ if (!hist.length) return; fut.push(snap()); restore(hist.pop()); }
@@ -97,7 +97,7 @@ function TimelineEditor(ctx){
     $('edBrush').style.display = mode === 'paint' ? 'inline-flex' : 'none';
     $('edUndo').disabled = !hist.length; $('edRedo').disabled = !fut.length;
     const nCat = catalog().length, nMiss = catalog().filter(r => missingRate(r, p)).length;
-    $('edRc').innerHTML = `Perfis cadastrados: <b>${nCat}</b>` + (nMiss ? ` · <span style="color:var(--err)">${nMiss} sem taxa</span>` : '');
+    $('edRc').innerHTML = `Perfis do cliente: <b>${nCat}</b>` + (nMiss ? ` · <span style="color:var(--err)">${nMiss} sem taxa</span>` : '');
     $('p_pw').disabled = U === 'W';
     $('lbl_start').style.display = $('p_startmode').value === 'date' ? '' : 'none';
     $('lbl_startm').style.display = $('p_startmode').value === 'month' ? '' : 'none';
@@ -245,6 +245,7 @@ function TimelineEditor(ctx){
   /* Perfil */
   function openCombo(btn, row){
     cur = row; closePops(); $('edPf').classList.remove('show'); $('edPq').value = ''; active = 0;
+    $('edFLoc').style.display = ctx.hasLocation() ? '' : 'none';
     place(pop, btn); pop.classList.add('show'); listProfiles(); fitPop(pop); $('edPq').focus();
   }
   function listProfiles(){
@@ -259,7 +260,7 @@ function TimelineEditor(ctx){
     };
     const grp = (t, arr) => arr.length ? `<li class="grp" role="presentation">${t}</li>` + arr.map(item).join('') : '';
     $('edPl').innerHTML = grp('Já usados neste timeline', shown.filter(x => usedRoles.has(x.role))) + grp('Demais perfis cadastrados', shown.filter(x => !usedRoles.has(x.role)))
-      || '<li class="grp" role="presentation">Nenhum perfil encontrado — cadastre um novo abaixo</li>';
+      || `<li class="grp" role="presentation">${esc(ctx.catalogHint() || 'Nenhum perfil encontrado — cadastre um novo abaixo')}</li>`;
   }
   function applyEntry(entry){
     pushHist(); cur.role = entry.role; cur.level = entry.level; cur.location = entry.location;
@@ -285,10 +286,10 @@ function TimelineEditor(ctx){
     const role = $('edFRole').value.trim();
     if (!role) return $('edFRole').focus();
     const entry = {role, level: $('edFLevel').value.trim(), location: $('edFLoc').value.trim(), cost: E.num($('edFCost').value) || '', rate: E.num($('edFRate').value) || ''};
-    const k = E.rkey(entry);
-    if (S.rates[k]) toast('Esse perfil/nível já está cadastrado — usando o existente.', 'info', 3500); else S.rates[k] = entry;
+    const res = ctx.addProfile(entry);
+    if (res.existed) toast('Esse perfil/nível já está cadastrado — usando o existente.', 'info', 3500);
     ['edFRole', 'edFLevel', 'edFLoc', 'edFCost', 'edFRate'].forEach(id => $(id).value = '');
-    applyEntry(S.rates[k]);
+    applyEntry(res.entry);
   };
 
   /* Nível: troca entre os níveis do perfil, usa um nível de outro perfil ou adiciona um novo */
@@ -317,9 +318,7 @@ function TimelineEditor(ctx){
   }
   function chooseLevel(x){
     if (x.kind === 'own') return applyEntry(x.entry);
-    const entry = {role: cur.role, level: x.level, location: cur.location, cost: '', rate: ''}, k = E.rkey(entry);
-    if (!S.rates[k]) S.rates[k] = entry;
-    applyEntry(S.rates[k]);
+    applyEntry(ctx.addProfile({role: cur.role, level: x.level, location: cur.location, cost: '', rate: ''}).entry);
   }
   $('edLq').oninput = () => { activeL = 0; listLevels(); };
   $('edLq').onkeydown = e => {
@@ -336,11 +335,10 @@ function TimelineEditor(ctx){
     const level = $('edFLv').value.trim();
     if (!level) return $('edFLv').focus();
     const entry = {role: cur.role, level, location: cur.location, cost: E.num($('edFLvCost').value) || '', rate: E.num($('edFLvRate').value) || ''};
-    const k = E.rkey(entry);
-    if (S.rates[k]) toast(`O nível ${level} já existe para ${cur.role} — usando o existente.`, 'info', 3500);
-    else S.rates[k] = entry;
+    const res = ctx.addProfile(entry);
+    if (res.existed) toast(`O nível ${level} já existe para ${cur.role} — usando o existente.`, 'info', 3500);
     ['edFLv', 'edFLvCost', 'edFLvRate'].forEach(id => $(id).value = '');
-    applyEntry(S.rates[k]);
+    applyEntry(res.entry);
   };
   document.addEventListener('mousedown', e => {
     if ((pop.classList.contains('show') || popL.classList.contains('show')) && !pop.contains(e.target) && !popL.contains(e.target) && !e.target.closest('[data-ed="combo"],[data-ed="lvcombo"]')) closePops();

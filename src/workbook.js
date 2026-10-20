@@ -8,7 +8,7 @@
 const Workbook = (() => {
 'use strict';
 const E = Engine;
-const APP_ID = 'ProposalMaker', FORMAT = 2;
+const APP_ID = 'ProposalMaker', FORMAT = 3;
 
 // ordem e rótulos dos parâmetros gravados na aba "Parametros"
 const PARAM_DEFS = [
@@ -170,51 +170,35 @@ async function buildProposal(ExcelJS, st, R){
   Object.entries(st.phaseDisc || {}).forEach(([k, v]) => ds.addRow([k, E.num(v)]));
   ds.getColumn(1).width = 34; ds.getColumn(2).width = 10;
 
-  /* ----- Perfis (cadastro de perfis, níveis e taxas) ----- */
-  const rs = wb.addWorksheet('Perfis', {views:[{state:'frozen', ySplit:1}]});
-  rs.addRow(['Role','Level','Location','Cost/h','Rate/h','Price/h (calc.)','Key','Cost/h efetivo (calc.)']);
-  styleHeader(rs);
-  const rateList = Object.values(st.rates);
-  rateList.forEach((r, i) => {
-    const n = i + 2;
-    const priceBase = p.mode === 'rate' ? E.num(r.rate) : (p.gm < 1 ? E.num(r.cost) / (1 - p.gm) : 0);
-    const costEff = E.num(r.cost) * p.fx * (p.contMode === 'both' ? 1 + p.cont : 1);
-    rs.addRow([r.role, r.level || '', r.location || '', E.num(r.cost) || null, E.num(r.rate) || null,
-      {formula:`IF(MODE="gm",IF(GMP<100,D${n}/(1-GMP/100),0),E${n})*FX`, result: priceBase * p.fx},
-      {formula:`A${n}&"|"&IF(B${n}="","-",B${n})&"|"&IF(C${n}="","-",C${n})`, result: E.rkey(r)},
-      {formula:`D${n}*FX*IF(CONTMODE="both",1+CONTP/100,1)`, result: costEff}]);
-  });
-  [28,8,12,10,10,16,34,20].forEach((w, i) => rs.getColumn(i+1).width = w);
-  [4,5,6,8].forEach(c => rs.getColumn(c).numFmt = money);
-  const rcEnd = Math.max(2, rateList.length + 1);
-
   /* ----- Modelo (timeline + cálculo) ----- */
   const ms = wb.addWorksheet('Modelo', {views:[{state:'frozen', xSplit:7, ySplit:1}]});
   const U = st.unit;
-  const c0 = 8, cTot = c0 + N, cHrs = cTot + 1, cPrice = cTot + 2, cDisc = cTot + 3, cNet = cTot + 4, cCost = cTot + 5, cScope = cTot + 6;
+  const c0 = 8, cCostS = c0 + N, cRateS = c0 + N + 1, cTot = c0 + N + 2, cHrs = cTot + 1, cPrice = cTot + 2, cDisc = cTot + 3, cNet = cTot + 4, cCost = cTot + 5, cScope = cTot + 6;
   ms.addRow(['Phase','Activity','Role','Level','Location','Optional','Key',
-    ...Array.from({length:N}, (_, i) => U + (i+1)), 'Total FTE', 'Hours', 'Price/h (calc.)', 'Desconto efetivo (calc. pelo app)', 'Net (calc.)', 'Cost (calc.)', 'In scope']);
+    ...Array.from({length:N}, (_, i) => U + (i+1)), 'Cost/h (catálogo)', 'Rate/h (catálogo)', 'Total FTE', 'Hours', 'Price/h (calc.)', 'Desconto efetivo (calc. pelo app)', 'Net (calc.)', 'Cost (calc.)', 'In scope']);
   styleHeader(ms);
   const n1 = 2, nLast = Math.max(2, st.rows.length + 1);
   st.rows.forEach((src, i) => {
     const r = R.rowByIndex.get(i) || {...src, alloc: src.alloc.slice(), H: 0, priceBase: 0, discPct: 0, net: 0, cost: 0}; // linha sem perfil: zeros
     const n = i + 2, first = colName(c0), lastc = colName(c0 + N - 1);
-    const key = `G${n}`;
-    const idx = `MATCH(${key},Perfis!$G$2:$G$${rcEnd},0)`;
+    const rt = (src.role && st.rates[E.rkey(src)]) || {};   // taxa do catálogo usada nesta linha (cópia para auditoria/recálculo)
+    const cS = `${colName(cCostS)}${n}`, rS = `${colName(cRateS)}${n}`;
     ms.addRow([r.phase, r.activity, r.role, r.level || '', r.location || '', r.optional ? 'Y' : '',
       {formula:`C${n}&"|"&IF(D${n}="","-",D${n})&"|"&IF(E${n}="","-",E${n})`, result: E.rkey(r)},
       ...r.alloc.map(v => v || null),
+      E.num(rt.cost) || null, E.num(rt.rate) || null,
       {formula:`SUM(${first}${n}:${lastc}${n})`, result: r.alloc.reduce((a,b)=>a+b,0)},
       {formula:`${colName(cTot)}${n}*HPP`, result: r.H},
-      {formula:`IFERROR(INDEX(Perfis!$F$2:$F$${rcEnd},${idx}),0)`, result: r.priceBase},
+      {formula:`IF(MODE="gm",IF(GMP<100,N(${cS})/(1-GMP/100),0),N(${rS}))*FX`, result: r.priceBase},
       r.discPct || 0,
       {formula:`${colName(cHrs)}${n}*${colName(cPrice)}${n}*(1+CONTP/100)*(1-${colName(cDisc)}${n})`, result: r.net},
-      {formula:`${colName(cHrs)}${n}*IFERROR(INDEX(Perfis!$H$2:$H$${rcEnd},${idx}),0)`, result: r.cost},
+      {formula:`${colName(cHrs)}${n}*N(${cS})*FX*IF(CONTMODE="both",1+CONTP/100,1)`, result: r.cost},
       {formula:`IF(OR(F${n}<>"Y",INCLOPT="Sim"),1,0)`, result: (!r.optional || p.inclOpt) ? 1 : 0}]);
   });
   [26,14,24,7,10,9,30].forEach((w, i) => ms.getColumn(i+1).width = w);
   for (let i = 0; i < N; i++) ms.getColumn(c0 + i).width = 6;
   [cTot, cHrs].forEach(c => ms.getColumn(c).numFmt = '#,##0.0');
+  [cCostS, cRateS].forEach(c => { ms.getColumn(c).numFmt = money; ms.getColumn(c).width = 14; });
   [cPrice, cNet, cCost].forEach(c => { ms.getColumn(c).numFmt = money; ms.getColumn(c).width = 14; });
   ms.getColumn(cDisc).numFmt = pct; ms.getColumn(cDisc).width = 16;
   ms.addConditionalFormatting({ref:`${colName(c0)}2:${colName(c0 + N - 1)}${nLast}`, rules:[{type:'colorScale', cfvo:[{type:'num', value:0}, {type:'num', value:2}], color:[{argb:'FFFFFFFF'}, {argb:'FF7FA8D8'}]}]});
@@ -289,7 +273,7 @@ async function buildProposal(ExcelJS, st, R){
 
   /* ----- meta (oculta) ----- */
   const meta = wb.addWorksheet('_meta', {state:'hidden'});
-  meta.addRow([APP_ID, FORMAT, new Date().toISOString(), st.fileName || '']);
+  meta.addRow([APP_ID, FORMAT, new Date().toISOString(), st.fileName || '', st.catalogName || '']);
 
   wb.calcProperties = {fullCalcOnLoad: true};
   return wb;
@@ -327,10 +311,17 @@ function read(XLSX, wb){
   if (!modelo) throw new Error('aba "Modelo" não encontrada');
   const t = E.parseTimeline(modelo, {unit, keepEmpty: true});
 
-  const rcName = wb.SheetNames.find(n => /^(perfis|rate ?card)$/i.test(n));
-  const rcRows = rcName ? aoa(rcName) : null;
+  // taxas usadas por linha (cópia gravada na aba Modelo); arquivos antigos tinham a aba Perfis/RateCard
   const rates = {};
-  if (rcRows) E.parseRateRows(rcRows).forEach(t => { rates[E.rkey(t)] = {role: t.role, level: t.level, location: t.location, cost: t.cost || '', rate: t.rate || ''}; }); // catálogo completo do Rate Card
+  const rcName = wb.SheetNames.find(n => /^(perfis|rate ?card)$/i.test(n));
+  if (rcName) E.parseRateRows(aoa(rcName)).forEach(t => { rates[E.rkey(t)] = {role: t.role, level: t.level, location: t.location, cost: t.cost || '', rate: t.rate || ''}; });
+  const hdr = modelo.find(r => r.some(c => E.norm(c) === 'role')) || [];
+  const iCost = hdr.findIndex(c => E.norm(c) === 'cost/h (catalogo)'), iRate = hdr.findIndex(c => E.norm(c) === 'rate/h (catalogo)');
+  if (iCost >= 0 || iRate >= 0) t.rows.forEach(r => {
+    if (!r.role || r.srcLine === undefined) return;
+    const line = modelo[r.srcLine] || [], c = iCost >= 0 ? E.num(line[iCost]) : 0, rt = iRate >= 0 ? E.num(line[iRate]) : 0, k = E.rkey(r);
+    if (!rates[k] || c || rt) rates[k] = {role: r.role, level: r.level, location: r.location, cost: c || (rates[k] && rates[k].cost) || '', rate: rt || (rates[k] && rates[k].rate) || ''};
+  });
   E.ensureRates(rates, t.rows);
 
   const phaseDisc = {};
@@ -341,7 +332,7 @@ function read(XLSX, wb){
   const tx = aoa('Textos');
   if (tx) tx.slice(1).forEach(r => { if (r[0]) edits[String(r[0])] = String(r[1] ?? ''); });
 
-  return {raw, taxes, phaseDisc, rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
+  return {raw, taxes, phaseDisc, catalogName: (wb.Sheets['_meta'] && wb.Sheets['_meta']['E1']) ? String(wb.Sheets['_meta']['E1'].v || '') : '', rows: t.rows, nPeriods: t.nPeriods, unit: t.unit, rates, edits, warnings: t.warnings};
 }
 
 return { APP_ID, FORMAT, PARAM_DEFS, BOOLS, colName, exampleData, emptyResult, buildTemplate, buildProposal, isProposalWorkbook, read };

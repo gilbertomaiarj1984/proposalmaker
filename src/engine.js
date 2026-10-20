@@ -125,7 +125,8 @@ function parseTimeline(aoa, opts){
       const alloc = new Array(nPeriods).fill(0);
       pcols.forEach(c => alloc[c.p-1] += num(line[c.i]));
       if (alloc.every(v => v === 0) && !opts.keepEmpty) { warnings.push(`Linha ${r+1} (${esc(role)}) sem alocação – ignorada.`); continue; }
-      rows.push(mkRow(line, col, lastPhase, role, alloc));
+      const row = mkRow(line, col, lastPhase, role, alloc); row.srcLine = r;
+      rows.push(row);
     }
   } else if (col.start >= 0 && col.end >= 0){
     const tmp = [];

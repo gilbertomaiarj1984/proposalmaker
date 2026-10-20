@@ -12,6 +12,9 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const S = {
   rows: [], nPeriods: 0, unit: 'SP', rates: {}, fileName: '', fileLabel: '', saveText: '', saveKind: 'dirty',
   taxes: [{name: 'PIS/COFINS/ISS', pct: 5.65}], phaseDisc: {}, edits: {},
+  // catálogo de perfis e taxas (arquivo Excel, uma aba por cliente); snapRates = taxas gravadas na proposta (detecção de mudança)
+  cat: {loaded: false, name: '', handle: null, buffer: null, clients: [], skipped: [], dirty: false, saving: false, version: 0, status: '', kind: 'dirty', needsPerm: false},
+  catClient: '', snapRates: {}, drift: null,
   result: null, handle: null, autoFile: false, dirty: false
 };
 const LIB = {dir: null, files: [], cache: new Map()};
@@ -76,7 +79,7 @@ function setRaw(o){
 }
 const P = () => E.parseParams(raw(), {taxes: S.taxes, phaseDisc: S.phaseDisc});
 const model = () => ({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates});
-const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName});
+const snapshot = () => ({raw: raw(), taxes: JSON.parse(JSON.stringify(S.taxes)), phaseDisc: JSON.parse(JSON.stringify(S.phaseDisc)), rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, edits: S.edits, fileName: S.fileName, catalogName: S.cat.name});
 
 function syncStartUI(){
   const m = $('p_startmode').value;
@@ -231,8 +234,9 @@ function actNew(){
   if (S.rows.length && S.dirty && !confirm('Há alterações ainda não gravadas em Excel. Começar uma proposta nova mesmo assim?')) return;
   ED.startEmpty(); S.phaseDisc = {};
   S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.fileName = ''; S.fileLabel = ''; S.result = null; S.dirty = false;
+  S.rates = {}; S.snapRates = {}; S.catClient = ''; S.drift = null;
   ['p_client', 'p_project', 'p_ref', 'p_context', 'p_assump'].forEach(id => { $(id).value = ''; });
-  msg('tlMsg', 'info', 'Proposta nova. Cadastre os perfis pela combo de cada linha (<i>➕ Cadastrar novo perfil…</i>) ou importe-os na aba 2 (“Perfis e taxas”); depois preencha o FTE. Use <b>Salvar como…</b> para criar o arquivo Excel e começar a gravar nele.');
+  msg('tlMsg', 'info', S.cat.loaded ? 'Proposta nova. Selecione o <b>cliente</b> (aba 2, “Dados da proposta”, ou o seletor acima) para listar os perfis do catálogo; depois escolha perfil e nível em cada linha e preencha o FTE.' : 'Proposta nova. Carregue o catálogo de perfis (<b>📚 Catálogo</b>) ou cadastre os perfis pela combo de cada linha (<i>➕ Cadastrar novo perfil…</i>); depois preencha o FTE. Use <b>Salvar como…</b> para criar o arquivo Excel e começar a gravar nele.');
   afterLoad(true); markDirty();
 }
 
@@ -270,7 +274,7 @@ async function loadBuffer(buf, name, handle){
   if (!parsed) throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
   S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit;
   // um timeline "bruto" nunca é sobrescrito: a proposta só passa a ser gravada depois de "Salvar como…"
-  S.fileName = name; S.fileLabel = name; S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.edits = {}; S.phaseDisc = {};
+  S.fileName = name; S.fileLabel = name; S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.edits = {}; S.phaseDisc = {}; S.snapRates = {}; S.catClient = '';
   E.ensureRates(S.rates, S.rows);
   const rcName = wb.SheetNames.find(n => /rate|perfi/i.test(n));
   let rcInfo = '';
@@ -286,10 +290,12 @@ function afterLoad(reset){
   if (reset){ ED.resetHistory(); enableTabs(1); }
   const has = S.rows.length > 0;
   $('tlEmpty').style.display = has ? 'none' : ''; $('tlEditor').style.display = has ? 'block' : 'none';
-  renderRateTable(); if (has) ED.render(); renderDiscount(); updateFileBar(); updateIdent();
+  if (reset) bindCatalog(); else { renderClientUI(); renderRateTable(); renderCatalogBar(); }
+  if (has) ED.render(); renderDiscount(); updateFileBar(); updateIdent();
 }
 function applyState(st){
   S.rows = st.rows; S.nPeriods = st.nPeriods; S.unit = st.unit; S.rates = st.rates || {};
+  S.snapRates = JSON.parse(JSON.stringify(S.rates)); S.catClient = ''; S.drift = null;   // taxas gravadas na proposta (cópia) — o catálogo, se disponível, prevalece
   S.taxes = st.taxes && st.taxes.length ? st.taxes : [{name: 'Impostos', pct: 5.65}];
   S.phaseDisc = st.phaseDisc || {};
   S.edits = st.edits || {}; S.fileName = st.fileName || '';
@@ -297,6 +303,9 @@ function applyState(st){
   setRaw(st.raw || {});
   $('p_unit').value = S.unit;
   renderTaxes(); S.result = null; refreshFxCachedBtn(); afterLoad(true);
+  // as taxas passam a vir do catálogo do cliente (se carregado); senão, valem as gravadas na proposta
+  if (S.cat.loaded) bindCatalog({drift: true, warnMissing: true});
+  else if (Object.keys(S.rates).length) toast(`Catálogo de perfis não carregado: usando as taxas gravadas nesta proposta${st.catalogName ? ` (catálogo: ${st.catalogName})` : ''}.`, 'info', 10000, [{label: 'Abrir catálogo…', fn: () => actions.catalog()}]);
 }
 function afterTimelineLoaded(info){
   msg('tlMsg', 'ok', '✅ ' + info);
@@ -306,7 +315,7 @@ function afterTimelineLoaded(info){
 function loadExample(){
   const ex = Workbook.exampleData();
   S.rows = ex.rows.map(r => ({phase: r[0], activity: r[1], role: r[2], level: r[3], location: r[4], optional: r[5] === 'Y', alloc: r[6]}));
-  S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
+  S.nPeriods = ex.N; S.unit = 'SP'; S.fileName = ''; S.fileLabel = ''; S.rates = {}; S.snapRates = {}; S.catClient = ''; S.edits = {}; S.phaseDisc = {}; S.handle = null; S.autoFile = false; $('autoFile').checked = false;
   E.ensureRates(S.rates, S.rows);
   E.applyRateTable(S.rates, ex.rates.map(r => ({role: r[0], level: r[1], location: r[2], cost: r[3], rate: r[4]})));
   if (!$('p_client').value) $('p_client').value = 'Client';
@@ -374,27 +383,307 @@ $('discPhase').addEventListener('change', e => {
   S.result = null; markDirty(); renderDiscount();
 });
 
-/* ---------------- render: perfis e taxas ---------------- */
+/* ---------------- catálogo de perfis e taxas (Excel, uma aba por cliente) ---------------- */
+const NAT = (a, b) => String(a).localeCompare(String(b), 'pt', {numeric: true});
+const normName = x => E.norm(String(x || ''));
+const boundClient = () => S.catClient ? S.cat.clients.find(c => c.name === S.catClient) : null;
+const clientByName = n => (S.cat.loaded && String(n || '').trim()) ? S.cat.clients.find(c => normName(c.name) === normName(n)) : null;
+const hasLoc = () => { const c = boundClient(); return !c || !!c.cols.location; };
+const hasCost = () => { const c = boundClient(); return !c || !!c.cols.cost; };
+const liveEntries = cl => cl.entries.filter(e => !e.deleted);
+let catTimer = null;
+
+// taxas efetivas = catálogo do cliente + perfis usados que não estão no catálogo (mantêm a cópia gravada na proposta)
+function rebuildRates(){
+  const cl = boundClient(); if (!cl) return;
+  const rates = {};
+  liveEntries(cl).forEach(e => { const k = E.rkey(e); if (!rates[k]) rates[k] = {role: e.role, level: e.level, location: e.location, cost: e.cost, rate: e.rate}; });
+  S.rows.filter(r => r.role).forEach(r => { const k = E.rkey(r); if (!rates[k]) rates[k] = {...(S.snapRates[k] || {role: r.role, level: r.level, location: r.location, cost: '', rate: ''}), notInCatalog: true}; });
+  S.rates = rates;
+}
+function refreshAfterRates(){
+  S.result = null; renderRateTable(); renderCatalogBar();
+  if (S.rows.length){ ED.render(); renderDiscount(); updateIdent(); }
+}
+// vincula a proposta à aba do cliente (pelo nome em "Cliente"); sem aba correspondente, segue com as taxas gravadas
+function bindCatalog(opts){
+  opts = opts || {};
+  const cl = clientByName($('p_client').value);
+  S.catClient = cl ? cl.name : '';
+  if (cl){
+    if (cl.currency && [...$('p_rcur').options].some(o => o.value === cl.currency)) $('p_rcur').value = cl.currency;
+    rebuildRates();
+    if (opts.drift) checkDrift();
+    if (opts.switched){
+      const miss = new Set(S.rows.filter(r => r.role && S.rates[E.rkey(r)] && S.rates[E.rkey(r)].notInCatalog).map(r => `${r.role} ${r.level}`.trim()));
+      if (miss.size) toast(`${miss.size} perfil(is) do timeline não existem no catálogo de ${cl.name}: escolha os perfis pelas combos da aba 1.`, 'warn', 9000);
+    }
+  } else if (S.cat.loaded && opts.warnMissing && $('p_client').value.trim()){
+    toast(`O cliente “${$('p_client').value.trim()}” não existe no catálogo: usando as taxas gravadas na proposta.`, 'warn', 12000, [{label: 'Criar cliente', fn: () => openNewClient($('p_client').value.trim())}]);
+  }
+  renderClientUI(); refreshAfterRates();
+}
+// compara as taxas gravadas na proposta com as atuais do catálogo e informa o impacto no preço
+function checkDrift(){
+  S.drift = null;
+  const snap = S.snapRates, cl = boundClient();
+  if (!cl || !Object.keys(snap).length) return;
+  const changed = [];
+  Object.keys(snap).forEach(k => { const cur = S.rates[k]; if (!cur || cur.notInCatalog) return; const a = snap[k]; if (E.num(a.rate) !== E.num(cur.rate) || E.num(a.cost) !== E.num(cur.cost)) changed.push(`${cur.role} ${cur.level}`.trim()); });
+  if (!changed.length) return;
+  const old = {...S.rates}; Object.keys(snap).forEach(k => { if (old[k]) old[k] = {...old[k], cost: snap[k].cost, rate: snap[k].rate}; });
+  const p = P(), calc = rates => E.compute({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates}, p, {today: new Date()});
+  const b = calc(old), n = calc(S.rates);
+  S.drift = {client: cl.name, changed, before: b ? b.T.gross : null, after: n ? n.T.gross : null, cur: p.cur};
+  const money = v => v === null ? '—' : curPT(v, p.cur);
+  toast(`As taxas do catálogo de ${cl.name} mudaram em ${changed.length} perfil(is) desde que esta proposta foi gravada. Preço com impostos: ${money(S.drift.before)} → ${money(S.drift.after)}.`, 'warn', 15000);
+}
+
+/* --- persistência do catálogo no Excel (mesmo princípio da proposta: abre de lá, grava de volta) --- */
+function setCatStatus(text, kind){ S.cat.status = text; S.cat.kind = ['saved', 'saving', 'dirty'].includes(kind) ? kind : 'dirty'; renderCatalogBar(); updateCatBtn(); }
+function markCatDirty(){
+  S.cat.dirty = true; S.cat.version++;
+  setCatStatus('Alterações no catálogo não gravadas', 'dirty');
+  clearTimeout(catTimer); catTimer = setTimeout(saveCatalog, 1200);
+}
+async function saveCatalog(){
+  const C = S.cat; if (!C.loaded || !C.dirty || C.saving) return;
+  if (!C.handle || !(await Store.fs.granted(C.handle, true))){
+    setCatStatus(C.handle ? 'Catálogo: falta permissão de escrita — use “Salvar catálogo”' : 'Alterações no catálogo não gravadas — use “Salvar catálogo” (baixa o .xlsx)', 'dirty'); return;
+  }
+  await writeCatalog(C.handle);
+}
+function applySaved(r){
+  S.cat.clients.forEach(cl => {
+    if (r.sheets[cl.name] !== undefined){ if (cl.isNew){ cl.isNew = false; delete cl.base; } cl.sheet = r.sheets[cl.name]; }
+    cl.entries = cl.entries.filter(e => !(e.deleted && r.removed.includes(e.id)));
+    cl.entries.forEach(e => { if (r.rows[e.id] !== undefined) e.row = r.rows[e.id]; });
+  });
+}
+async function writeCatalog(handle){
+  const C = S.cat; C.saving = true; const v = C.version;
+  setCatStatus('⟳ Gravando o catálogo…', 'saving');
+  try {
+    const Ex = await loadLib('exceljs');
+    const r = await Catalog.serialize(Ex, C.buffer, {clients: C.clients});
+    const blob = new Blob([r.buffer], {type: XLSX_MIME});
+    if (handle) await Store.fs.write(handle, blob); else Store.download(blob, C.name || 'Perfis_e_Taxas.xlsx');
+    C.buffer = r.buffer; applySaved(r);
+    if (C.version === v) C.dirty = false;
+    setCatStatus(C.dirty ? 'Alterações no catálogo não gravadas' : `✓ Catálogo gravado · ${hhmm()}`, C.dirty ? 'dirty' : 'saved');
+  } catch(e){
+    setCatStatus('Falha ao gravar o catálogo: ' + e.message, 'dirty'); toast('Não foi possível gravar o catálogo: ' + e.message, 'err', 9000);
+  } finally { C.saving = false; }
+  if (S.cat.dirty && S.cat.handle){ clearTimeout(catTimer); catTimer = setTimeout(saveCatalog, 400); }
+}
+async function catalogLoad(buf, name, handle){
+  const Ex = await loadLib('exceljs');
+  const parsed = await Catalog.parse(Ex, buf);
+  if (!parsed.clients.length) throw new Error('nenhuma aba de cliente reconhecida (esperado: cabeçalho com “Role/Perfil” e a coluna de taxa)');
+  Object.assign(S.cat, {loaded: true, name, handle: handle || null, buffer: buf, clients: parsed.clients, skipped: parsed.skipped, dirty: false, saving: false, needsPerm: false, version: 0});
+  if (handle) Store.kv.set('catalog', handle);
+  setCatStatus(handle ? `✓ ${name} conectado — as alterações são gravadas nele` : `${name} carregado (neste navegador, “Salvar catálogo” baixa o .xlsx)`, handle ? 'saved' : 'dirty');
+  bindCatalog({drift: Object.keys(S.snapRates).length > 0, warnMissing: S.rows.length > 0});
+  renderCatalogDialog();
+}
+async function catalogOpen(){
+  try {
+    if (!Store.fs.supported()) return $('catFile').click();
+    const h = await Store.fs.pickOpen();
+    await catalogLoad(await Store.fs.read(h), h.name, h);
+  } catch(e){ if (!aborted(e)) toast('Não foi possível abrir o catálogo: ' + e.message, 'err', 9000); }
+}
+async function catalogRestore(){
+  const h = await Store.kv.get('catalog'); if (!h) return;
+  S.cat.handle = h; S.cat.name = h.name;
+  if (await Store.fs.granted(h, false)){
+    try { await catalogLoad(await Store.fs.read(h), h.name, h); } catch(e){ setCatStatus('Não foi possível reabrir o catálogo ' + h.name + ': ' + e.message, 'dirty'); }
+  } else { S.cat.needsPerm = true; setCatStatus(`Catálogo ${h.name}: clique em “Reconectar” para liberar o acesso`, 'dirty'); }
+  renderCatalogDialog();
+}
+async function catalogReconnect(){
+  const h = S.cat.handle; if (!h) return;
+  try { if (await Store.fs.perm(h, true)) await catalogLoad(await Store.fs.read(h), h.name, h); else toast('Acesso ao catálogo negado.', 'warn'); }
+  catch(e){ toast('Não foi possível reconectar: ' + e.message, 'err', 8000); }
+}
+async function catalogCreate(){
+  try {
+    const Ex = await loadLib('exceljs');
+    const buf = await Catalog.seed(Ex).xlsx.writeBuffer();
+    let handle = null;
+    if (Store.fs.supported()){
+      handle = await Store.fs.pickSave('Perfis_e_Taxas.xlsx');
+      await Store.fs.write(handle, new Blob([buf], {type: XLSX_MIME}));
+    } else Store.download(new Blob([buf], {type: XLSX_MIME}), 'Perfis_e_Taxas.xlsx');
+    await catalogLoad(buf, handle ? handle.name : 'Perfis_e_Taxas.xlsx', handle);
+    toast('Catálogo criado com as abas Roche e JnJ (dados de exemplo): substitua pelos oficiais.', 'ok', 8000);
+  } catch(e){ if (!aborted(e)) toast('Não foi possível criar o catálogo: ' + e.message, 'err', 9000); }
+}
+async function catalogSave(){
+  const C = S.cat; if (!C.loaded) return;
+  try {
+    if (C.handle && Store.fs.supported() && await Store.fs.perm(C.handle, true)) await writeCatalog(C.handle);
+    else await writeCatalog(null);
+  } catch(e){ if (!aborted(e)) toast('Não foi possível salvar o catálogo: ' + e.message, 'err', 9000); }
+}
+
+/* --- clientes (uma aba por cliente) --- */
+function openNewClient(prefill, baseName){
+  if (!S.cat.loaded){
+    toast('Carregue ou crie o catálogo de perfis para cadastrar clientes.', 'warn', 8000, [{label: 'Abrir catálogo…', fn: () => actions.catalog()}]); return;
+  }
+  $('ncName').value = prefill || '';
+  const def = baseName || (boundClient() && boundClient().name) || (S.cat.clients[0] && S.cat.clients[0].name) || '';
+  $('ncBase').innerHTML = S.cat.clients.map(c => `<option value="${esc(c.name)}" ${c.name === def ? 'selected' : ''}>${esc(c.name)} (${liveEntries(c).length} perfis)</option>`).join('') + '<option value="">(em branco — só o cabeçalho)</option>';
+  const d = $('dlgClient'); if (!d.open) d.showModal(); $('ncName').focus();
+}
+function createClient(name, baseName){
+  const base = baseName ? S.cat.clients.find(c => c.name === baseName) : null;
+  const sheet = Catalog.sheetName(name, S.cat.clients.map(c => c.sheet));
+  const cl = base
+    ? {name: sheet, sheet, isNew: true, base: base.sheet, hdrRow: base.hdrRow, cols: {...base.cols}, currency: base.currency, skipped: [],
+       entries: liveEntries(base).map(e => ({...e, id: Catalog.newId()}))}
+    : {name: sheet, sheet, isNew: true, hdrRow: 1, cols: {role: 1, level: 2, location: 3, cost: 4, rate: 5}, currency: '', entries: []};
+  S.cat.clients.push(cl); markCatDirty();
+  return cl;
+}
+$('ncForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('ncName').value.trim(); if (!name) return;
+  if (clientByName(name)) return toast('Já existe um cliente com esse nome no catálogo.', 'warn');
+  const cl = createClient(name, $('ncBase').value);
+  $('dlgClient').close();
+  useClient(cl.name, true);
+  toast(`Cliente “${cl.name}” criado no catálogo${$('ncBase').value ? ` com base em ${$('ncBase').value}` : ''}. Ajuste as taxas em “Perfis e taxas”.`, 'ok', 8000);
+  renderCatalogDialog();
+});
+function useClient(name, scroll){
+  $('p_client').value = name; S.snapRates = {}; S.drift = null;
+  bindCatalog({switched: true}); markDirty();
+  if (scroll) $('rcCard').scrollIntoView({block: 'nearest'});
+}
+function renderClientUI(){
+  const loaded = S.cat.loaded, inp = $('p_client'), cur = inp.value.trim();
+  const opts = loaded ? S.cat.clients.map(c => `<option value="${esc(c.name)}" ${normName(c.name) === normName(cur) ? 'selected' : ''}>${esc(c.name)}</option>`) : [];
+  if (loaded && cur && !clientByName(cur)) opts.unshift(`<option value="${esc(cur)}" selected>${esc(cur)} (fora do catálogo)</option>`);
+  if (loaded && !cur) opts.unshift('<option value="" selected>— selecione o cliente —</option>');
+  ['p_clientsel', 'p_clientsel1'].forEach(id => { $(id).innerHTML = opts.join(''); });
+  $('p_clientsel').style.display = loaded ? '' : 'none'; inp.style.display = loaded ? 'none' : '';
+  $('clientBox1').style.display = loaded ? '' : 'none';
+  const cl = boundClient();
+  $('clientHint').textContent = !loaded ? 'Sem catálogo: carregue o Excel de perfis e taxas em “📚 Catálogo” para escolher o cliente.'
+    : cl ? `Perfis e taxas do catálogo “${S.cat.name}” — aba ${cl.sheet}.` : 'Selecione um cliente do catálogo ou crie um novo (＋ Novo).';
+}
+['p_clientsel', 'p_clientsel1'].forEach(id => $(id).addEventListener('change', e => { if (e.target.value) useClient(e.target.value); }));
+
+/* --- tabela "Perfis e taxas" (dados do cliente selecionado; edição grava no catálogo) --- */
+function rateEdit(key, field, value){
+  const cl = boundClient();
+  if (!cl){ if (S.rates[key]) S.rates[key][field] = value; return; }
+  let e = liveEntries(cl).find(x => E.rkey(x) === key);
+  if (!e){ const r = S.rates[key]; e = {id: Catalog.newId(), role: r.role, level: r.level, location: r.location, cost: r.cost, rate: r.rate}; cl.entries.push(e); }
+  e[field] = value; markCatDirty(); rebuildRates();
+}
+// cadastra um perfil/nível (no catálogo do cliente, ou localmente se não houver catálogo); devolve {entry, existed}
+function addProfile(entry){
+  const cl = boundClient();
+  if (cl){
+    if (!cl.cols.location) entry.location = '';
+    if (!cl.cols.level) entry.level = '';
+    const k = E.rkey(entry), found = liveEntries(cl).find(x => E.rkey(x) === k);
+    if (!found){ cl.entries.push({id: Catalog.newId(), role: entry.role, level: entry.level, location: entry.location, cost: entry.cost === undefined ? '' : entry.cost, rate: entry.rate === undefined ? '' : entry.rate}); markCatDirty(); }
+    rebuildRates(); refreshAfterRatesLite();
+    return {entry: S.rates[k], existed: !!found};
+  }
+  const k = E.rkey(entry), existed = !!S.rates[k];
+  if (!existed) S.rates[k] = entry;
+  return {entry: S.rates[k], existed};
+}
+function refreshAfterRatesLite(){ S.result = null; renderRateTable(); renderCatalogBar(); }
 function renderRateTable(){
-  const p = P(), keys = Object.keys(S.rates).sort();
+  const p = P(), cl = boundClient();
+  const q = $('rcFilter').value.trim().toLowerCase();
+  const keys = Object.keys(S.rates).sort((a, b) => NAT(S.rates[a].role, S.rates[b].role) || NAT(S.rates[a].level, S.rates[b].level));
   const hp = (S.unit === 'W' ? 1 : p.pw) * p.dpw * p.hpd;
-  const hrsBy = {}; S.rows.forEach(r => { const k = E.rkey(r); hrsBy[k] = (hrsBy[k] || 0) + r.alloc.reduce((a, b) => a + b, 0) * hp; });
-  let h = `<thead><tr><th>Perfil</th><th>Nível</th><th>Local</th><th class="n">Horas (timeline)</th><th class="n">Custo/h</th><th class="n">Rate/h</th><th class="n">GM%</th></tr></thead><tbody>`;
-  keys.forEach(k => {
+  const hrsBy = {}; S.rows.filter(r => r.role).forEach(r => { const k = E.rkey(r); hrsBy[k] = (hrsBy[k] || 0) + r.alloc.reduce((a, b) => a + b, 0) * hp; });
+  const showLoc = !cl || !!cl.cols.location, showCost = !cl || !!cl.cols.cost, showLvl = !cl || !!cl.cols.level;
+  $('rcTitle').textContent = cl ? `Perfis e taxas — ${cl.name}` : 'Perfis e taxas';
+  $('rcLegacy').style.display = cl ? 'none' : '';
+  $('btnRcGm').style.display = showCost ? '' : 'none';
+  $('rcaLvlBox').style.display = showLvl ? '' : 'none'; $('rcaLocBox').style.display = showLoc ? '' : 'none'; $('rcaCostBox').style.display = showCost ? '' : 'none';
+  const shown = keys.filter(k => { const r = S.rates[k]; return !q || `${r.role} ${r.level} ${r.location}`.toLowerCase().includes(q); });
+  let h = `<thead><tr><th>Perfil</th>${showLvl ? '<th>Nível</th>' : ''}${showLoc ? '<th>Local</th>' : ''}<th class="n">Horas (timeline)</th>${showCost ? '<th class="n">Custo/h</th>' : ''}<th class="n">Rate/h (${esc(p.rcur)})</th>${showCost ? '<th class="n">GM%</th>' : ''}${cl ? '<th></th>' : ''}</tr></thead><tbody>`;
+  shown.forEach(k => {
     const r = S.rates[k], gm = r.rate && r.cost ? (1 - r.cost / r.rate) * 100 : null;
     const miss = v => (v === '' || v === 0 || v === null) ? 'style="border-color:var(--err);background:#FFF5F5"' : '';
-    h += `<tr><td>${esc(r.role)}</td><td>${esc(r.level)}</td><td>${esc(r.location)}</td><td class="n">${nfPT(hrsBy[k] || 0)}</td>
-      <td class="n"><input type="number" step="0.01" aria-label="Custo/h de ${esc(r.role)}" value="${esc(r.cost)}" data-k="${esc(k)}" data-f="cost" ${p.mode === 'gm' ? miss(r.cost) : ''}></td>
-      <td class="n"><input type="number" step="0.01" aria-label="Rate/h de ${esc(r.role)}" value="${esc(r.rate)}" data-k="${esc(k)}" data-f="rate" ${p.mode === 'rate' ? miss(r.rate) : ''}></td>
-      <td class="n" style="${gm !== null && gm < 0 ? 'color:var(--err)' : ''}">${gm === null ? '–' : nfPT(gm, 1) + '%'}</td></tr>`;
+    const used = hrsBy[k] > 0;
+    h += `<tr><td>${esc(r.role)}${r.notInCatalog ? ' <span class="tag warn" title="Está no timeline mas não no catálogo deste cliente">fora do catálogo</span>' : ''}</td>${showLvl ? `<td>${esc(r.level)}</td>` : ''}${showLoc ? `<td>${esc(r.location)}</td>` : ''}<td class="n">${nfPT(hrsBy[k] || 0)}</td>
+      ${showCost ? `<td class="n"><input type="number" step="0.01" aria-label="Custo/h de ${esc(r.role)} ${esc(r.level)}" value="${esc(r.cost)}" data-k="${esc(k)}" data-f="cost" ${p.mode === 'gm' && used ? miss(r.cost) : ''}></td>` : ''}
+      <td class="n"><input type="number" step="0.01" aria-label="Rate/h de ${esc(r.role)} ${esc(r.level)}" value="${esc(r.rate)}" data-k="${esc(k)}" data-f="rate" ${p.mode === 'rate' && used ? miss(r.rate) : ''}></td>
+      ${showCost ? `<td class="n" style="${gm !== null && gm < 0 ? 'color:var(--err)' : ''}">${gm === null ? '–' : nfPT(gm, 1) + '%'}</td>` : ''}
+      ${cl ? `<td class="n">${r.notInCatalog ? `<button class="btn sec sm" data-act="rc-addcat" data-k="${esc(k)}" title="Grava este perfil no catálogo do cliente">＋ catálogo</button>` : `<button class="xbtn" data-act="rc-del" data-k="${esc(k)}" title="Remover do catálogo" aria-label="Remover ${esc(r.role)} ${esc(r.level)} do catálogo">🗑</button>`}</td>` : ''}</tr>`;
   });
   $('rcTable').innerHTML = h + '</tbody>';
+  $('rcCount').textContent = `${shown.length} de ${keys.length} perfis/níveis`;
 }
+$('rcFilter').addEventListener('input', () => renderRateTable());
 $('rcTable').addEventListener('change', e => {
   const i = e.target.closest('input[data-k]'); if (!i) return;
-  S.rates[i.dataset.k][i.dataset.f] = i.value === '' ? '' : E.num(i.value);
+  rateEdit(i.dataset.k, i.dataset.f, i.value === '' ? '' : E.num(i.value));
   S.result = null; markDirty(); renderRateTable();
+  if (S.rows.length){ ED.render(); updateIdent(); }
 });
+function rcAdd(){
+  const role = $('rcaRole').value.trim(); if (!role) return $('rcaRole').focus();
+  const r = addProfile({role, level: $('rcaLevel').value.trim(), location: $('rcaLoc').value.trim(), cost: E.num($('rcaCost').value) || '', rate: E.num($('rcaRate').value) || ''});
+  ['rcaRole', 'rcaLevel', 'rcaLoc', 'rcaCost', 'rcaRate'].forEach(id => { $(id).value = ''; });
+  toast(r.existed ? 'Esse perfil/nível já existe — nada foi duplicado.' : 'Perfil adicionado.', r.existed ? 'info' : 'ok', 3500);
+  refreshAfterRates();
+}
+function rcDelete(key){
+  const cl = boundClient(); if (!cl) return;
+  const e = liveEntries(cl).find(x => E.rkey(x) === key); if (!e) return;
+  const used = S.rows.some(r => r.role && E.rkey(r) === key);
+  if (!confirm(`Remover ${e.role}${e.level ? ' — ' + e.level : ''} do catálogo de ${cl.name}?${used ? '\nEle é usado no timeline desta proposta.' : ''}`)) return;
+  e.deleted = true; markCatDirty(); rebuildRates(); refreshAfterRates(); markDirty();
+}
+
+/* --- barra e diálogo do catálogo --- */
+function updateCatBtn(){
+  const b = $('btnCat'), C = S.cat;
+  b.className = 'btn light' + (C.loaded ? (C.dirty ? ' dirty' : ' loaded') : '');
+  b.textContent = C.loaded ? `📚 ${C.name}` : (C.needsPerm ? '📚 Reconectar catálogo' : '📚 Catálogo');
+  b.title = C.loaded ? `${C.status} — ${S.cat.clients.length} cliente(s)` : 'Catálogo de perfis e taxas (Excel, uma aba por cliente)';
+}
+function renderCatalogBar(){
+  const C = S.cat, cl = boundClient(), chip = C.status ? `<span class="st ${C.kind}">${esc(C.status)}</span>` : '';
+  const need = C.dirty && (!C.handle || !Store.fs.supported());
+  $('rcBar').innerHTML = !C.loaded
+    ? `<span>📚 <b>Sem catálogo carregado</b> — as taxas abaixo são locais a esta proposta.</span>${C.needsPerm ? '<button class="btn sm" data-act="cat-reconnect">Reconectar catálogo</button>' : ''}<button class="btn sec sm" data-act="catalog">Abrir/criar catálogo…</button>`
+    : `<span>📚 <b>${esc(C.name)}</b></span>${chip}<span>· Cliente: <b>${cl ? esc(cl.name) : 'nenhum selecionado'}</b>${cl && cl.currency ? ` · moeda: ${esc(cl.currency)}` : ''}</span>
+       <button class="btn sec sm" data-act="catalog">Catálogo e clientes…</button>${C.dirty || !C.handle ? `<button class="btn sm" data-act="cat-save">💾 Salvar catálogo</button>` : ''}${need ? '' : ''}`;
+  updateCatBtn();
+}
+function renderCatalogDialog(){
+  const body = $('catBody'), C = S.cat; if (!body) return;
+  const chip = C.status ? `<span class="st ${C.kind}">${esc(C.status)}</span>` : '';
+  let h = `<div class="catbar"><span>📚 <b>${C.loaded ? esc(C.name) : (C.handle ? esc(C.handle.name) : 'Nenhum catálogo')}</b></span>${chip}</div>
+    <div class="row" style="margin:10px 0"><button class="btn" data-act="cat-open">📂 Abrir catálogo (Excel)…</button>
+      <button class="btn sec" data-act="cat-create">＋ Criar catálogo com Roche e JnJ…</button>
+      ${C.needsPerm ? '<button class="btn sm" data-act="cat-reconnect">Reconectar</button>' : ''}
+      ${C.loaded ? '<button class="btn sec" data-act="cat-save">💾 Salvar catálogo</button>' : ''}</div>
+    <p class="hint">O catálogo é um Excel com <b>uma aba por cliente</b> (perfis, níveis e taxas sem impostos). O arquivo da proposta guarda só o cliente escolhido e uma cópia das taxas usadas.</p>`;
+  if (C.loaded){
+    h += `<table class="t"><thead><tr><th>Cliente (aba)</th><th class="n">Perfis/níveis</th><th>Moeda</th><th>Colunas</th><th></th></tr></thead><tbody>` +
+      C.clients.map(c => {
+        const cols = [c.cols.role && 'Perfil', c.cols.level && 'Nível', c.cols.location && 'Local', c.cols.cost && 'Custo/h', c.cols.rate && 'Rate/h'].filter(Boolean).join(', ');
+        return `<tr><td><b>${esc(c.name)}</b>${S.catClient === c.name ? ' <span class="st saved">nesta proposta</span>' : ''}${c.isNew ? ' <span class="st dirty">nova aba</span>' : ''}</td><td class="n">${liveEntries(c).length}</td><td>${esc(c.currency || '—')}</td><td class="hint">${esc(cols)}</td>
+          <td class="n"><button class="btn sm" data-act="client-use" data-n="${esc(c.name)}">Usar nesta proposta</button> <button class="btn sec sm" data-act="client-new" data-base="${esc(c.name)}">Novo cliente a partir deste…</button></td></tr>`;
+      }).join('') + `</tbody></table><div class="row" style="margin-top:10px"><button class="btn" data-act="client-new">＋ Novo cliente…</button></div>`;
+    if (C.skipped.length) h += `<p class="hint">Abas ignoradas (sem colunas de perfil/taxa): ${esc(C.skipped.join(', '))}.</p>`;
+  }
+  body.innerHTML = h;
+}
 
 /* ---------------- impostos ---------------- */
 function renderTaxes(){
@@ -703,11 +992,17 @@ const actions = {
   'lib-open': b => libOpen(+b.dataset.i), 'lib-compare': libCompare,
   'go-par': () => goTab('par'), 'go-doc': () => goTab('doc'), calc: () => recalc(true),
   'disc-apply': b => { $('p_discmode').value = 'pct'; $('p_disc').value = b.dataset.v; S.result = null; markDirty(); renderDiscount(); toast(`Desconto geral de ${nfPT(+b.dataset.v, 1)}% aplicado.`, 'ok', 3000); },
+  catalog: () => { const d = $('dlgCat'); if (!d.open) d.showModal(); renderCatalogDialog(); },
+  'cat-close': () => $('dlgCat').close(), 'cat-open': catalogOpen, 'cat-create': catalogCreate, 'cat-save': catalogSave, 'cat-reconnect': catalogReconnect,
+  'client-new': b => openNewClient('', b && b.dataset ? b.dataset.base : ''), 'nc-close': () => $('dlgClient').close(),
+  'client-use': b => { useClient(b.dataset.n); $('dlgCat').close(); toast(`Cliente “${b.dataset.n}” selecionado.`, 'ok', 3000); },
+  'rc-add': rcAdd, 'rc-del': b => rcDelete(b.dataset.k),
+  'rc-addcat': b => { const r = S.rates[b.dataset.k]; if (!r) return; const cl = boundClient(); if (!cl) return; cl.entries.push({id: Catalog.newId(), role: r.role, level: cl.cols.level ? r.level : '', location: cl.cols.location ? r.location : '', cost: r.cost, rate: r.rate}); markCatDirty(); rebuildRates(); refreshAfterRates(); },
   'rc-import': () => $('rcFile').click(),
   'rc-gm': () => {
     const gm = P().gm; let c = 0;
-    Object.values(S.rates).forEach(r => { if (r.cost){ r.rate = Math.round(r.cost / (1 - gm) * 100) / 100; c++; } });
-    renderRateTable(); S.result = null; markDirty();
+    Object.keys(S.rates).forEach(k => { const r = S.rates[k]; if (r.cost){ rateEdit(k, 'rate', Math.round(r.cost / (1 - gm) * 100) / 100); c++; } });
+    renderRateTable(); S.result = null; markDirty(); if (S.rows.length) ED.render();
     msg('rcMsg', c ? 'ok' : 'warn', c ? `Rate/h recalculado para ${c} perfis com GM ${nfPT(gm * 100, 1)}%.` : 'Preencha o Custo/h primeiro.');
   },
   'tax-add': () => { S.taxes.push({name: 'Imposto', pct: 0}); renderTaxes(); markDirty(); },
@@ -725,8 +1020,9 @@ document.addEventListener('click', e => {
 /* ---------------- mudança de parâmetros ---------------- */
 const DOC_ONLY = new Set(['p_lang', 'p_tlmode', 'p_tlgran', 'p_tlfte', 'p_tlmiles']);
 document.querySelector('main').addEventListener('change', e => {
-  const id = e.target.id; if (!id || !id.startsWith('p_')) return;
+  const id = e.target.id; if (!id || !id.startsWith('p_') || id === 'p_clientsel' || id === 'p_clientsel1') return;
   S.result = null;
+  if (id === 'p_client'){ S.snapRates = S.catClient || !S.cat.loaded ? S.snapRates : {}; bindCatalog({switched: true}); }
   if (id === 'p_startmode') syncStartUI();
   if (id === 'p_unit' && S.rows.length) S.unit = e.target.value === 'SP' ? 'SP' : 'W';
   if (id === 'p_context') Object.keys(S.edits).filter(k => k.endsWith(':exec.ctx')).forEach(k => delete S.edits[k]);
@@ -755,10 +1051,12 @@ $('rcFile').addEventListener('change', e => { importRateCard(e.target.files[0]);
 function init(){
   if (!$('p_start').value) $('p_start').value = E.iso(E.nextMonday());
   if (!$('p_startm').value){ const d = E.nextMonday(); $('p_startm').value = E.iso(d).slice(0, 7); }
-  ED = TimelineEditor({S, E, $, esc, nfPT, toast, P, raw, setRaw,
+  ED = TimelineEditor({S, E, $, esc, nfPT, toast, P, raw, setRaw, addProfile, hasLocation: hasLoc, catalogHint: () => (S.cat.loaded && !S.catClient) ? 'Selecione o cliente da proposta (aba 2 ou o seletor da aba 1) para listar os perfis do catálogo' : '',
     compute: () => E.compute(model(), P(), {today: new Date()}),
     changed: () => { S.result = null; markDirty(); }});
-  renderTaxes(); syncStartUI(); renderNet(); refreshFxCachedBtn(); updateIdent();
+  renderTaxes(); syncStartUI(); renderNet(); refreshFxCachedBtn(); updateIdent(); renderClientUI(); renderRateTable(); renderCatalogBar();
+  $('catFile').addEventListener('change', async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { await catalogLoad(await f.arrayBuffer(), f.name, null); } catch(err){ toast('Não foi possível abrir o catálogo: ' + err.message, 'err', 9000); } });
+  catalogRestore();
   if (!Store.fs.supported()){
     $('autoFile').disabled = true; $('autoFile').checked = false;
     $('fstatus').textContent = 'Este navegador não grava direto no arquivo: “Salvar” baixa o .xlsx';
@@ -777,5 +1075,5 @@ function init(){
   });
 }
 init();
-window.__pm = {S, recalc, goTab, loadBuffer, applyState, snapshot, raw, setRaw, buildBlob, actions, renderLibrary}; // ganchos para testes
+window.__pm = {S, catalogLoad, boundClient, saveCatalog, createClient, rebuildRates, recalc, goTab, loadBuffer, applyState, snapshot, raw, setRaw, buildBlob, actions, renderLibrary}; // ganchos para testes
 })();

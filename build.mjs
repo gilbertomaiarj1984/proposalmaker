@@ -12,6 +12,13 @@ const require = createRequire(import.meta.url);
 const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 const src = f => read(path.join('src', f));
 
+if (process.argv.includes('--catalog')) {
+  const { Catalog } = new Function(src('engine.js') + '\n' + src('workbook.js') + '\n' + src('catalog.js') + '\n;return {Catalog};')();
+  await Catalog.seed(require('exceljs')).xlsx.writeFile(path.join(root, 'Perfis_e_Taxas.xlsx'));
+  console.log('Perfis_e_Taxas.xlsx gerado');
+  process.exit(0);
+}
+
 if (process.argv.includes('--template')) {
   const { Workbook } = new Function(src('engine.js') + '\n' + src('workbook.js') + '\n;return {Workbook};')();
   const wb = await Workbook.buildTemplate(require('exceljs'));
@@ -40,7 +47,7 @@ const libs = {
 };
 const libTags = Object.entries(libs).map(([k, v]) => `<script type="text/plain" data-lib="${k}">${safe(v)}</script>`).join('\n');
 
-const scripts = ['engine.js', 'doc.js', 'workbook.js', 'docx-export.js', 'pptx-export.js', 'net.js', 'storage.js', 'editor.js', 'app.js'].map(f => `/* ===== ${f} ===== */\n${src(f)}`).join('\n');
+const scripts = ['engine.js', 'doc.js', 'workbook.js', 'docx-export.js', 'pptx-export.js', 'net.js', 'storage.js', 'catalog.js', 'editor.js', 'app.js'].map(f => `/* ===== ${f} ===== */\n${src(f)}`).join('\n');
 const replace = (s, token, value) => { const i = s.indexOf(token); if (i < 0) throw new Error('token ausente: ' + token); return s.slice(0, i) + value + s.slice(i + token.length); };
 
 let html = src('index.template.html');
