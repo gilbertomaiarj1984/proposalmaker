@@ -340,7 +340,7 @@ try {
   await e5.evaluate(() => __pm.goTab('par'));
   assert.match(await $text(e5, '#rcTitle'), /JnJ/);
   assert.ok(await e5.evaluate(() => document.querySelectorAll('#rcTable tbody tr').length) >= 22);
-  assert.ok(!(await e5.evaluate(() => /Local|Custo/.test(document.querySelector('#rcTable thead').innerText))), 'JnJ só tem Perfil, Nível e Rate/h');
+  assert.ok(await e5.evaluate(() => /Local/i.test(document.querySelector('#rcTable thead').innerText) && /Custo/i.test(document.querySelector('#rcTable thead').innerText)), 'JnJ usa o layout padrão: Perfil, Nível, Local, Custo/h e Rate/h');
   const archLevel = await e5.evaluate(() => __pm.S.rows.at(-1).level);
   const archKey = 'SAP Architect|' + archLevel + '|-';
   await e5.locator(`#rcTable input[data-k="${archKey}"][data-f="rate"]`).fill('250'); await e5.keyboard.press('Tab');
@@ -349,7 +349,7 @@ try {
   const jn = cat.clients.find(c => c.name === 'JnJ');
   assert.equal(jn.entries.find(e => e.role === 'SAP Architect' && e.level === archLevel).rate, 250);
   const wbw = new ExcelJS.Workbook(); await wbw.xlsx.load(await written('Perfis_e_Taxas.xlsx'));
-  assert.equal(wbw.getWorksheet('JnJ').getCell('A1').fill.fgColor.argb, 'FFB4C7E7', 'formatação do cliente preservada');
+  assert.equal(wbw.getWorksheet('JnJ').getCell('A1').fill.fgColor.argb, 'FFD9E5F3', 'formatação do cliente preservada');
   // cliente novo: pergunta em qual se basear; cria uma aba nova
   await e5.evaluate(() => __pm.actions['client-new']({dataset: {base: 'JnJ'}}));
   await e5.waitForSelector('#dlgClient[open]');

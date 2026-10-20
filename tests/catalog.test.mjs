@@ -21,8 +21,7 @@ test('modelo: abas Roche e JnJ são lidas pelo cabeçalho de cada cliente', asyn
   assert.deepEqual(clients.map(c => c.name), ['Roche', 'JnJ']);
   assert.deepEqual(skipped, ['Instructions']);
   const jnj = get(clients, 'JnJ');
-  assert.equal(jnj.currency, 'BRL');
-  assert.ok(jnj.cols.role && jnj.cols.level && jnj.cols.rate && !jnj.cols.cost && !jnj.cols.location, 'JnJ: só Roles, Experience level e taxa');
+  assert.deepEqual(jnj.cols, {role: 1, level: 2, location: 3, cost: 4, rate: 5}, 'JnJ usa o layout padrão Role | Level | Location | Cost/h | Rate/h');
   assert.equal(jnj.entries.length, 22);
   assert.deepEqual([jnj.entries[0].role, jnj.entries[0].level, jnj.entries[0].rate], ['Developer: SAP BASIS', 'Senior', 142.91]);
   assert.equal(jnj.entries.find(e => e.role === 'SAP Architect' && e.level === 'Senior').rate, '', 'perfil sem taxa fica vazio');
@@ -61,12 +60,12 @@ test('edição aplicada na planilha original: atualiza, acrescenta e remove linh
   // formatação do cliente preservada
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(out);
   const ws = wb.getWorksheet('JnJ');
-  assert.equal(ws.getCell('A1').fill.fgColor.argb, 'FFB4C7E7');
-  assert.equal(ws.getCell('C1').fill.fgColor.argb, 'FFF8CBAD');
+  assert.equal(ws.getCell('A1').fill.fgColor.argb, 'FFD9E5F3');
+  assert.equal(ws.getCell('E1').fill.fgColor.argb, 'FFD9E5F3');
   assert.ok(ws.autoFilter, 'filtro preservado');
-  assert.match(ws.getCell('C2').numFmt, /R\$/);
+  assert.match(ws.getCell('E2').numFmt, /#,##0/);
   const added = j2.entries.find(e => e.role === 'QA Lead');
-  assert.match(ws.getCell(`C${added.row}`).numFmt, /R\$/, 'linha nova herda o formato');
+  assert.match(ws.getCell(`E${added.row}`).numFmt, /#,##0/, 'linha nova herda o formato');
 });
 
 test('cliente novo baseado em outro: a aba é clonada com perfis, taxas e formato', async () => {
@@ -79,10 +78,10 @@ test('cliente novo baseado em outro: a aba é clonada com perfis, taxas e format
   const back = await Catalog.parse(ExcelJS, out);
   assert.deepEqual(back.clients.map(c => c.name), ['Roche', 'JnJ', 'Acme']);
   const a = get(back.clients, 'Acme');
-  assert.equal(a.entries.length, 22); assert.equal(a.entries[0].rate, 150); assert.equal(a.currency, 'BRL');
+  assert.equal(a.entries.length, 22); assert.equal(a.entries[0].rate, 150);
   assert.equal(get(back.clients, 'JnJ').entries[0].rate, 142.91, 'a aba base não é afetada');
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(out);
-  assert.equal(wb.getWorksheet('Acme').getCell('A1').fill.fgColor.argb, 'FFB4C7E7', 'cabeçalho clonado');
+  assert.equal(wb.getWorksheet('Acme').getCell('A1').fill.fgColor.argb, 'FFD9E5F3', 'cabeçalho clonado');
   assert.equal(wb.worksheets.length, 4);
 });
 

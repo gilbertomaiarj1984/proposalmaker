@@ -123,6 +123,7 @@ dialog .db{padding:18px;max-height:70vh;overflow:auto}
 #doc table.tlt td, .pvdoc table.tlt td{height:18px;text-align:center;border:1px solid #fff;background:#F0F3F7;color:#fff;font-weight:600;padding:0}
 #doc table.tlt tr.role td.lab, .pvdoc table.tlt tr.role td.lab{padding-left:16px;color:var(--muted)}
 #doc table.tlt tr.phase td.lab, .pvdoc table.tlt tr.phase td.lab{font-weight:700;color:var(--navy)}
+#doc table.tlt tr.deliv td.lab, .pvdoc table.tlt tr.deliv td.lab{padding-left:24px;color:var(--muted);font-style:italic;font-weight:400}
 .doc-opts{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
 
 /* ---------- Aba 1: arquivo, parâmetros e editor de timeline ---------- */
