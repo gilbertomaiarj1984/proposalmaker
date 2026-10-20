@@ -7,8 +7,9 @@
   "scripts": {
     "build": "node build.mjs",
     "template": "node build.mjs --template",
-    "test": "node --test tests/engine.test.mjs tests/workbook.test.mjs tests/pptx.test.mjs",
-    "e2e": "node tests/e2e.mjs"
+    "test": "node --test tests/engine.test.mjs tests/workbook.test.mjs tests/pptx.test.mjs tests/catalog.test.mjs",
+    "e2e": "node tests/e2e.mjs",
+    "catalog": "node build.mjs --catalog"
   },
   "devDependencies": {
     "chart.js": "4.4.1",

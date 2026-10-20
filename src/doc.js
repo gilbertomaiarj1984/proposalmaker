@@ -26,7 +26,7 @@ const I18N = {
     role:'Role', level:'Level', loc:'Location', avgFte:'Avg. FTE', rateH:'Rate / hour', amount:'Amount',
     event:'Billing event', invDate:'Invoice date', due:'Due date',
     sp:'Sprint', wk:'Week', weeks:'weeks', sprints:'sprints', fte:'FTE', weekWord:'Week', monthWord:'Month',
-    milestone:'Milestone', target:'Target', endOf:'End of', plusDays:d=>`+${d} days`, kick:'Project kickoff', done:'completed',
+    milestone:'Milestone', deliverables:'Deliverables', deliverable:'Deliverable', target:'Target', endOf:'End of', plusDays:d=>`+${d} days`, kick:'Project kickoff', done:'completed',
     model:{fp:'Fixed Price', tm:'Time & Material'},
     payTxt:{milestone:'Invoices are issued upon completion and acceptance of each phase.', monthly:'Invoices are issued monthly based on the effort consumed in the period.', install:'The total investment is invoiced in equal monthly installments.'},
     trig:{phase:'Completion of', month:'Monthly measurement', inst:'Installment'},
@@ -55,7 +55,7 @@ const I18N = {
     role:'Perfil', level:'Nível', loc:'Local', avgFte:'FTE médio', rateH:'Valor / hora', amount:'Valor',
     event:'Evento de faturamento', invDate:'Faturamento', due:'Vencimento',
     sp:'Sprint', wk:'Semana', weeks:'semanas', sprints:'sprints', fte:'FTE', weekWord:'Semana', monthWord:'Mês',
-    milestone:'Marco', target:'Previsão', endOf:'Fim do', plusDays:d=>`+${d} dias`, kick:'Início do projeto', done:'concluída',
+    milestone:'Marco', deliverables:'Entregáveis', deliverable:'Entregável', target:'Previsão', endOf:'Fim do', plusDays:d=>`+${d} dias`, kick:'Início do projeto', done:'concluída',
     model:{fp:'Preço Fixo', tm:'Time & Material'},
     payTxt:{milestone:'O faturamento ocorre na conclusão e aceite de cada fase.', monthly:'O faturamento é mensal, conforme o esforço consumido no período.', install:'O investimento total é faturado em parcelas mensais iguais.'},
     trig:{phase:'Conclusão de', month:'Medição mensal', inst:'Parcela'},
@@ -84,7 +84,7 @@ const I18N = {
     role:'Rol', level:'Nivel', loc:'Ubicación', avgFte:'FTE promedio', rateH:'Tarifa / hora', amount:'Monto',
     event:'Evento de facturación', invDate:'Facturación', due:'Vencimiento',
     sp:'Sprint', wk:'Semana', weeks:'semanas', sprints:'sprints', fte:'FTE', weekWord:'Semana', monthWord:'Mes',
-    milestone:'Hito', target:'Previsión', endOf:'Fin de', plusDays:d=>`+${d} días`, kick:'Inicio del proyecto', done:'concluida',
+    milestone:'Hito', deliverables:'Entregables', deliverable:'Entregable', target:'Previsión', endOf:'Fin de', plusDays:d=>`+${d} días`, kick:'Inicio del proyecto', done:'concluida',
     model:{fp:'Precio Fijo', tm:'Time & Material'},
     payTxt:{milestone:'La facturación se realiza al concluir y aceptar cada fase.', monthly:'La facturación es mensual, según el esfuerzo consumido en el período.', install:'La inversión total se factura en cuotas mensuales iguales.'},
     trig:{phase:'Conclusión de', month:'Medición mensual', inst:'Cuota'},
@@ -157,7 +157,7 @@ function build(R, opts){
     });
     B.push({t:'table', head, rows, isTimeline:true});
   } else {
-    const view = E.timelineView(R, {gran: tl.gran, mode: tl.mode, fte: tl.fte});
+    const view = E.timelineView(R, {gran: tl.gran, mode: tl.mode, fte: tl.fte, deliv: tl.deliv});
     B.push({t:'timeline', view});
     const head = [{text:L.phase}, {text:U==='SP'?L.period:L.weeks}].concat(rel ? [] : [{text:L.dates}]).concat(tl.fte ? [{text:L.fte, num:true}] : []);
     const rows = R.phases.map(ph => {
@@ -165,6 +165,12 @@ function build(R, opts){
       return {cells:[ph.name + (ph.optional ? ' *' : ''), per(ph)].concat(rel ? [] : [`${f.date(ph.start)} – ${f.date(ph.end)}`]).concat(tl.fte ? [f.nf(avg,1)] : []), cls: ph.optional ? 'opt' : ''};
     });
     B.push({t:'table', head, rows});
+  }
+  if (tl.deliv !== false && tl.mode !== 'milestones' && R.deliverables.length){
+    B.push({t:'sub', text:L.deliverables});
+    const dh = [{text:L.deliverable}, {text:L.phase}, {text:U==='SP'?L.period:L.weeks}].concat(rel ? [] : [{text:L.target}]);
+    B.push({t:'table', head: dh, rows: R.deliverables.map(d => ({
+      cells:[d.name + (d.optional ? ' *' : ''), d.phase, per({first:d.start, last:d.end})].concat(rel ? [] : [f.date(d.endDate)]), cls: d.optional ? 'opt' : ''}))});
   }
   if (optPh.length) B.push({t:'note', text:`* ${L.s7}`});
 
@@ -308,8 +314,9 @@ function toHtml(doc, edits){
         h += `<tr><th class="lab"></th>${v.cols.map(c => `<th>${e(c.label)}</th>`).join('')}</tr></thead><tbody>`;
         v.rows.forEach(r => {
           h += `<tr class="${r.kind}${r.optional ? ' optrow' : ''}"><td class="lab">${e(r.label)}${r.optional && r.kind==='phase' ? ' *' : ''}</td>`;
-          r.cells.forEach(val => {
+          r.cells.forEach((val, ci) => {
             const on = val > 0;
+            if (r.kind === 'deliv'){ h += `<td class="${on ? 'on' : ''}" style="${on ? `background:${r.color}55;` : ''}text-align:center;color:${r.color}">${ci === r.mark ? '◆' : ''}</td>`; return; }
             const style = on ? `background:${r.color}${r.kind==='role' ? 'AA' : ''};${r.optional ? 'background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.35) 0 3px,transparent 3px 6px);' : ''}` : '';
             h += `<td class="${on ? 'on' : ''}" style="${style}">${on && v.showFte ? e(String(Math.round(val*10)/10).replace('.', doc.lang==='en' ? '.' : ',')) : ''}</td>`;
           });

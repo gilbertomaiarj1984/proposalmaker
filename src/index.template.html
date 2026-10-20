@@ -22,6 +22,7 @@
     <button class="btn light" data-act="save" title="Salvar a proposta no arquivo Excel">💾 Salvar</button>
     <button class="btn light" data-act="saveas">Salvar como…</button>
     <button class="btn light" data-act="library">🗂 Propostas</button>
+    <button class="btn light" id="btnCat" data-act="catalog" title="Catálogo de perfis e taxas (Excel, uma aba por cliente)">📚 Catálogo</button>
     <button id="netpill" class="pill chk" data-act="netcheck" title="Testar acesso aos recursos online (câmbio e feriados)">Conexão: verificar</button>
   </div>
 </header>
@@ -30,8 +31,9 @@
 <nav class="tabs" role="tablist" aria-label="Etapas">
   <button role="tab" id="tabbtn-tl" data-tab="tl" aria-controls="tab-tl" aria-selected="true">1. Timeline</button>
   <button role="tab" id="tabbtn-par" data-tab="par" aria-controls="tab-par" aria-selected="false" disabled>2. Parâmetros &amp; Perfis</button>
-  <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>3. Análise financeira</button>
-  <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>4. Proposta</button>
+  <button role="tab" id="tabbtn-cen" data-tab="cen" aria-controls="tab-cen" aria-selected="false" disabled>3. Cenários</button>
+  <button role="tab" id="tabbtn-ana" data-tab="ana" aria-controls="tab-ana" aria-selected="false" disabled>4. Análise financeira</button>
+  <button role="tab" id="tabbtn-doc" data-tab="doc" aria-controls="tab-doc" aria-selected="false" disabled>5. Proposta</button>
 </nav>
 
 <main>
@@ -78,6 +80,8 @@
       <h2>Parâmetros do timeline</h2>
       <div class="hint">Defina primeiro a estrutura de tempo; a grade abaixo se ajusta (colunas e datas).</div>
       <div class="pgrid">
+        <div class="f" id="clientBox1" style="display:none">Cliente (catálogo de perfis)
+          <select id="p_clientsel1" aria-label="Cliente do catálogo"></select></div>
         <label class="f">Unidade do período
           <select id="p_unit"><option value="SP">Sprint</option><option value="W">Semana</option></select></label>
         <div class="f">Nº de períodos
@@ -101,6 +105,8 @@
     <div class="card">
       <div class="row" style="justify-content:space-between"><h2 style="margin:0">Timeline — editor</h2><button class="btn" data-act="go-par">Próximo: parâmetros →</button></div>
       <div class="hint" style="margin-top:4px">Escolha o <b>perfil</b> e o <b>nível</b> pelas combos (dá para cadastrar novos); o local vem do cadastro. Cada alteração entra na proposta e é gravada no Excel.</div>
+      <div class="scbar" id="scBar" role="group" aria-label="Cenários da proposta"></div>
+      <div class="hint" id="scHint" style="margin-bottom:6px"></div>
       <div class="toolbar">
         <button class="btn" id="edAddPhase">+ Fase</button>
         <span class="sep"></span>
@@ -127,7 +133,7 @@
 
     <div class="card">
       <h2>Como fica na proposta</h2>
-      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 4).</div>
+      <div class="hint">Pré-visualização ao vivo — igual à timeline do documento, Word e PowerPoint (as opções ficam na aba 5).</div>
       <div class="pvdoc" style="margin-top:10px"><div id="edPv"></div></div>
     </div>
   </div>
@@ -139,7 +145,14 @@
     <h2>Dados da proposta</h2>
     <div class="grid">
       <label class="f">Fornecedor<input id="p_vendor" value="TCS"></label>
-      <label class="f">Cliente<input id="p_client" placeholder="Ex.: Roche"></label>
+      <div class="f" id="clientBox">Cliente
+        <div class="row" style="gap:6px;flex-wrap:nowrap">
+          <select id="p_clientsel" style="display:none;flex:1;min-width:0" aria-label="Cliente do catálogo"></select>
+          <input id="p_client" placeholder="Ex.: Roche" style="flex:1;min-width:0">
+          <button class="btn sec sm" data-act="client-new" title="Cria o cliente no catálogo de perfis (uma aba nova)">＋ Novo</button>
+        </div>
+        <span class="hint" id="clientHint" style="font-weight:400"></span>
+      </div>
       <label class="f">Projeto<input id="p_project" placeholder="Ex.: Analytics Modernization"></label>
       <label class="f">Referência / CRM ID<input id="p_ref" placeholder="CRM ID"></label>
       <label class="f">Modelo de contratação
@@ -255,25 +268,55 @@
       <textarea id="p_assump" placeholder="Client will provide access to source systems and environments by Sprint 1.&#10;Licenses and cloud consumption are not included."></textarea></label>
   </div>
 
-  <div class="card">
+  <div class="card" id="rcCard">
     <div class="row" style="justify-content:space-between">
-      <h2>Perfis e taxas</h2>
+      <h2 id="rcTitle">Perfis e taxas</h2>
       <div class="row">
-        <button class="btn sec" data-act="rc-import">Importar perfis/taxas (.xlsx/.csv)</button>
-        <input type="file" id="rcFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
-        <button class="btn sec" data-act="rc-gm">Calcular Rate/h = Custo/(1–GM%)</button>
+        <span id="rcLegacy" class="row">
+          <button class="btn sec sm" data-act="rc-import">Importar perfis/taxas (.xlsx/.csv)</button>
+          <input type="file" id="rcFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+        </span>
+        <button class="btn sec sm" data-act="rc-gm" id="btnRcGm">Calcular Rate/h = Custo/(1–GM%)</button>
       </div>
     </div>
-    <p class="hint">Perfis e níveis cadastrados (novos entram pelas combos do timeline). Preencha Custo/h e/ou Rate/h (valores líquidos de impostos, na moeda das taxas). Campos vazios ficam destacados.</p>
+    <div id="rcBar" class="catbar"></div>
+    <p class="hint" id="rcHint">Perfis, níveis e taxas do cliente selecionado (líquidas de impostos, na moeda das taxas). Perfis e níveis novos entram pelas combos do timeline ou pelo formulário abaixo. Campos vazios ficam destacados.</p>
     <div id="rcMsg" aria-live="polite"></div>
-    <div class="scroll" style="max-height:none"><table class="t" id="rcTable"></table></div>
+    <div class="row" style="margin:8px 0">
+      <input id="rcFilter" type="search" placeholder="Filtrar perfis ou níveis…" aria-label="Filtrar perfis" style="padding:6px 10px;border:1px solid var(--line);border-radius:6px;min-width:260px">
+      <span class="hint" id="rcCount"></span>
+    </div>
+    <div class="scroll" style="max-height:520px"><table class="t" id="rcTable"></table></div>
+    <div class="row" id="rcAdd" style="margin-top:10px;align-items:flex-end;gap:8px">
+      <label class="f">Perfil<input id="rcaRole" placeholder="Ex.: Scrum Master"></label>
+      <label class="f" id="rcaLvlBox">Nível<input id="rcaLevel" placeholder="Ex.: Senior" style="max-width:120px"></label>
+      <label class="f" id="rcaLocBox">Local<input id="rcaLoc" placeholder="Brazil" style="max-width:120px"></label>
+      <label class="f" id="rcaCostBox">Custo/h<input id="rcaCost" type="number" step="0.01" style="max-width:110px"></label>
+      <label class="f">Rate/h<input id="rcaRate" type="number" step="0.01" style="max-width:110px"></label>
+      <button class="btn sec" data-act="rc-add">＋ Adicionar perfil/nível</button>
+    </div>
     <div class="row" style="margin-top:14px;justify-content:flex-end">
       <button class="btn" data-act="calc">Calcular proposta →</button>
     </div>
   </div>
 </section>
 
-<!-- ================= TAB 3: ANALYSIS ================= -->
+<!-- ================= TAB 3: CENÁRIOS ================= -->
+<section class="tab" id="tab-cen" role="tabpanel" aria-labelledby="tabbtn-cen">
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Comparativo de cenários</h2><span class="hint">Até 3 cenários por proposta · preços, impostos e desconto são comuns a todos</span></div>
+    <div id="cenCards" class="cmpgrid" style="margin-top:12px"></div>
+  </div>
+  <div class="card"><h2>Indicadores lado a lado</h2><div class="scroll" style="max-height:none"><div id="cenTable"></div></div></div>
+  <div class="two">
+    <div class="card"><h2>Alocação (FTE) por período</h2><div class="chartbox"><canvas id="chCenFte" role="img" aria-label="Alocação por período em cada cenário"></canvas></div><div id="chCenFteMsg"></div></div>
+    <div class="card"><h2>Preço × margem</h2><div class="chartbox"><canvas id="chCenPrice" role="img" aria-label="Preço e margem por cenário"></canvas></div><div id="chCenPriceMsg"></div></div>
+  </div>
+  <div class="card"><h2>O que muda entre os cenários</h2><ul class="insights" id="cenInsights"></ul></div>
+  <div class="row noprint" style="justify-content:flex-end;gap:10px"><button class="btn" data-act="go-ana">Análise do cenário ativo →</button></div>
+</section>
+
+<!-- ================= TAB 4: ANALYSIS ================= -->
 <section class="tab" id="tab-ana" role="tabpanel" aria-labelledby="tabbtn-ana">
   <div class="checklist" id="checklist" aria-label="Verificações da proposta"></div>
   <div class="kpis" id="kpis"></div>
@@ -296,7 +339,7 @@
   </div>
 </section>
 
-<!-- ================= TAB 4: PROPOSAL ================= -->
+<!-- ================= TAB 5: PROPOSAL ================= -->
 <section class="tab" id="tab-doc" role="tabpanel" aria-labelledby="tabbtn-doc">
   <div class="card noprint">
     <div class="doc-opts">
@@ -311,6 +354,7 @@
       <label class="f">Escala
         <select id="p_tlgran"><option value="period">Por sprint / período</option><option value="week">Por semana</option></select></label>
       <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="p_tlfte" checked> Mostrar FTE</label>
+      <label class="chk" style="padding-bottom:8px"><input type="checkbox" id="p_tldeliv" checked> Mostrar entregáveis</label>
     </div>
     <details style="margin-top:10px">
       <summary class="hint" style="cursor:pointer">Marcos adicionais (modo “Apenas marcos”)</summary>
@@ -335,6 +379,22 @@
 <dialog id="dlgLib" aria-labelledby="dlgLibTitle">
   <div class="dh"><h2 id="dlgLibTitle">Propostas (arquivos Excel)</h2><button class="btn light sm" data-act="lib-close">Fechar</button></div>
   <div class="db" id="libBody"></div>
+</dialog>
+
+<input type="file" id="catFile" accept=".xlsx,.xlsm" hidden>
+<dialog id="dlgCat" aria-labelledby="dlgCatTitle">
+  <div class="dh"><h2 id="dlgCatTitle">Catálogo de perfis e taxas</h2><button class="btn light sm" data-act="cat-close">Fechar</button></div>
+  <div class="db" id="catBody"></div>
+</dialog>
+<dialog id="dlgClient" aria-labelledby="dlgClientTitle">
+  <div class="dh"><h2 id="dlgClientTitle">Novo cliente</h2><button class="btn light sm" data-act="nc-close">Fechar</button></div>
+  <form class="db" id="ncForm">
+    <label class="f">Nome do cliente<input id="ncName" placeholder="Ex.: Novartis" required></label>
+    <label class="f" style="margin-top:12px">Criar com base em
+      <select id="ncBase"></select></label>
+    <p class="hint">A aba do novo cliente é criada no catálogo com os perfis, níveis e taxas do cliente escolhido (você ajusta depois). “Em branco” cria só o cabeçalho.</p>
+    <div class="row" style="justify-content:flex-end;margin-top:12px"><button type="button" class="btn sec" data-act="nc-close">Cancelar</button><button type="submit" class="btn">Criar cliente</button></div>
+  </form>
 </dialog>
 
 <div class="edpop" id="edPop" role="dialog" aria-label="Escolher perfil">

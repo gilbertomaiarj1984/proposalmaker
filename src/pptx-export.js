@@ -216,11 +216,11 @@ function build(PptxGenJS, doc, R, edits){
     }
     hdr.push([{text: '', options: {fill: {color: LIGHT}, fontSize: fs, fontFace: FONT, margin: 0}}, ...v.cols.map(col => ({text: col.label, options: {align: 'center', valign: 'middle', bold: true, color: NAVY, fill: {color: LIGHT}, fontSize: fs, fontFace: FONT, margin: 0, border}}))]);
     const data = v.rows.map((r, k) => {
-      const base = r.color.replace('#', ''), fill = r.kind === 'role' ? tint(base, 0.35) : base;
+      const base = r.color.replace('#', ''), fill = r.kind === 'role' ? tint(base, 0.35) : r.kind === 'deliv' ? tint(base, 0.6) : base;
       const lab = r.label + (r.optional && r.kind === 'phase' ? ' *' : '');
       return [
-        {text: lab, options: {bold: r.kind === 'phase', italic: r.optional, color: r.kind === 'phase' ? NAVY : MUTED, fontSize: labFs, fontFace: FONT, valign: 'middle', margin: [0, 0.08, 0, r.kind === 'role' ? 0.25 : 0.08], border: [{type: 'none'}, {type: 'none'}, {pt: 0.5, color: LINE}, {type: 'none'}]}},
-        ...r.cells.map(val => ({text: val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : '', options: {align: 'center', valign: 'middle', bold: true, color: 'FFFFFF', fontSize: fs, fontFace: FONT, margin: 0, fill: {color: val > 0 ? fill : 'F0F3F7'}, border}}))
+        {text: lab, options: {bold: r.kind === 'phase', italic: r.optional, color: r.kind === 'phase' ? NAVY : MUTED, fontSize: labFs, fontFace: FONT, valign: 'middle', margin: [0, 0.08, 0, r.kind === 'role' ? 0.25 : r.kind === 'deliv' ? 0.4 : 0.08], border: [{type: 'none'}, {type: 'none'}, {pt: 0.5, color: LINE}, {type: 'none'}]}},
+        ...r.cells.map((val, ci) => ({text: r.kind === 'deliv' ? (ci === r.mark ? '◆' : '') : (val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : ''), options: {align: 'center', valign: 'middle', bold: true, color: r.kind === 'deliv' ? base : 'FFFFFF', fontSize: fs, fontFace: FONT, margin: 0, fill: {color: val > 0 ? fill : 'F0F3F7'}, border}}))
       ];
     });
     c.s.addTable([...hdr, ...data], {x: MX, y: c.y, w: W, colW: [labW, ...new Array(n).fill(cw)], rowH: [...new Array(nHdr).fill(hdrH), ...rowH], autoPage: false, objectName: 'Timeline'});

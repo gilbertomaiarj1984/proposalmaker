@@ -10,6 +10,7 @@ const PAGE_W = 11906, PAGE_H = 16838, MARGIN = 1134, CONTENT_W = PAGE_W - 2 * MA
 
 const decode = s => String(s).replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&');
 
+const tintHex = h => { const n = [0, 2, 4].map(i => parseInt(h.substr(i, 2), 16)); return n.map(c => Math.round(c + (255 - c) * 0.65).toString(16).padStart(2, '0')).join('').toUpperCase(); };
 function build(d, doc, edits){
   const { Document, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, ShadingType, AlignmentType, Footer, PageNumber,
           BorderStyle, PageBreak, VerticalAlign, HeightRule, TableLayoutType } = d;
@@ -133,7 +134,7 @@ function build(d, doc, edits){
           const colr = r.color.replace('#', '');
           rows.push(new TableRow({cantSplit: true, children: [
             cell(r.label + (r.optional && r.kind === 'phase' ? ' *' : ''), lab, {bold: r.kind === 'phase', color: r.kind === 'phase' ? NAVY : MUTED, italics: r.optional, size: 16}),
-            ...r.cells.map(val => cell(val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : '', cw,
+            ...r.cells.map((val, ci) => r.kind === 'deliv' ? cell(ci === r.mark ? '◆' : '', cw, {fill: val > 0 ? tintHex(colr) : 'F0F3F7', color: colr, bold: true, center: true, size: small, tight: true, borders: {top: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, bottom: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, left: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, right: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}}}) : cell(val > 0 && v.showFte ? String(Math.round(val * 10) / 10).replace('.', doc.lang === 'en' ? '.' : ',') : '', cw,
               {fill: val > 0 ? colr : 'F0F3F7', color: 'FFFFFF', bold: true, center: true, size: small, tight: true, borders: {top: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, bottom: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, left: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}, right: {style: BorderStyle.SINGLE, size: 6, color: 'FFFFFF'}}}))
           ]}));
         });

@@ -300,3 +300,55 @@ test('ensureRates preserva o catálogo (prune só se pedido)', () => {
   Engine.ensureRates(rates, [{role:'PM', level:'Q4', location:'BR'}], true);
   assert.equal(Object.keys(rates).length, 1);
 });
+
+test('entregáveis: não manuais se distribuem igualmente na janela da fase; manuais ficam e são limitados à janela', () => {
+  const dl = [
+    {id:1, phase:'Build', name:'A', start:0, end:0, manual:false},
+    {id:2, phase:'Build', name:'B', start:0, end:0, manual:false},
+    {id:3, phase:'Build', name:'C', start:0, end:0, manual:false},
+    {id:4, phase:'Assessment', name:'Rel', start:0, end:99, manual:true},
+    {id:5, phase:'Fantasma', name:'X', start:0, end:0}
+  ];
+  const R = Engine.compute(mkModel({deliverables: dl}), params(), {today: TODAY});
+  // Build ocupa SP3–SP5 (índices 2–4): 3 entregáveis, um por sprint
+  const b = R.deliverables.filter(d => d.phase === 'Build');
+  assert.deepEqual(b.map(d => [d.start, d.end]), [[2,2],[3,3],[4,4]]);
+  // manual é limitado à janela da fase (Assessment = SP1–SP2)
+  const a = R.deliverables.find(d => d.name === 'Rel');
+  assert.deepEqual([a.start, a.end], [0, 1]);
+  assert.ok(a.manual && a.endDate instanceof Date);
+  // entregável de fase inexistente/sem alocação é ignorado
+  assert.ok(!R.deliverables.some(d => d.name === 'X'));
+  // 5 entregáveis em 2 sprints: ninguém sai da janela e todos ficam ≥ início
+  const many = Engine.distributeDeliv(Array.from({length: 5}, (_, i) => ({phase:'P', name:'n'+i, manual:false})), 'P', 3, 4);
+  assert.ok(many.every(d => d.start >= 3 && d.end <= 4 && d.end >= d.start));
+});
+
+test('timeline e marcos incluem os entregáveis', () => {
+  const dl = [{id:1, phase:'Build', name:'Carga inicial', start:0, end:0, manual:false}, {id:2, phase:'Build', name:'Go-live', start:0, end:0, manual:false}];
+  const R = Engine.compute(mkModel({deliverables: dl}), params(), {today: TODAY});
+  const v = Engine.timelineView(R, {mode:'bars'});
+  const rows = v.rows.filter(r => r.kind === 'deliv');
+  assert.equal(rows.length, 2);
+  assert.ok(rows.every(r => r.mark >= r.first && r.mark === r.last), 'o losango fica no fim do entregável');
+  assert.equal(Engine.timelineView(R, {mode:'bars', deliv:false}).rows.filter(r => r.kind === 'deliv').length, 0);
+  assert.equal(Engine.timelineView(R, {mode:'milestones'}).rows.filter(r => r.kind === 'deliv').length, 0);
+  assert.ok(Engine.milestones(R, []).some(m => m.kind === 'deliv' && m.name.startsWith('Go-live')));
+  // por semana (sprint de 2 semanas): o losango vai para a última semana do sprint
+  const w = Engine.timelineView(R, {mode:'bars', gran:'week'});
+  const d = w.rows.filter(r => r.kind === 'deliv').at(-1);   // o último entregável termina no SP5 (índice 4)
+  assert.equal(w.cols[d.mark].period, 4);
+  assert.equal(w.cols[d.mark + 1].period, 5, 'o losango fica na última semana do sprint');
+});
+
+test('comparação de cenários: métricas e melhor valor por indicador', () => {
+  const a = Engine.compute(mkModel(), params(), {today: TODAY});
+  const m2 = mkModel(); m2.rows = m2.rows.map(r => ({...r, alloc: r.alloc.map(v => v * 2)}));
+  const b = Engine.compute(m2, params(), {today: TODAY});
+  const M = [Engine.scenarioMetrics(a), Engine.scenarioMetrics(b), null];
+  assert.ok(M[1].gross > M[0].gross && M[1].peak > M[0].peak);
+  const best = Engine.compareScenarios(M);
+  assert.deepEqual(best.gross, [0]); assert.deepEqual(best.peak, [0]);
+  assert.equal(best.weeks, null, 'mesmo prazo = sem destaque');
+  assert.equal(Engine.compareScenarios([M[0], null]).gross, null, 'um só cenário válido não tem comparação');
+});

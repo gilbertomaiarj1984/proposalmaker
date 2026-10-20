@@ -24,6 +24,15 @@ function TimelineEditor(ctx){
     S.rows.forEach(r => { let g = map.get(r.phase); if (!g){ g = {name: r.phase, rows: []}; map.set(r.phase, g); out.push(g); } g.rows.push(r); });
     return out;
   }
+  // janela ativa da fase (primeiro/último período com alocação) e entregáveis já posicionados (os não manuais se distribuem sozinhos)
+  const phaseWin = rows => { const a = new Array(S.nPeriods).fill(0); rows.forEach(r => r.alloc.forEach((v, i) => { a[i] += v; })); const f = a.findIndex(v => v > 0); return f < 0 ? null : {first: f, last: a.length - 1 - [...a].reverse().findIndex(v => v > 0)}; };
+  function placed(g){
+    const w = phaseWin(g.rows); if (!w) return {w: null, list: []};
+    let list = (S.deliverables || []).filter(d => d.phase === g.name);
+    list = E.distributeDeliv(list, g.name, w.first, w.last).map(d => ({...d, ...E.clampDeliv(d, w.first, w.last)}));
+    return {w, list};
+  }
+  const nextDelId = () => (S.deliverables || []).reduce((m, d) => Math.max(m, d.id || 0), 0) + 1;
   const flatten = gs => { S.rows = gs.flatMap(g => g.rows); };
   const catalog = () => Object.values(S.rates).filter(r => r.role).sort((a, b) => a.role.localeCompare(b.role) || a.level.localeCompare(b.level));
   const missingRate = (r, p) => p.mode === 'rate' ? !(E.num(r.rate) > 0) : !(E.num(r.cost) > 0);
@@ -31,11 +40,11 @@ function TimelineEditor(ctx){
 
   /* ---------------- histórico ---------------- */
   const tlRaw = () => { const o = {}; TL_IDS.forEach(id => { const el = $(id); if (el) o[id] = el.value; }); return o; };
-  const snap = () => JSON.stringify({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, rates: S.rates, raw: tlRaw()});
+  const snap = () => JSON.stringify({rows: S.rows, nPeriods: S.nPeriods, unit: S.unit, deliverables: S.deliverables, raw: tlRaw()});   // as taxas vivem no catálogo: desfazer não as altera
   function pushHist(){ hist.push(snap()); if (hist.length > 100) hist.shift(); fut.length = 0; }
   function restore(str){
     const o = JSON.parse(str);
-    S.rows = o.rows; S.nPeriods = o.nPeriods; S.unit = o.unit; S.rates = o.rates; ctx.setRaw(o.raw);
+    S.rows = o.rows; S.nPeriods = o.nPeriods; S.unit = o.unit; S.deliverables = o.deliverables || []; ctx.setRaw(o.raw);
     changed(); render();
   }
   function undo(){ if (!hist.length) return; fut.push(snap()); restore(hist.pop()); }
@@ -71,7 +80,7 @@ function TimelineEditor(ctx){
       </div></td><td class="l c2"></td><td class="l c3"></td><td class="l c4"><span class="hint">${allOpt ? 'opc.' : ''}</span></td>`;
       sum.forEach(v => h += `<td class="cell" style="${v ? `background:${color}` : ''}">${v ? nfPT(v, 1) : ''}</td>`);
       h += `<td class="sum">${nfPT(sum.reduce((a, b) => a + b, 0), 1)}</td>
-        <td><div class="row-actions"><button class="xbtn" title="Adicionar perfil à fase" aria-label="Adicionar perfil" data-ed="addrow" data-g="${esc(g.name)}">＋</button><button class="xbtn" title="Excluir fase" aria-label="Excluir fase" data-ed="delphase" data-g="${esc(g.name)}">🗑</button></div></td></tr>`;
+        <td><div class="row-actions"><button class="xbtn" title="Adicionar perfil à fase" aria-label="Adicionar perfil" data-ed="addrow" data-g="${esc(g.name)}">＋</button><button class="xbtn" title="Adicionar entregável à fase" aria-label="Adicionar entregável" data-ed="adddel" data-g="${esc(g.name)}">◆</button><button class="xbtn" title="Excluir fase" aria-label="Excluir fase" data-ed="delphase" data-g="${esc(g.name)}">🗑</button></div></td></tr>`;
       if (isCol) return;
       g.rows.forEach(r => {
         const rid = idOf(r), has = !!r.role, rt = has ? rateOf(r) : null, noRate = has && (!rt || missingRate(rt, p));
@@ -88,6 +97,24 @@ function TimelineEditor(ctx){
         h += `<td class="sum">${nfPT(tot, 1)}</td>
           <td><div class="row-actions"><button class="xbtn" title="Duplicar linha" aria-label="Duplicar linha" data-ed="dup" data-r="${rid}">⧉</button><button class="xbtn" title="Excluir linha" aria-label="Excluir linha" data-ed="delrow" data-r="${rid}">×</button></div></td></tr>`;
       });
+      // entregáveis da fase: posicionados dentro da janela ativa da fase
+      const pl = placed(g);
+      if (pl.w && pl.list.length){
+        h += `<tr class="dlh"><td class="l c1" colspan="4" style="padding:2px 8px 2px 30px;font-size:11px;color:var(--muted)">Entregáveis da fase · ${pl.list.some(d => d.manual) ? 'alguns com datas manuais' : 'distribuídos igualmente'} <button class="btn sec sm" style="padding:1px 8px;font-size:11px" data-ed="distdel" data-g="${esc(g.name)}" title="Redistribui todos os entregáveis igualmente no tempo da fase">⇄ distribuir igualmente</button></td>${'<td></td>'.repeat(N)}<td></td><td></td></tr>`;
+        pl.list.forEach(d => {
+          h += `<tr class="dl" data-d="${d.id}"><td class="l c1" style="padding-left:30px"><div class="name" style="width:240px"><span class="dm" style="color:${color}">◆</span><input class="dn" value="${esc(d.name)}" data-ed="dname" data-d="${d.id}" placeholder="Nome do entregável" aria-label="Nome do entregável"></div></td>
+            <td class="l c2" style="padding:0 2px"><input class="dp" type="number" min="${pl.w.first + 1}" max="${pl.w.last + 1}" value="${d.start + 1}" data-ed="dstart" data-d="${d.id}" aria-label="Início do entregável (${U})" title="Início (${U}${pl.w.first + 1}–${U}${pl.w.last + 1})"></td>
+            <td class="l c3" style="padding:0 2px"><input class="dp" type="number" min="${pl.w.first + 1}" max="${pl.w.last + 1}" value="${d.end + 1}" data-ed="dend" data-d="${d.id}" aria-label="Fim do entregável (${U})" title="Fim (${U}${pl.w.first + 1}–${U}${pl.w.last + 1}) — a data de entrega"></td>
+            <td class="l c4"><span class="hint" title="${d.manual ? 'Datas ajustadas manualmente' : 'Distribuído automaticamente'}">${d.manual ? 'manual' : 'auto'}</span></td>`;
+          for (let i = 0; i < N; i++){
+            const inW = i >= pl.w.first && i <= pl.w.last, on = i >= d.start && i <= d.end;
+            h += `<td class="cell dc ${inW ? '' : 'out'}" ${inW ? `data-d="${d.id}" data-i="${i}"` : ''} style="${on ? `background:${color}55;` : ''}color:${color}" title="${inW ? 'Clique: define o fim · Shift+clique: define o início' : 'Fora do período da fase'}">${i === d.end ? '◆' : ''}</td>`;
+          }
+          h += `<td class="sum"></td><td><div class="row-actions"><button class="xbtn" title="Excluir entregável" aria-label="Excluir entregável" data-ed="deldel" data-d="${d.id}">×</button></div></td></tr>`;
+        });
+      } else if (!pl.w && (S.deliverables || []).some(d => d.phase === g.name)){
+        h += `<tr class="dlh"><td class="l c1" colspan="4" style="padding:2px 8px 2px 30px;font-size:11px;color:var(--err)">Há entregáveis nesta fase, mas ela ainda não tem alocação.</td>${'<td></td>'.repeat(N)}<td></td><td></td></tr>`;
+      }
     });
     const peak = Math.max(0, ...colTot);
     h += `<tr class="foot"><td class="l c1">Total FTE por período</td><td class="l c2"></td><td class="l c3"></td><td class="l c4"></td>${colTot.map(v => `<td>${v ? nfPT(v, 1) : '–'}</td>`).join('')}<td>${nfPT(peak, 1)} pico</td><td></td></tr></tbody>`;
@@ -97,7 +124,7 @@ function TimelineEditor(ctx){
     $('edBrush').style.display = mode === 'paint' ? 'inline-flex' : 'none';
     $('edUndo').disabled = !hist.length; $('edRedo').disabled = !fut.length;
     const nCat = catalog().length, nMiss = catalog().filter(r => missingRate(r, p)).length;
-    $('edRc').innerHTML = `Perfis cadastrados: <b>${nCat}</b>` + (nMiss ? ` · <span style="color:var(--err)">${nMiss} sem taxa</span>` : '');
+    $('edRc').innerHTML = `Perfis do cliente: <b>${nCat}</b>` + (nMiss ? ` · <span style="color:var(--err)">${nMiss} sem taxa</span>` : '');
     $('p_pw').disabled = U === 'W';
     $('lbl_start').style.display = $('p_startmode').value === 'date' ? '' : 'none';
     $('lbl_startm').style.display = $('p_startmode').value === 'month' ? '' : 'none';
@@ -137,10 +164,13 @@ function TimelineEditor(ctx){
     else if (a === 'delphase'){
       const rows = groupRows(g);
       if (rows.some(x => x.alloc.some(v => v > 0)) && !confirm(`Excluir a fase "${g}" e suas ${rows.length} linha(s)?`)) return;
-      mutate(() => { S.rows = S.rows.filter(x => x.phase !== g); });
+      mutate(() => { S.rows = S.rows.filter(x => x.phase !== g); S.deliverables = (S.deliverables || []).filter(d => d.phase !== g); });
     }
     else if (a === 'delrow') mutate(() => { S.rows.splice(S.rows.indexOf(r), 1); });
     else if (a === 'dup') mutate(() => { S.rows.splice(S.rows.indexOf(r) + 1, 0, {...r, _id: undefined, alloc: r.alloc.slice()}); });
+    else if (a === 'adddel') mutate(() => { collapsed.delete(g); const n = (S.deliverables || []).filter(d => d.phase === g).length + 1; S.deliverables = [...(S.deliverables || []), {id: nextDelId(), phase: g, name: `Entregável ${n}`, start: 0, end: 0, manual: false}]; });
+    else if (a === 'distdel') mutate(() => { S.deliverables = S.deliverables.map(d => d.phase === g ? {...d, manual: false} : d); });
+    else if (a === 'deldel') mutate(() => { S.deliverables = S.deliverables.filter(d => String(d.id) !== b.dataset.d); });
     else if (a === 'combo') openCombo(b, r);
     else if (a === 'lvcombo') openLevel(b, r);
   });
@@ -150,8 +180,10 @@ function TimelineEditor(ctx){
     else if (a === 'pname'){
       const old = t.dataset.g, name = t.value.trim();
       if (!name || name === old){ t.value = old; return; }
-      mutate(() => { S.rows.forEach(r => { if (r.phase === old) r.phase = name; }); if (collapsed.delete(old)) collapsed.add(name); if (S.phaseDisc && S.phaseDisc[old] !== undefined){ S.phaseDisc[name] = S.phaseDisc[old]; delete S.phaseDisc[old]; } });
+      mutate(() => { S.rows.forEach(r => { if (r.phase === old) r.phase = name; }); if (collapsed.delete(old)) collapsed.add(name); S.deliverables = (S.deliverables || []).map(d => d.phase === old ? {...d, phase: name} : d); if (S.phaseDisc && S.phaseDisc[old] !== undefined){ S.phaseDisc[name] = S.phaseDisc[old]; delete S.phaseDisc[old]; } });
     }
+    else if (a === 'dname'){ const nm = t.value.trim() || 'Entregável'; mutate(() => { S.deliverables = S.deliverables.map(d => String(d.id) === t.dataset.d ? {...d, name: nm} : d); }, true); }
+    else if (a === 'dstart' || a === 'dend') setDelSpan(t.dataset.d, a === 'dstart' ? 'start' : 'end', Math.round(E.num(t.value)) - 1);
     else if (t.dataset.cell){
       const r = rowById(t.dataset.r), i = +t.dataset.i, txt = String(t.value).trim();
       let v = 0;
@@ -177,6 +209,19 @@ function TimelineEditor(ctx){
     else if (e.key === 'Escape'){ render(true); }
   });
   $('edGrid').addEventListener('focusin', e => { if (e.target.dataset && e.target.dataset.cell) e.target.select(); });
+
+  // ajusta início/fim de um entregável (vira "manual"); mantém início ≤ fim e dentro da janela da fase
+  function setDelSpan(id, which, idx){
+    const g = groups().find(x => (S.deliverables || []).some(d => String(d.id) === String(id) && d.phase === x.name)); if (!g) return;
+    const pl = placed(g), cur = pl.list.find(d => String(d.id) === String(id)); if (!cur || !pl.w) return;
+    let s0 = cur.start, e0 = cur.end; idx = Math.max(pl.w.first, Math.min(pl.w.last, idx));
+    if (which === 'start'){ s0 = idx; if (e0 < s0) e0 = s0; } else { e0 = idx; if (s0 > e0) s0 = e0; }
+    mutate(() => { S.deliverables = S.deliverables.map(d => String(d.id) === String(id) ? {...d, start: s0, end: e0, manual: true} : d); });
+  }
+  $('edGrid').addEventListener('click', e => {
+    const td = e.target.closest('td.dc[data-d]'); if (!td) return;
+    setDelSpan(td.dataset.d, e.shiftKey ? 'start' : 'end', +td.dataset.i);
+  });
 
   /* ---------------- modo pintar ---------------- */
   function paintCell(td, r, i){
@@ -245,6 +290,7 @@ function TimelineEditor(ctx){
   /* Perfil */
   function openCombo(btn, row){
     cur = row; closePops(); $('edPf').classList.remove('show'); $('edPq').value = ''; active = 0;
+    $('edFLoc').style.display = ctx.hasLocation() ? '' : 'none';
     place(pop, btn); pop.classList.add('show'); listProfiles(); fitPop(pop); $('edPq').focus();
   }
   function listProfiles(){
@@ -259,7 +305,7 @@ function TimelineEditor(ctx){
     };
     const grp = (t, arr) => arr.length ? `<li class="grp" role="presentation">${t}</li>` + arr.map(item).join('') : '';
     $('edPl').innerHTML = grp('Já usados neste timeline', shown.filter(x => usedRoles.has(x.role))) + grp('Demais perfis cadastrados', shown.filter(x => !usedRoles.has(x.role)))
-      || '<li class="grp" role="presentation">Nenhum perfil encontrado — cadastre um novo abaixo</li>';
+      || `<li class="grp" role="presentation">${esc(ctx.catalogHint() || 'Nenhum perfil encontrado — cadastre um novo abaixo')}</li>`;
   }
   function applyEntry(entry){
     pushHist(); cur.role = entry.role; cur.level = entry.level; cur.location = entry.location;
@@ -285,10 +331,10 @@ function TimelineEditor(ctx){
     const role = $('edFRole').value.trim();
     if (!role) return $('edFRole').focus();
     const entry = {role, level: $('edFLevel').value.trim(), location: $('edFLoc').value.trim(), cost: E.num($('edFCost').value) || '', rate: E.num($('edFRate').value) || ''};
-    const k = E.rkey(entry);
-    if (S.rates[k]) toast('Esse perfil/nível já está cadastrado — usando o existente.', 'info', 3500); else S.rates[k] = entry;
+    const res = ctx.addProfile(entry);
+    if (res.existed) toast('Esse perfil/nível já está cadastrado — usando o existente.', 'info', 3500);
     ['edFRole', 'edFLevel', 'edFLoc', 'edFCost', 'edFRate'].forEach(id => $(id).value = '');
-    applyEntry(S.rates[k]);
+    applyEntry(res.entry);
   };
 
   /* Nível: troca entre os níveis do perfil, usa um nível de outro perfil ou adiciona um novo */
@@ -317,9 +363,7 @@ function TimelineEditor(ctx){
   }
   function chooseLevel(x){
     if (x.kind === 'own') return applyEntry(x.entry);
-    const entry = {role: cur.role, level: x.level, location: cur.location, cost: '', rate: ''}, k = E.rkey(entry);
-    if (!S.rates[k]) S.rates[k] = entry;
-    applyEntry(S.rates[k]);
+    applyEntry(ctx.addProfile({role: cur.role, level: x.level, location: cur.location, cost: '', rate: ''}).entry);
   }
   $('edLq').oninput = () => { activeL = 0; listLevels(); };
   $('edLq').onkeydown = e => {
@@ -336,11 +380,10 @@ function TimelineEditor(ctx){
     const level = $('edFLv').value.trim();
     if (!level) return $('edFLv').focus();
     const entry = {role: cur.role, level, location: cur.location, cost: E.num($('edFLvCost').value) || '', rate: E.num($('edFLvRate').value) || ''};
-    const k = E.rkey(entry);
-    if (S.rates[k]) toast(`O nível ${level} já existe para ${cur.role} — usando o existente.`, 'info', 3500);
-    else S.rates[k] = entry;
+    const res = ctx.addProfile(entry);
+    if (res.existed) toast(`O nível ${level} já existe para ${cur.role} — usando o existente.`, 'info', 3500);
     ['edFLv', 'edFLvCost', 'edFLvRate'].forEach(id => $(id).value = '');
-    applyEntry(S.rates[k]);
+    applyEntry(res.entry);
   };
   document.addEventListener('mousedown', e => {
     if ((pop.classList.contains('show') || popL.classList.contains('show')) && !pop.contains(e.target) && !popL.contains(e.target) && !e.target.closest('[data-ed="combo"],[data-ed="lvcombo"]')) closePops();
@@ -348,7 +391,7 @@ function TimelineEditor(ctx){
 
   /* ---------------- novo timeline vazio ---------------- */
   function startEmpty(){
-    S.rows = [blank('Fase 1')]; S.nPeriods = 12; S.unit = 'SP'; S.edits = {};
+    S.rows = [blank('Fase 1')]; S.deliverables = []; S.nPeriods = 12; S.unit = 'SP'; S.edits = {};
     $('p_unit').value = 'SP'; resetHistory(); fit();
   }
 

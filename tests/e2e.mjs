@@ -12,6 +12,12 @@ const URL_ = 'file://' + path.join(root, 'gerador_proposta_comercial.html');
 const outDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-e2e-'));
 const exe = process.env.CHROMIUM_PATH || '/opt/pw-browsers/chromium';
 
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const srcOf = f => fs.readFileSync(path.join(root, 'src', f), 'utf8');
+const { Catalog } = new Function(srcOf('engine.js') + srcOf('workbook.js') + srcOf('catalog.js') + ';return {Catalog};')();
+const ExcelJS = require('exceljs'), XLSXlib = require('xlsx');
+
 const browser = await chromium.launch({executablePath: fs.existsSync(exe) ? exe : undefined, args: ['--no-sandbox']});
 let n = 0;
 const ok = (name) => console.log(`  ✓ ${++n}. ${name}`);
@@ -283,6 +289,174 @@ try {
   assert.deepEqual(p4.errors, [], 'sem erros: ' + p4.errors.join(' | '));
   await ctx4.close();
   ok('proposta nova é gravada em Excel; timeline bruto aberto nunca é sobrescrito; barra superior identifica a origem');
+
+  /* 12d. catálogo de perfis e taxas: uma aba por cliente (Excel), 2 vias */
+  const ctx5 = await browser.newContext({acceptDownloads: true, viewport: {width: 1440, height: 1000}});
+  const p5 = await newPage(ctx5, {fs: true});
+  const e5 = p5.page;
+  const catB64 = fs.readFileSync(path.join(root, 'Perfis_e_Taxas.xlsx')).toString('base64');
+  await e5.evaluate((b64) => {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    window.__w = {};   // nome do arquivo -> último conteúdo gravado (base64)
+    const b64of = async blob => { const a = new Uint8Array(await blob.arrayBuffer()); let s = ''; for (let i = 0; i < a.length; i += 8192) s += String.fromCharCode(...a.subarray(i, i + 8192)); return btoa(s); };
+    const mk = (name, data) => ({name, kind: 'file', queryPermission: async () => 'granted', requestPermission: async () => 'granted',
+      getFile: async () => new File([data || new Uint8Array()], name),
+      createWritable: async () => ({write: async d => { window.__w[name] = await b64of(d); data = Uint8Array.from(atob(window.__w[name]), c => c.charCodeAt(0)); }, close: async () => {}})});
+    window.__catHandle = mk('Perfis_e_Taxas.xlsx', bytes);
+    window.showOpenFilePicker = async () => [window.__catHandle];
+    window.showSaveFilePicker = async () => (window.__propHandle = mk('Proposta_Teste.xlsx'));
+  }, catB64);
+  const written = async name => Buffer.from(await e5.evaluate(n => window.__w[n] || '', name), 'base64');
+  await e5.evaluate(() => __pm.actions['cat-open']());
+  await e5.waitForFunction(() => __pm.S.cat.loaded);
+  assert.deepEqual(await e5.evaluate(() => __pm.S.cat.clients.map(c => c.name)), ['Roche', 'JnJ']);
+  assert.match(await $text(e5, '#btnCat'), /Perfis_e_Taxas/);
+  // nova proposta: cliente por seleção; perfis, níveis e taxas vêm da aba do cliente
+  await e5.evaluate(() => __pm.actions.new());
+  await e5.waitForSelector('#tlEditor', {state: 'visible'});
+  assert.match(await $text(e5, '#tlMsg'), /Selecione o/i);
+  await e5.selectOption('#p_clientsel1', 'JnJ');
+  assert.equal(await e5.evaluate(() => __pm.S.catClient), 'JnJ');
+  assert.equal(await e5.evaluate(() => document.getElementById('p_rcur').value), 'BRL');
+  assert.equal(await e5.evaluate(() => __pm.S.rates['Developer: SAP BASIS|Senior|-'].rate), 142.91);
+  assert.match(await $text(e5, '#pbTitle'), /JnJ/);
+  await e5.locator('#edGrid .combo:not(.lv)').first().click();
+  await e5.fill('#edPq', 'basis'); await e5.click('#edPl li[role=option]');
+  await e5.locator('#edGrid .combo.lv').first().click();
+  const lv = await $text(e5, '#edLl'); assert.match(lv, /Senior/i); assert.match(lv, /Expert/i);
+  await e5.click('#edLl li[role=option] >> nth=0'); // primeiro nível do perfil (ordem natural)
+  await e5.locator('#edGrid tr[data-r] input[data-cell][data-i="0"]').first().fill('1'); await e5.keyboard.press('Enter');
+  const lvl = await e5.evaluate(() => __pm.S.rows[0].level);
+  const price = await e5.evaluate(() => { const R = __pm.recalc(false); return R.T.net; });
+  const expect = lvl === 'Senior' ? 142.91 : 178.08;
+  assert.ok(Math.abs(price - 80 * expect) < 0.01, `preço vem da aba do cliente: ${price} (nível ${lvl})`);
+  // nível "sem taxa" (SAP Architect) é sinalizado
+  await e5.click('#edAddPhase');
+  await e5.evaluate(() => { document.querySelector('.edscroll').scrollTop = 1e6; });
+  await e5.locator('#edGrid .combo.empty').last().click();
+  await e5.fill('#edPq', 'sap arch'); await e5.click('#edPl li[role=option]');
+  assert.ok(await e5.evaluate(() => [...document.querySelectorAll('#edGrid .tag')].some(t => /sem taxa/i.test(t.textContent))), 'perfil sem taxa sinalizado');
+  // "Perfis e taxas" mostra os dados do cliente selecionado; editar grava no catálogo (Excel)
+  await e5.evaluate(() => __pm.goTab('par'));
+  assert.match(await $text(e5, '#rcTitle'), /JnJ/);
+  assert.ok(await e5.evaluate(() => document.querySelectorAll('#rcTable tbody tr').length) >= 22);
+  assert.ok(!(await e5.evaluate(() => /Local|Custo/.test(document.querySelector('#rcTable thead').innerText))), 'JnJ só tem Perfil, Nível e Rate/h');
+  const archLevel = await e5.evaluate(() => __pm.S.rows.at(-1).level);
+  const archKey = 'SAP Architect|' + archLevel + '|-';
+  await e5.locator(`#rcTable input[data-k="${archKey}"][data-f="rate"]`).fill('250'); await e5.keyboard.press('Tab');
+  await e5.waitForFunction(() => !__pm.S.cat.dirty && /gravado/.test(__pm.S.cat.status), null, {timeout: 10000});
+  let cat = await Catalog.parse(ExcelJS, await written('Perfis_e_Taxas.xlsx'));
+  const jn = cat.clients.find(c => c.name === 'JnJ');
+  assert.equal(jn.entries.find(e => e.role === 'SAP Architect' && e.level === archLevel).rate, 250);
+  const wbw = new ExcelJS.Workbook(); await wbw.xlsx.load(await written('Perfis_e_Taxas.xlsx'));
+  assert.equal(wbw.getWorksheet('JnJ').getCell('A1').fill.fgColor.argb, 'FFB4C7E7', 'formatação do cliente preservada');
+  // cliente novo: pergunta em qual se basear; cria uma aba nova
+  await e5.evaluate(() => __pm.actions['client-new']({dataset: {base: 'JnJ'}}));
+  await e5.waitForSelector('#dlgClient[open]');
+  assert.deepEqual(await e5.evaluate(() => [...document.querySelectorAll('#ncBase option')].map(o => o.value)), ['Roche', 'JnJ', ''], 'pergunta a base: clientes existentes ou em branco');
+  assert.equal(await e5.evaluate(() => document.getElementById('ncBase').value), 'JnJ');
+  await e5.fill('#ncName', 'Acme'); await e5.click('#ncForm button[type=submit]');
+  await e5.waitForFunction(() => !__pm.S.cat.dirty && /gravado/.test(__pm.S.cat.status), null, {timeout: 10000});
+  cat = await Catalog.parse(ExcelJS, await written('Perfis_e_Taxas.xlsx'));
+  assert.deepEqual(cat.clients.map(c => c.name), ['Roche', 'JnJ', 'Acme']);
+  assert.equal(cat.clients.find(c => c.name === 'Acme').entries.length, 22, 'a aba nova nasce com os perfis do cliente base');
+  assert.equal(await e5.evaluate(() => __pm.S.catClient), 'Acme');
+  assert.equal(await e5.evaluate(() => document.getElementById('p_client').value), 'Acme');
+  // a proposta é gravada SEM o cadastro de perfis; só a cópia das taxas usadas
+  await e5.evaluate(() => __pm.actions.saveas());
+  await e5.waitForFunction(() => window.__w['Proposta_Teste.xlsx']);
+  const propBuf = await written('Proposta_Teste.xlsx');
+  const pw = XLSXlib.read(propBuf, {type: 'buffer'});
+  assert.ok(!pw.SheetNames.includes('Perfis') && !pw.SheetNames.includes('RateCard'), 'proposta sem o cadastro de perfis');
+  assert.match(String(pw.Sheets['_meta'].E1.v), /Perfis_e_Taxas/);
+  assert.ok(XLSXlib.utils.sheet_to_json(pw.Sheets['Modelo'], {header: 1})[0].includes('Rate/h (catálogo)'));
+  // taxas do catálogo mudam depois: ao reabrir a proposta, avisa e usa as atuais
+  await e5.evaluate(() => { const k = Object.keys(__pm.S.rates).find(x => /^Developer: SAP BASIS/.test(x)); __pm.S.rates[k].rate = 999; });
+  const usedKey = await e5.evaluate(() => { const r = __pm.S.rows[0]; return `${r.role}|${r.level}|-`; });
+  await e5.locator(`#rcTable input[data-k="${usedKey}"][data-f="rate"]`).fill('150'); await e5.keyboard.press('Tab');
+  await e5.waitForFunction(() => !__pm.S.cat.dirty, null, {timeout: 10000});
+  await e5.evaluate(async (arr) => { await __pm.loadBuffer(Uint8Array.from(arr).buffer, 'Proposta_Teste.xlsx', null); }, [...propBuf]);
+  assert.match(await $text(e5, '#toasts'), /mudaram/i, 'avisa que as taxas do catálogo mudaram');
+  assert.equal(await e5.evaluate((k) => __pm.S.rates[k].rate, usedKey), 150, 'usa a taxa atual do catálogo');
+  assert.equal(await e5.evaluate(() => __pm.S.catClient), 'Acme');
+  assert.deepEqual(p5.errors, [], 'sem erros: ' + p5.errors.join(' | '));
+  await ctx5.close();
+  ok('catálogo: aba por cliente, perfil/nível/taxa vindos do cliente, edição grava no Excel (formato preservado), cliente novo pergunta a base, proposta sem perfis e aviso de mudança de taxas');
+
+  /* 12e. entregáveis por fase e cenários (até 3) com painel comparativo */
+  const ctx6 = await browser.newContext({acceptDownloads: true, viewport: {width: 1400, height: 900}});
+  const p6 = await newPage(ctx6); const e6 = p6.page;
+  await e6.evaluate(() => { document.getElementById('p_lang').value = 'pt'; document.getElementById('p_lang').dispatchEvent(new Event('change', {bubbles: true})); __pm.actions.example(); });
+  await e6.waitForSelector('#tlEditor', {state: 'visible'});
+  // entregáveis: adicionar dois na primeira fase; nascem "auto" e se distribuem pelo tempo da fase
+  const ph0 = await e6.evaluate(() => __pm.S.rows[0].phase);
+  await e6.locator('#edGrid tr.ph').first().hover();
+  await e6.locator('#edGrid tr.ph').first().locator('[data-ed="adddel"]').click();
+  await e6.locator('#edGrid tr.ph').first().locator('[data-ed="adddel"]').click();
+  assert.equal(await e6.evaluate(() => document.querySelectorAll('#edGrid tr.dl').length), 2);
+  const spans = () => e6.evaluate(() => [...document.querySelectorAll('#edGrid tr.dl')].map(tr => [...tr.querySelectorAll('input.dp')].map(i => +i.value)));
+  let sp = await spans();
+  assert.ok(sp[0][1] < sp[1][0] || sp[0][1] <= sp[1][1], 'distribuídos em sequência: ' + JSON.stringify(sp));
+  // renomear e fixar a data de entrega do 1º (vira manual) pela caixa "fim"
+  await e6.locator('#edGrid tr.dl input.dn').first().fill('Plano do projeto'); await e6.keyboard.press('Tab');
+  const win = await e6.evaluate(() => { const i = document.querySelector('#edGrid tr.dl input[data-ed="dend"]'); return [+i.min, +i.max]; });
+  await e6.locator('#edGrid tr.dl input[data-ed="dend"]').first().fill(String(win[1])); await e6.keyboard.press('Tab');
+  assert.deepEqual(await e6.evaluate(() => __pm.S.deliverables.map(d => [d.name, d.manual])), [['Plano do projeto', true], ['Entregável 2', false]]);
+  assert.equal((await spans())[0][1], win[1], 'fim = último período da fase');
+  // fora da janela da fase não aceita (limita); clique numa célula define o fim
+  await e6.locator('#edGrid tr.dl input[data-ed="dend"]').first().fill('99'); await e6.keyboard.press('Tab');
+  assert.equal((await spans())[0][1], win[1], 'limitado à janela da fase');
+  assert.ok(await e6.evaluate(() => document.querySelectorAll('#edGrid tr.dl td.dc.out').length) > 0, 'períodos fora da fase marcados');
+  assert.ok((await $text(e6, '#edPv')).includes('◆') && (await $text(e6, '#edPv')).includes('Plano do projeto'), 'losango e nome na prévia');
+  await e6.locator('#edGrid tr.dlh [data-ed="distdel"]').first().click();   // redistribui tudo
+  assert.deepEqual(await e6.evaluate(() => __pm.S.deliverables.map(d => d.manual)), [false, false]);
+  // aparece na proposta (tabela de entregáveis) e nos marcos
+  await e6.evaluate(() => { __pm.S.result = null; __pm.recalc(false); });
+  assert.match(await e6.evaluate(() => document.querySelector('#doc').innerText), /Entregáveis[\s\S]*Plano do projeto/);
+  // cenários: duplicar → cenário B editável de forma independente
+  assert.equal(await e6.evaluate(() => __pm.S.scen.length), 1);
+  await e6.click('#scBar [data-act="sc-dup"]');
+  assert.equal(await e6.evaluate(() => [__pm.S.scen.length, __pm.S.active, __pm.S.scen[1].name]).then(a => a.join('|')), '2|1|Cenário A (cópia)');
+  assert.equal(await e6.evaluate(() => __pm.S.deliverables.length), 2, 'entregáveis copiados');
+  await e6.evaluate(() => { __pm.S.rows.forEach(r => { r.alloc = r.alloc.map(v => v * 2); }); __pm.S.nPeriods = 10; __pm.S.rows.forEach(r => { r.alloc.length = 10; }); __pm.S.deliverables = []; });
+  await e6.evaluate(() => __pm.commitScen());
+  await e6.evaluate(() => __pm.renameScen(1, 'Acelerado'));
+  await e6.click('#scBar [data-sc="0"]');
+  assert.equal(await e6.evaluate(() => [__pm.S.nPeriods, __pm.S.deliverables.length].join('|')), '12|2', 'A manteve seus períodos e entregáveis');
+  // painel comparativo
+  await e6.click('#scBar [data-act="go-cen"]');
+  assert.equal(await e6.evaluate(() => document.querySelectorAll('#cenCards .sccard').length), 3, '2 cartões + "novo cenário"');
+  const cmp = await $text(e6, '#cenTable');
+  assert.match(cmp, /Preço final/); assert.match(cmp, /Pico da equipe/);
+  assert.ok(await e6.evaluate(() => document.querySelectorAll('#cenTable td.best').length) > 0, 'melhor valor destacado');
+  assert.match(await $text(e6, '#cenInsights'), /Acelerado.*vs\./);
+  await e6.waitForFunction(() => document.querySelector('#chCenFte') && !document.querySelector('#chCenFteMsg .msg'), null, {timeout: 8000});
+  // usar o cenário B: vira o ativo e a análise passa a usá-lo
+  await e6.click('#cenCards [data-act="sc-use"]');
+  assert.equal(await e6.evaluate(() => __pm.S.active), 1);
+  await e6.evaluate(() => { __pm.S.result = null; __pm.recalc(false); });
+  assert.equal(await e6.evaluate(() => __pm.S.result.nPeriods), 10, 'análise usa o cenário ativo');
+  assert.match(await $text(e6, '#pbSub'), /Acelerado|R\$/);
+  // limite de 3
+  await e6.evaluate(() => __pm.goTab('tl'));
+  await e6.click('#scBar [data-act="sc-new"]');
+  assert.equal(await e6.evaluate(() => __pm.S.scen.length), 3);
+  assert.equal(await e6.evaluate(() => document.querySelectorAll('#scBar [data-act="sc-new"]').length), 0, 'sem botão acima de 3');
+  // gravar em Excel e reabrir: cenários e entregáveis voltam
+  const buf64 = await e6.evaluate(async () => { const b = new Uint8Array(await (await __pm.buildBlob()).arrayBuffer()); let s = ''; b.forEach(c => s += String.fromCharCode(c)); return btoa(s); });
+  const sheets = XLSXlib.read(Buffer.from(buf64, 'base64'), {type: 'buffer'}).SheetNames;
+  assert.ok(['Cenarios', 'Entregaveis', 'Cen_1', 'Cen_2'].every(n => sheets.includes(n)) && !sheets.includes('Cen_3'), sheets.join());
+  await e6.evaluate(async (b64) => { const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0)); await __pm.loadBuffer(bytes.buffer, 'p.xlsx', null); }, buf64);
+  assert.equal(await e6.evaluate(() => [__pm.S.scen.map(s => s.name).join(','), __pm.S.active, __pm.S.nPeriods].join('|')), 'Cenário A,Acelerado,Cenário C|2|10');
+  await e6.click('#scBar [data-sc="0"]');
+  assert.equal(await e6.evaluate(() => [__pm.S.nPeriods, __pm.S.deliverables.map(d => d.name).join(',')].join('|')), '12|Plano do projeto,Entregável 2');
+  // excluir cenário
+  e6.once('dialog', d => d.accept());
+  await e6.click('#scBar [data-act="sc-del"]');
+  assert.equal(await e6.evaluate(() => __pm.S.scen.length), 2);
+  assert.deepEqual(p6.errors, [], 'sem erros: ' + p6.errors.join(' | '));
+  await ctx6.close();
+  ok('entregáveis por fase (auto/manual, limite da fase, prévia e proposta) e até 3 cenários com painel comparativo, uso do ativo e persistência no Excel');
 
   /* 13. PDF (layout de impressão) */
   await page.evaluate(() => { __pm.S.result = null; __pm.recalc(false); __pm.goTab('doc'); });
