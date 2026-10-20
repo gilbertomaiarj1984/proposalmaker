@@ -67,7 +67,7 @@ test('template é lido de volta pelo parser do app (matriz + rate card)', async 
 
 test('fórmulas recalculadas pelo LibreOffice batem com o motor', async (t) => {
   try { execFileSync('soffice', ['--version'], {stdio:'ignore'}); } catch(e){ return t.skip('LibreOffice indisponível'); }
-  for (const over of [{}, {p_mode:'gm', p_gm:40, p_contmode:'both', p_inclOpt:true, p_fx:0.2, p_cur:'USD'}, {p_discmode:'amount', p_discamt:25000}, {p_discmode:'target', p_disctarget:700000}]) {
+  for (const over of [{}, {p_mode:'gm', p_gm:40, p_contmode:'both', p_inclOpt:true, p_fx:0.2, p_cur:'USD'}, {p_discmode:'amount', p_discamt:25000}, {p_discmode:'target', p_disctarget:700000}, {p_ovh:8, p_comm:1.5, p_fin:1, p_risk:2, p_terms:45, p_gpmmin:20}]) {
     const st = exampleState(over), R = run(st);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pm-'));
     const f = path.join(dir, 'p.xlsx');
@@ -83,6 +83,8 @@ test('fórmulas recalculadas pelo LibreOffice batem com o motor', async (t) => {
     assert.ok(Math.abs(get('Preço com impostos') - R.T.gross) < 0.01, 'gross');
     assert.ok(Math.abs(get('GM%') - R.T.gm) < 1e-6, 'gm');
     assert.ok(Math.abs(get('Desconto (com impostos)') - R.T.discGross) < 0.01, 'desconto');
+    assert.ok(Math.abs(get('GPM% (após custos indiretos)') - R.T.gpm) < 1e-6, 'gpm ' + get('GPM% (após custos indiretos)') + ' vs ' + R.T.gpm);
+    assert.ok(Math.abs(get('Custo financeiro (prazo de pagamento)') - R.T.ind.fin) < 0.01, 'custo financeiro');
   }
 });
 

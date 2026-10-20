@@ -352,3 +352,47 @@ test('comparação de cenários: métricas e melhor valor por indicador', () => 
   assert.equal(best.weeks, null, 'mesmo prazo = sem destaque');
   assert.equal(Engine.compareScenarios([M[0], null]).gross, null, 'um só cenário válido não tem comparação');
 });
+
+test('GM e GPM: indiretos (overhead, comissão, custo financeiro, risco) e margem por fase', () => {
+  const p = params({p_tax: 5, p_ovh: 8, p_comm: 2, p_fin: 1, p_terms: 30, p_risk: 3, p_gpmmin: 20});
+  const R = Engine.compute(mkModel(), p, {today: TODAY});
+  const T = R.T;
+  assert.ok(Math.abs(T.gm - (T.net - T.cost) / T.net) < 1e-12);
+  const ovh = T.net * 0.08, comm = T.net * 0.02, fin = T.gross * 0.01, risk = T.cost * 0.03;
+  assert.ok(Math.abs(T.ind.total - (ovh + comm + fin + risk)) < 1e-6);
+  assert.ok(Math.abs(T.gpm - (T.net - T.cost - ovh - comm - fin - risk) / T.net) < 1e-12);
+  assert.ok(T.gpm < T.gm);
+  // a soma dos lucros por fase fecha com o total (escopo base)
+  const ph = R.phases.filter(x => !x.optional);
+  assert.ok(Math.abs(ph.reduce((a, x) => a + x.gpm * x.net, 0) - T.gpm * T.net) < 1e-6);
+  // sem indiretos, GPM = GM
+  const R0 = Engine.compute(mkModel(), params(), {today: TODAY});
+  assert.equal(R0.T.gpm, R0.T.gm);
+});
+
+test('desconto máximo respeita o GPM mínimo e a calculadora reversa fecha com o motor', () => {
+  const base = params({p_ovh: 8, p_fin: 1, p_terms: 30, p_gm: 35, p_gmmin: 30, p_gpmmin: 25, p_tax: 5});
+  const R = Engine.compute(mkModel(), base, {today: TODAY});
+  assert.ok(R.T.maxDiscGpm !== null && R.maxDisc <= R.T.maxDiscGm);
+  // aplicar o desconto máximo → GPM = mínimo (quando é o limite ativo)
+  const d = R.maxDisc * 100;
+  const R2 = Engine.compute(mkModel(), {...base, discMode:'pct', disc: R.maxDisc}, {today: TODAY});
+  const lim = Math.min(R2.T.gm - 0.30, R2.T.gpm - 0.25);
+  assert.ok(Math.abs(lim) < 1e-6 && d > 0, `GM ${R2.T.gm} GPM ${R2.T.gpm}`);
+  // resolver: alvo GPM 28% via preço → recomputar com preço-alvo dá o GPM pedido
+  const sol = Engine.solveMargin(base, R.T, 'gpm', 0.28);
+  const R3 = Engine.compute(mkModel(), {...base, discMode:'target', discTarget: sol.needGross}, {today: TODAY});
+  if (sol.needNet <= R.T.listNet) assert.ok(Math.abs(R3.T.gpm - 0.28) < 1e-6, String(R3.T.gpm));
+  const solGm = Engine.solveMargin(base, R.T, 'gm', 0.40);
+  assert.ok(Math.abs((solGm.needNet - R.T.cost) / solGm.needNet - 0.40) < 1e-9);
+  assert.ok(Math.abs(solGm.needCost - R.T.net * 0.6) < 1e-9, 'custo-alvo = receita × (1 − GM)');
+});
+
+test('salário médio sugerido a partir do Cost/h (custos Brasil)', () => {
+  const p = params({p_hpd: 8, p_dpw: 5, p_enc: 70});
+  const r = Engine.salaryFromCost(p, 100);
+  assert.ok(Math.abs(r.hoursMonth - 8 * 5 * 52 / 12) < 1e-9);
+  assert.ok(Math.abs(r.monthlyCost - 100 * r.hoursMonth) < 1e-9);
+  assert.ok(Math.abs(r.salary - r.monthlyCost / 1.7) < 1e-9);
+  assert.ok(Math.abs(Engine.BR_ENC.reduce((a, x) => a + x[1], 0) - Engine.BR_ENC_TOTAL) < 1e-9);
+});

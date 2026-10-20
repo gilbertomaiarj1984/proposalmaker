@@ -340,7 +340,7 @@ try {
   await e5.evaluate(() => __pm.goTab('par'));
   assert.match(await $text(e5, '#rcTitle'), /JnJ/);
   assert.ok(await e5.evaluate(() => document.querySelectorAll('#rcTable tbody tr').length) >= 22);
-  assert.ok(await e5.evaluate(() => /Local/i.test(document.querySelector('#rcTable thead').innerText) && /Custo/i.test(document.querySelector('#rcTable thead').innerText)), 'JnJ usa o layout padrão: Perfil, Nível, Local, Custo/h e Rate/h');
+  assert.ok(await e5.evaluate(() => /Local/i.test(document.querySelector('#rcTable thead').innerText) && /Cost/i.test(document.querySelector('#rcTable thead').innerText)), 'JnJ usa o layout padrão: Perfil, Nível, Local, Cost/h e Rate net/h');
   const archLevel = await e5.evaluate(() => __pm.S.rows.at(-1).level);
   const archKey = 'SAP Architect|' + archLevel + '|-';
   await e5.locator(`#rcTable input[data-k="${archKey}"][data-f="rate"]`).fill('250'); await e5.keyboard.press('Tab');
@@ -457,6 +457,63 @@ try {
   assert.deepEqual(p6.errors, [], 'sem erros: ' + p6.errors.join(' | '));
   await ctx6.close();
   ok('entregáveis por fase (auto/manual, limite da fase, prévia e proposta) e até 3 cenários com painel comparativo, uso do ativo e persistência no Excel');
+
+  /* 12f. painel de margens GM/GPM, racional ao passar o mouse, salário sugerido e separação proposta × catálogo */
+  const ctx7 = await browser.newContext({acceptDownloads: true, viewport: {width: 1400, height: 900}});
+  const p7 = await newPage(ctx7); const e7 = p7.page;
+  await e7.evaluate(() => __pm.actions.example());
+  await e7.waitForSelector('#tlEditor', {state: 'visible'});
+  await e7.evaluate(() => { const set = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change', {bubbles: true})); };
+    set('p_gmmin', '30'); set('p_gpmmin', '25'); set('p_ovh', '8'); set('p_comm', '1'); set('p_fin', '1'); set('p_risk', '2'); set('p_terms', '30'); set('p_disc', '3'); });
+  await e7.evaluate(() => { __pm.S.result = null; __pm.recalc(true); });
+  const mg = await e7.evaluate(() => { const R = __pm.S.result; return {gm: R.T.gm, gpm: R.T.gpm, gross: R.T.gross, ind: R.T.ind.total}; });
+  assert.ok(mg.gpm < mg.gm && mg.ind > 0);
+  assert.match(await $text(e7, '#mgKpis'), /GM — margem bruta[\s\S]*GPM — após indiretos/i);
+  assert.ok(await e7.evaluate(() => document.querySelectorAll('#mgWf > div').length) === 10, 'cascata do preço ao GPM');
+  assert.ok(await e7.evaluate(() => document.querySelectorAll('#mgPhase tbody tr').length) >= 5);
+  // racional ao passar o mouse
+  await e7.hover('#mgKpis .kpi >> nth=1');
+  await e7.waitForFunction(() => getComputedStyle(document.getElementById('whyTip')).display === 'block');
+  const tip = await $text(e7, '#whyTip');
+  assert.match(tip, /GPM = \(GM − custos indiretos\)/); assert.match(tip, /overhead 8,0%/); assert.match(tip, /custo financeiro/);
+  await e7.hover('#kpis .kpi >> nth=0'); assert.match(await $text(e7, '#whyTip'), /Preço com impostos/);
+  await e7.mouse.move(5, 5); await e7.waitForFunction(() => getComputedStyle(document.getElementById('whyTip')).display === 'none');
+  // barra superior mostra GM e GPM
+  assert.match(await $text(e7, '#pbSub'), /GM [\d,]+%[\s\S]*GPM [\d,]+%/);
+  // calculadora reversa: GPM 28% → preço alvo aplicável, e o resultado fecha com o motor
+  await e7.fill('#mgTarget', '28');
+  assert.match(await $text(e7, '#mgCalc'), /Pelo preço[\s\S]*Pelos rates[\s\S]*Pelo custo/);
+  if (await e7.locator('#mgCalc [data-act="mg-apply"]').count()){
+    await e7.locator('#mgCalc [data-act="mg-apply"]').click();
+    assert.equal(await e7.evaluate(() => document.getElementById('p_discmode').value), 'target');
+    await e7.evaluate(() => { __pm.S.result = null; __pm.recalc(false); });
+    assert.ok(Math.abs(await e7.evaluate(() => __pm.S.result.T.gpm) - 0.28) < 0.002, 'GPM ≈ 28% após aplicar o preço alvo');
+  }
+  // simulador
+  await e7.evaluate(() => { const r = document.getElementById('mgSlide'); r.value = 10; r.dispatchEvent(new Event('input', {bubbles: true})); });
+  assert.match(await $text(e7, '#mgSlideV'), /10,0%/); assert.ok(await e7.evaluate(() => document.querySelectorAll('#mgSim tbody tr').length) === 8);
+  // alerta de GPM abaixo do mínimo (mínimo alto)
+  await e7.evaluate(() => { const el = document.getElementById('p_gpmmin'); el.value = '60'; el.dispatchEvent(new Event('change', {bubbles: true})); __pm.S.result = null; __pm.recalc(false); });
+  assert.match(await $text(e7, '#checklist'), /GPM% de [\d,]+% está abaixo do mínimo/);
+  // Perfis e taxas: Rate net/h e salário médio sugerido com racional
+  await e7.evaluate(() => __pm.goTab('par'));
+  const head = await $text(e7, '#rcTable thead');
+  assert.match(head, /Rate net\/h/); assert.match(head, /Salário médio sugerido/);
+  const sal = await e7.evaluate(() => { const r = Object.values(__pm.S.rates).find(x => x.cost > 0); return {cost: Number(r.cost), p: document.getElementById('p_hpd').value}; });
+  await e7.hover('#rcTable tbody tr:first-child td:nth-last-child(1)');
+  await e7.waitForFunction(() => /Salário médio sugerido/.test(document.getElementById('whyTip').innerText));
+  assert.match(await $text(e7, '#whyTip'), /Horas por mês[\s\S]*Custo mensal da empresa[\s\S]*Fator de encargos[\s\S]*Salário bruto médio/);
+  await e7.mouse.move(5, 5);
+  // proposta × catálogo: um não abre no lugar do outro
+  const propB64 = await e7.evaluate(async () => { const b = new Uint8Array(await (await __pm.buildBlob()).arrayBuffer()); let s = ''; b.forEach(c => s += String.fromCharCode(c)); return btoa(s); });
+  const catB64x = fs.readFileSync(path.join(root, 'Perfis_e_Taxas.xlsx')).toString('base64');
+  const err1 = await e7.evaluate(async (b64) => { try { await __pm.catalogLoad(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer, 'p.xlsx', null); return ''; } catch(e){ return e.message; } }, propB64);
+  assert.match(err1, /PROPOSTA/);
+  const err2 = await e7.evaluate(async (b64) => { try { await __pm.loadBuffer(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer, 'Perfis_e_Taxas.xlsx', null); return ''; } catch(e){ return e.message; } }, catB64x);
+  assert.match(err2, /cat[áa]logo de perfis e taxas/);
+  assert.deepEqual(p7.errors, [], 'sem erros: ' + p7.errors.join(' | '));
+  await ctx7.close();
+  ok('painel GM/GPM (cascata, fases, perfis, calculadora reversa, simulador, alertas), racional ao passar o mouse, salário sugerido e separação proposta × catálogo');
 
   /* 13. PDF (layout de impressão) */
   await page.evaluate(() => { __pm.S.result = null; __pm.recalc(false); __pm.goTab('doc'); });

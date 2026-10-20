@@ -23,7 +23,7 @@ margem (GM) e o status de gravação.
 
 ## Catálogo de perfis e taxas (segundo arquivo Excel)
 Perfis e taxas **não ficam mais no arquivo da proposta**: vêm de um **catálogo** (`Perfis_e_Taxas.xlsx`) com **uma aba por
-cliente** (inicialmente `Roche` e `JnJ`), todas no **layout padrão** `Role | Level | Location | Cost/h | Rate/h`
+cliente** (inicialmente `Roche` e `JnJ`), todas no **layout padrão** `Role | Level | Location | Cost/h | Rate net/h`
 (JnJ também; Local e Custo/h podem ficar em branco). Abas com outros títulos de coluna continuam sendo lidas pelo
 cabeçalho, e clientes novos em branco já nascem nesse padrão.
 * **📚 Catálogo** (topo): abre o arquivo (Chrome/Edge lembram dele e gravam direto; outros navegadores baixam o `.xlsx`).
@@ -39,6 +39,19 @@ cabeçalho, e clientes novos em branco já nascem nesse padrão.
 
 Na timeline, cada linha escolhe o **perfil** por uma combo e o **nível** por outra; níveis novos podem ser adicionados na
 hora. Um perfil só exige taxa se estiver realmente alocado.
+
+## Margens: GM e GPM (painel na Análise)
+* **GM** = (receita líquida − custo direto) ÷ receita líquida. **GPM** = GM depois dos **custos indiretos**: overhead/G&A e
+  comissão (% da receita líquida), custo financeiro (% a.m. × prazo de pagamento ÷ 30, sobre o valor com impostos) e
+  reserva de risco (% do custo direto). Tudo é configurado em *Margens e custos indiretos* (aba 2) e é **interno**: não
+  aparece no documento, Word ou PowerPoint do cliente.
+* O painel (aba Análise) mostra GM/GPM contra os mínimos, a **cascata** do preço ao GPM, a margem **por fase** e **por perfil**,
+  a **calculadora reversa** (informe o GM ou GPM alvo e veja o preço, o ajuste de rates ou a redução de custo necessários, com
+  “aplicar como preço alvo”) e o **simulador** desconto × margens. O desconto máximo sugerido passa a respeitar também o
+  GPM mínimo; os cenários, a barra superior, os alertas e o Excel (`Resumo`, `PorFase`, com fórmulas) trazem o GPM.
+* **Salário médio sugerido** (Perfis e taxas): Cost/h × horas por mês ÷ (1 + encargos e benefícios CLT, padrão 70,44%,
+  ajustável). **Racional ao passar o mouse**: preço, GM, GPM, KPIs, descontos, cenários, perfis e o salário mostram a conta.
+* A biblioteca de propostas oculta arquivos que não são propostas (ex.: o catálogo) e o catálogo recusa abrir uma proposta.
 
 ## Entregáveis por fase
 Em cada fase, o botão **◆** adiciona entregáveis (ficam abaixo das linhas da fase). Por padrão são **distribuídos

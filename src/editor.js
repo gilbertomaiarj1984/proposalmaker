@@ -138,13 +138,13 @@ function TimelineEditor(ctx){
     let last = -1, first = -1; colTot.forEach((v, i) => { if (v > 0){ if (first < 0) first = i; last = i; } });
     const hours = S.rows.filter(r => r.role).reduce((a, r) => a + r.alloc.reduce((x, y) => x + y, 0), 0) * hpp;
     const active = last < 0 ? 0 : last - first + 1;
-    const kp = (b, s) => `<div class="kp"><b>${b}</b>${s}</div>`;
+    const kp = (b, s, w) => `<div class="kp"${w ? ` data-why="${w.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/\n/g, '&#10;')}"` : ''}><b>${b}</b>${s}</div>`;
     $('edSum').innerHTML =
-      kp(`${active || N} ${U === 'SP' ? 'sprints' : 'semanas'}`, active ? `${active * cal.pw} semanas com alocação · ${N} no grid` : `${N * cal.pw} semanas no grid`) +
+      kp(`${active || N} ${U === 'SP' ? 'sprints' : 'semanas'}`, active ? `${active * cal.pw} semanas com alocação · ${N} no grid` : `${N * cal.pw} semanas no grid`, `**Duração**\nPeríodos entre o primeiro e o último com alocação (${active || N}) × ${cal.pw} semana(s) = ${(active || N) * cal.pw} semanas.`) +
       kp(cal.relative ? 'relativo' : fmtDY(last < 0 ? cal.effStart : cal.pStart(first)), 'início' + (cal.startAdjusted ? ' (ajustado p/ dia útil)' : '')) +
       kp(cal.relative ? '—' : fmtDY(cal.pEnd(last < 0 ? N - 1 : last)), 'fim previsto') +
-      kp(`${nfPT(Math.round(hours))} h`, 'esforço no timeline') +
-      kp(`${nfPT(Math.max(0, ...colTot), 1)} FTE`, 'pico do time');
+      kp(`${nfPT(Math.round(hours))} h`, 'esforço no timeline', `**Esforço**\nΣ FTE (${nfPT(hours / hpp, 1)}) × horas por período por FTE (${cal.pw} sem × ${p.dpw} d × ${p.hpd} h = ${hpp} h) = ${nfPT(Math.round(hours))} h.`) +
+      kp(`${nfPT(Math.max(0, ...colTot), 1)} FTE`, 'pico do time', '**Pico**\nMaior soma de FTE em um único período (linha “Total FTE por período”).');
   }
   function preview(){
     const box = $('edPv'), R = ctx.compute();
