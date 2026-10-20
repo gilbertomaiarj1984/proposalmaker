@@ -19,6 +19,7 @@ const PARAM_DEFS = [
   ['p_cur','Moeda da proposta','text'], ['p_rcur','Moeda do rate card','text'], ['p_fx','Câmbio (1 moeda do rate card = X moeda da proposta)','num'],
   ['p_unit','Unidade do período (auto/SP/W)','text'], ['p_pw','Semanas por período (sprint)','num'], ['p_hpd','Horas faturáveis / dia','num'], ['p_dpw','Dias úteis / semana','num'],
   ['p_mode','Modo de precificação (rate/gm)','text'], ['p_gm','GM% alvo (modo custo)','num'], ['p_gmmin','GM% mínimo (alerta)','num'],
+  ['p_gpmmin','GPM% mínimo (alerta)','num'], ['p_ovh','Overhead / G&A (% da receita líquida)','num'], ['p_comm','Comissão / bônus de venda (% da receita líquida)','num'], ['p_fin','Custo financeiro (% ao mês sobre o recebível)','num'], ['p_risk','Reserva de risco (% do custo direto)','num'], ['p_enc','Encargos e benefícios sobre o salário — Brasil (%)','num'],
   ['p_cont','Contingência / risco %','num'], ['p_contmode','Contingência entra em (price/both)','text'],
   ['p_discmode','Tipo de desconto (pct/amount/target)','text'], ['p_disc','Desconto comercial % (modo pct)','num'], ['p_discamt','Desconto em valor fixo, com impostos (modo amount)','num'],
   ['p_disctarget','Preço final alvo, com impostos (modo target)','num'], ['p_discshow','Exibição do desconto (embedded/line)','text'],
@@ -119,7 +120,7 @@ function emptyResult(st){
   const z = new Date(cal.effStart);
   return {p, relative: cal.relative, unit: st.unit, nPeriods: st.nPeriods, pw: cal.pw, hpp: cal.pw * p.dpw * p.hpd, f: (1 + p.cont) * (1 - p.disc),
     rows: [], rowByIndex: new Map(), phases: [], roles: [], periods: [], months: [], pays: [], holidays: [], issues: [], missing: [],
-    T: {H: 0, net: 0, cost: 0, gross: 0, gm: 0, blended: 0, grossOpt: 0, netOpt: 0, listNet: 0, discNet: 0, listGross: 0, discGross: 0, discPct: 0, nPer: 0, weeks: 0, peak: 0, avgFte: 0, start: z, end: z}};
+    T: {H: 0, net: 0, cost: 0, gross: 0, gm: 0, gpm: 0, ind: {ovh: 0, comm: 0, fin: 0, risk: 0, total: 0}, blended: 0, grossOpt: 0, netOpt: 0, listNet: 0, discNet: 0, listGross: 0, discGross: 0, discPct: 0, nPer: 0, weeks: 0, peak: 0, avgFte: 0, start: z, end: z}};
 }
 
 /* =====================================================================
@@ -153,7 +154,7 @@ async function buildProposal(ExcelJS, st, R){
   ps.getColumn(1).width = 14; ps.getColumn(2).width = 62; ps.getColumn(3).width = 46;
   const nm = (name, key) => wb.definedNames.add(`Parametros!$C$${rowOf[key]}`, name);
   nm('PW','p_pw'); nm('DPW','p_dpw'); nm('HPD','p_hpd'); nm('MODE','p_mode'); nm('GMP','p_gm'); nm('CONTP','p_cont'); nm('CONTMODE','p_contmode');
-  nm('FX','p_fx'); nm('INCLOPT','p_inclOpt'); nm('HPP','_hpp'); nm('TAXP','_tax');
+  nm('FX','p_fx'); nm('OVHP','p_ovh'); nm('COMMP','p_comm'); nm('FINP','p_fin'); nm('RISKP','p_risk'); nm('TERMS','p_terms'); nm('INCLOPT','p_inclOpt'); nm('HPP','_hpp'); nm('TAXP','_tax');
   ps.addRow([]);
   const note = ps.addRow(['', 'Este arquivo é gravado e lido pelo app. A edição é feita no navegador; alterações feitas diretamente aqui podem ser sobrescritas no próximo salvamento.', '']);
   note.getCell(2).font = {italic:true, color:{argb:'FF5F6B7A'}}; note.getCell(2).alignment = {wrapText:true};
@@ -220,8 +221,13 @@ async function buildProposal(ExcelJS, st, R){
   const rH = add('Horas totais', {formula: sp(cHrs), result: T.H}, '#,##0');
   const rC = add('Custo total', {formula: sp(cCost), result: T.cost}, money);
   const rN = add('Preço líquido de impostos', {formula: sp(cNet), result: T.net}, money);
-  add('Preço com impostos', {formula: `IF(TAXP<100,B${rN.number}/(1-TAXP/100),B${rN.number})`, result: T.gross}, money);
+  const rG = add('Preço com impostos', {formula: `IF(TAXP<100,B${rN.number}/(1-TAXP/100),B${rN.number})`, result: T.gross}, money);
   add('GM%', {formula: `IF(B${rN.number}=0,0,(B${rN.number}-B${rC.number})/B${rN.number})`, result: T.gm}, pct);
+  const rO = add('Overhead / G&A', {formula: `B${rN.number}*OVHP/100`, result: T.ind.ovh}, money);
+  const rM = add('Comissão', {formula: `B${rN.number}*COMMP/100`, result: T.ind.comm}, money);
+  const rF = add('Custo financeiro (prazo de pagamento)', {formula: `B${rG.number}*FINP/100*TERMS/30`, result: T.ind.fin}, money);
+  const rK = add('Reserva de risco', {formula: `B${rC.number}*RISKP/100`, result: T.ind.risk}, money);
+  add('GPM% (após custos indiretos)', {formula: `IF(B${rN.number}=0,0,(B${rN.number}-B${rC.number}-B${rO.number}-B${rM.number}-B${rF.number}-B${rK.number})/B${rN.number})`, result: T.gpm}, pct);
   add('Rate médio (blended) /h', {formula: `IF(B${rH.number}=0,0,B${rN.number}/B${rH.number})`, result: T.blended}, money);
   add('Preço de lista (com impostos)', T.listGross, money);
   add('Desconto (com impostos)', T.discGross, money);
@@ -230,7 +236,7 @@ async function buildProposal(ExcelJS, st, R){
 
   /* ----- PorFase (fórmulas) ----- */
   const fs = wb.addWorksheet('PorFase');
-  fs.addRow(['Phase','Opcional','Início','Fim','Horas','Líquido','Com impostos','Custo']); styleHeader(fs);
+  fs.addRow(['Phase','Opcional','Início','Fim','Horas','Líquido','Com impostos','Custo','GM%','GPM%']); styleHeader(fs);
   R.phases.forEach((ph, i) => {
     const n = i + 2;
     const sif = col => `SUMIFS(${rng(col)},${rng(1)},$A${n},${rng(cScope)},1)`;
@@ -238,9 +244,10 @@ async function buildProposal(ExcelJS, st, R){
       {formula: sif(cHrs), result: R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt)).reduce((a,r)=>a+r.H,0)},
       {formula: sif(cNet), result: R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt)).reduce((a,r)=>a+r.net,0)},
       {formula: `IF(TAXP<100,F${n}/(1-TAXP/100),F${n})`, result: ph.optional && !p.inclOpt ? 0 : (p.tax < 1 ? R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt)).reduce((a,r)=>a+r.net,0) / (1 - p.tax) : 0)},
-      {formula: sif(cCost), result: R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt)).reduce((a,r)=>a+r.cost,0)}]);
+      {formula: sif(cCost), result: R.rows.filter(r => r.phase === ph.name && (!r.optional || p.inclOpt)).reduce((a,r)=>a+r.cost,0)},
+      {formula: `IF(F${n}=0,0,(F${n}-H${n})/F${n})`, result: ph.gm}, +(ph.gpm).toFixed(6)]);
   });
-  [34,9,12,12,10,16,16,16].forEach((w, i) => fs.getColumn(i+1).width = w);
+  [34,9,12,12,10,16,16,16,10,10].forEach((w, i) => fs.getColumn(i+1).width = w); [9,10].forEach(c => fs.getColumn(c).numFmt = pct);
   [6,7,8].forEach(c => fs.getColumn(c).numFmt = money); fs.getColumn(5).numFmt = '#,##0';
 
   /* ----- abas de referência (valores) ----- */

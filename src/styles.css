@@ -246,3 +246,17 @@ table.ed td.dc{cursor:pointer;text-align:center;font-weight:700;font-size:13px} 
 .cmp thead th{background:var(--navy);color:#fff} .cmp td.best{background:#E6F6EC;font-weight:700;color:#14683A} .cmp .dl{display:block;font-size:11px;color:var(--muted);font-weight:400}
 .cmp td.best .dl{color:#14683A} .insights li{margin:4px 0}
 .mini{display:flex;gap:2px;align-items:flex-end;height:46px;margin:8px 0}.mini i{flex:1;background:var(--navy);opacity:.8;min-width:3px;border-radius:2px 2px 0 0}
+
+/* tooltip com o racional do cálculo */
+[data-why]{cursor:help}
+#whyTip{position:fixed;z-index:9999;max-width:360px;background:#0B2545;color:#fff;font-size:12px;line-height:1.5;padding:9px 12px;border-radius:8px;box-shadow:0 6px 24px rgba(11,37,69,.35);pointer-events:none;white-space:pre-line;display:none}
+#whyTip b{color:#9fd0ff}
+/* painel de margens */
+.kp-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:10px 0}
+.kp-row .kpi{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:#fff}
+.kp-row .kpi.ok{background:#E6F6EC;border-color:#BFE3CC}.kp-row .kpi.warn{background:#FFF4D6;border-color:#EBD58E}.kp-row .kpi.err{background:#FDECEC;border-color:#F2B8B5}
+.wf{display:flex;flex-direction:column;gap:6px;margin-top:10px}.wf div{display:grid;grid-template-columns:230px 1fr 190px;gap:10px;align-items:center;font-size:13px}
+.wf i{display:block;height:18px;border-radius:4px;min-width:2px}.wf em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums}
+.sub3{font-size:14px;margin:0 0 6px;color:var(--navy)}
+td.mok{background:#E6F6EC;color:#14683A;font-weight:700}td.mwarn{background:#FFF4D6;color:#8A5A00;font-weight:700}td.merr{background:#FDECEC;color:#B3261E;font-weight:700}
+@media(max-width:760px){.wf div{grid-template-columns:120px 1fr 120px}}

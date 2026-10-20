@@ -236,6 +236,8 @@ function parseParams(raw, extra){
     pw: Math.max(1, n('p_pw', 2) || 2), hpd: n('p_hpd', 8) > 0 ? n('p_hpd', 8) : 8, dpw: Math.min(7, Math.max(1, Math.round(n('p_dpw', 5)))),
     unitSel: ['SP','W'].includes(raw.p_unit) ? raw.p_unit : 'auto',
     mode: raw.p_mode === 'gm' ? 'gm' : 'rate', gm: Math.min(0.95, Math.max(0, n('p_gm', 35)/100)), gmMin: Math.max(0, n('p_gmmin', 0)/100),
+    gpmMin: Math.max(0, n('p_gpmmin', 0)/100), ovh: Math.max(0, n('p_ovh', 0)/100), comm: Math.max(0, n('p_comm', 0)/100), fin: Math.max(0, n('p_fin', 0)/100), risk: Math.max(0, n('p_risk', 0)/100),
+    enc: Math.max(0, n('p_enc', BR_ENC_TOTAL)/100),
     cont: Math.max(0, n('p_cont', 0)/100), contMode: CONTMODES.includes(raw.p_contmode) ? raw.p_contmode : 'price',
     disc: Math.min(0.99, Math.max(0, n('p_disc', 0)/100)),
     discMode: ['pct','amount','target'].includes(raw.p_discmode) ? raw.p_discmode : 'pct',
@@ -289,6 +291,37 @@ function buildCalendar(p, N, unit, ctx){
   const pEnd = i => { const s = pStart(i), e = prevWork(addDays(effStart, (i + 1) * pw * 7 - 1)); return e < s ? s : e; };
 
   return {relative, pw, hol, holNames, baseDate, isWork, nextWork, prevWork, effStart, startAdjusted, pStart, pEnd};
+}
+
+/* ---------------- margens: GM (sobre o custo direto) e GPM (após custos indiretos) ---------------- */
+// custos indiretos de um recorte (net = receita líquida, cost = custo direto, gross = receita com impostos)
+function indirects(p, net, cost, gross){
+  const ovh = net * p.ovh, comm = net * p.comm, fin = gross * p.fin * (p.terms / 30), risk = cost * p.risk;
+  return {ovh, comm, fin, risk, total: ovh + comm + fin + risk};
+}
+function margins(p, net, cost, gross){
+  const ind = indirects(p, net, cost, gross), gp = net - cost, gpp = gp - ind.total;
+  return {ind, gp, gm: net ? gp / net : 0, gpp, gpm: net ? gpp / net : 0};
+}
+// fração da receita líquida consumida pelos indiretos que escalam com a receita (overhead, comissão, custo financeiro)
+const kIndirect = (p, taxRate) => p.ovh + p.comm + p.fin * (p.terms / 30) / (1 - Math.min(0.9, taxRate));
+// o que precisa mudar para atingir uma margem-alvo (GM ou GPM). T = totais do compute (net, cost, listNet, gross)
+function solveMargin(p, T, kind, target){
+  const k = kIndirect(p, p.tax), risk = p.risk;
+  const needNet = kind === 'gm' ? T.cost / (1 - target) : (1 - k - target) > 0 ? T.cost * (1 + risk) / (1 - k - target) : Infinity;
+  const needCost = kind === 'gm' ? T.net * (1 - target) : T.net * (1 - k - target) / (1 + risk);
+  const grossOf = v => p.tax < 1 ? v / (1 - p.tax) : v;
+  return {needNet, needGross: grossOf(needNet), priceDeltaPct: T.net ? needNet / T.net - 1 : 0, needDiscPct: T.listNet ? 1 - needNet / T.listNet : 0,
+    needCost, costDelta: T.cost - needCost, feasible: isFinite(needNet) && needCost > 0};
+}
+
+/* ---------------- salário médio sugerido (custos do Brasil / CLT) ---------------- */
+// composição de referência dos encargos e benefícios sobre o salário (CLT, empresa no Lucro Real/Presumido)
+const BR_ENC = [['INSS patronal', 20], ['RAT/FAP', 2], ['Sistema S / terceiros', 5.8], ['FGTS', 8], ['13º salário', 8.33], ['Férias + 1/3', 11.11], ['Provisão multa FGTS (40%)', 3.2], ['Benefícios (VR/VA, saúde, outros)', 12]];
+const BR_ENC_TOTAL = Math.round(BR_ENC.reduce((a, x) => a + x[1], 0) * 100) / 100;
+function salaryFromCost(p, costH){
+  const hoursMonth = p.hpd * p.dpw * 52 / 12, monthlyCost = costH * hoursMonth, factor = 1 + p.enc;
+  return {salary: factor > 0 ? monthlyCost / factor : 0, monthlyCost, hoursMonth, factor, enc: p.enc};
 }
 
 /* ---------------- entregáveis por fase ---------------- */
@@ -367,7 +400,8 @@ function compute(model, p, ctx){
     let last = act.length - 1 - [...act].reverse().findIndex(v => v > 0); if (last >= act.length || last < first) last = first;
     const H = rr.reduce((a,r)=>a+r.H,0), net = rr.reduce((a,r)=>a+r.net,0), cost = rr.reduce((a,r)=>a+r.cost,0);
     const optional = rr.every(r => r.optional);
-    return {name, color: PALETTE[i % PALETTE.length], first, last, start: pStart(first), end: pEnd(last), H, net, gross: gross(net), cost, optional,
+    const mg = margins(p, net, cost, gross(net));
+    return {name, color: PALETTE[i % PALETTE.length], first, last, start: pStart(first), end: pEnd(last), H, net, gross: gross(net), cost, optional, gm: mg.gm, gpm: mg.gpm, gpp: mg.gpp, ind: mg.ind,
       partialOpt: !optional && rr.some(r => r.optional), fte: act, roles: [...new Set(rr.map(r => r.role))]};
   });
 
@@ -414,6 +448,12 @@ function compute(model, p, ctx){
   const gmFloor = Math.max(0, p.gmMin);
   const maxDisc = (T.listNet > 0 && T.cost > 0) ? Math.min(1, Math.max(0, 1 - T.cost / (T.listNet * (1 - gmFloor)))) : null;
   T.gm = T.net ? (T.net - T.cost)/T.net : 0;
+  const MG = margins(p, T.net, T.cost, T.gross);
+  T.ind = MG.ind; T.gp = MG.gp; T.gpp = MG.gpp; T.gpm = MG.gpm;
+  // desconto máximo que preserva o GPM mínimo (mais restritivo que o GM quando há indiretos)
+  const kk = kIndirect(p, p.tax), denomG = 1 - kk - Math.max(0, p.gpmMin);
+  T.maxDiscGm = maxDisc;
+  T.maxDiscGpm = (T.listNet > 0 && T.cost > 0 && p.gpmMin > 0 && denomG > 0) ? Math.min(1, Math.max(0, 1 - T.cost * (1 + p.risk) / (T.listNet * denomG))) : null;
   const activeP = periods.filter(x => x.fte > 0);
   T.peak = Math.max(0, ...periods.map(x => x.fte));
   T.avgFte = activeP.length ? sum(activeP,'fte')/activeP.length : 0;
@@ -446,6 +486,12 @@ function compute(model, p, ctx){
     if (T.gm < 0) issues.push({level:'err', code:'gm_negative', data:{gm: T.gm}});
     else if (p.gmMin > 0 && T.gm < p.gmMin) issues.push({level:'warn', code:'gm_below_min', data:{gm: T.gm, min: p.gmMin}});
   } else if (!missing.length) issues.push({level:'info', code:'no_cost', data:{}});
+  if (T.cost > 0 && p.gpmMin > 0 && T.net > 0){
+    if (T.gpm < 0) issues.push({level:'err', code:'gpm_negative', data:{gpm: T.gpm}});
+    else if (T.gpm < p.gpmMin) issues.push({level:'warn', code:'gpm_below_min', data:{gpm: T.gpm, min: p.gpmMin}});
+  }
+  const lowPh = phases.filter(ph => (!ph.optional || p.inclOpt) && ph.cost > 0 && ph.net > 0 && p.gpmMin > 0 && ph.gpm < 0).map(ph => ph.name);
+  if (lowPh.length) issues.push({level:'warn', code:'phase_gpm_negative', data:{list: lowPh}});
   const below = roles.filter(r => !r.optional && r.cost > 0 && r.net > 0 && r.net < r.cost).map(r => r.role + (r.level ? ' ' + r.level : ''));
   if (below.length) issues.push({level:'warn', code:'price_below_cost', data:{list: below}});
   if (startAdjusted) issues.push({level:'warn', code:'start_adjusted', data:{from: iso(baseDate), to: iso(effStart)}});
@@ -463,7 +509,7 @@ function compute(model, p, ctx){
     return {id: d.id, phase: d.phase, name: d.name, manual: !!d.manual, start: c.start, end: c.end, startDate: pStart(c.start), endDate: pEnd(c.end), color: ph.color, optional: ph.optional};
   }).sort((a, b) => phases.findIndex(x => x.name === a.phase) - phases.findIndex(x => x.name === b.phase) || a.end - b.end || a.start - b.start);
 
-  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc, gmFloor, dGlobal, deliverables, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
+  return {p, relative, unit, nPeriods: N, pw, hpp, f: priceF, maxDisc: T.maxDiscGpm === null ? maxDisc : (maxDisc === null ? T.maxDiscGpm : Math.min(maxDisc, T.maxDiscGpm)), gmFloor, dGlobal, deliverables, rows, rowByIndex: new Map(rows.map(r => [r.srcIndex, r])), phases, roles, periods, months: monthArr, T, pays, missing, issues,
     start: effStart, startBase: baseDate, startAdjusted, holidays: [...hol].sort().map(d => ({date:d, name: holNames[d] || ''})), isWork};
 }
 
@@ -553,7 +599,7 @@ function scenarioMetrics(R){
   if (!R) return null;
   const T = R.T, sc = R.phases.filter(ph => !ph.optional || R.p.inclOpt);
   return {nPer: T.nPer, weeks: T.weeks, start: T.start, end: T.end, H: T.H, peak: T.peak, avgFte: T.avgFte, listGross: T.listGross, gross: T.gross, discPct: T.discPct,
-    gm: T.gm, hasCost: T.cost > 0, blended: T.blended, nPhases: sc.length, nDeliv: R.deliverables.length, errs: R.issues.filter(i => i.level === 'err').length,
+    gm: T.gm, gpm: T.gpm, hasCost: T.cost > 0, blended: T.blended, nPhases: sc.length, nDeliv: R.deliverables.length, errs: R.issues.filter(i => i.level === 'err').length,
     warns: R.issues.filter(i => i.level === 'warn').length, fte: R.periods.map(x => x.fte), relative: R.relative, unit: R.unit, pw: R.pw};
 }
 // índice do melhor cenário por métrica (empate = null); lista com null para cenário vazio
@@ -564,11 +610,11 @@ function compareScenarios(ms){
     const t = dir * Math.min(...c.map(x => dir * x.v)), w = c.filter(x => Math.abs(x.v - t) < 1e-9);
     return w.length === c.length ? null : w.map(x => x.i);
   };
-  return {weeks: best('weeks', 1), gross: best('gross', 1), gm: best('gm', -1, m => m.hasCost), peak: best('peak', 1), H: best('H', 1), blended: best('blended', -1)};
+  return {weeks: best('weeks', 1), gross: best('gross', 1), gm: best('gm', -1, m => m.hasCost), gpm: best('gpm', -1, m => m.hasCost), peak: best('peak', 1), H: best('H', 1), blended: best('blended', -1)};
 }
 
 return { norm, esc, num, periodNum, isYes, rkey, parseDate, addDays, iso, monthKey, isValidIso, nextMonday,
   easter, holidaysBR, ALIAS, parseTimeline, parseRateRows, rateMatch, ensureRates, applyRateTable,
-  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones, distributeDeliv, clampDeliv, scenarioMetrics, compareScenarios };
+  parseParams, parseExtraHolidays, parseMilestoneLines, buildCalendar, compute, sensitivity, timelineView, milestones, distributeDeliv, clampDeliv, scenarioMetrics, compareScenarios, indirects, margins, kIndirect, solveMargin, salaryFromCost, BR_ENC, BR_ENC_TOTAL };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Engine;

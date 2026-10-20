@@ -185,7 +185,6 @@
       <label class="f">Modo de precificação
         <select id="p_mode"><option value="rate">Rate/h do perfil</option><option value="gm">Custo/h + GM% alvo</option></select></label>
       <label class="f">GM% alvo (modo custo)<input type="number" id="p_gm" value="35" step="0.5"></label>
-      <label class="f">GM% mínimo (gera alerta)<input type="number" id="p_gmmin" value="0" step="0.5"></label>
       <label class="f">Contingência / risco %<input type="number" id="p_cont" value="0" step="0.5"></label>
       <label class="f">Contingência entra…
         <select id="p_contmode"><option value="price">só no preço (vira margem)</option><option value="both">no preço e no custo (reserva consumida)</option></select></label>
@@ -193,6 +192,21 @@
     <div class="row" style="margin-top:12px">
       <label class="chk"><input type="checkbox" id="p_inclOpt"> Incluir itens opcionais no total da proposta</label>
     </div>
+  </div>
+
+  <div class="card" id="mgParams">
+    <h2>Margens e custos indiretos (GM e GPM)</h2>
+    <p class="hint" style="margin:0 0 10px"><b>GM</b> = (receita líquida − custo direto da equipe) ÷ receita líquida. <b>GPM</b> = GM depois dos custos indiretos abaixo. Esses dados são internos: <u>nunca</u> aparecem na proposta enviada ao cliente.</p>
+    <div class="grid">
+      <label class="f" data-why="GM mínimo aceitável. Abaixo dele a análise gera alerta e o desconto máximo é limitado.">GM% mínimo<input type="number" id="p_gmmin" value="0" step="0.5" aria-label="GM mínimo"></label>
+      <label class="f" data-why="GPM mínimo aceitável (margem depois dos indiretos). Abaixo dele a análise alerta e o desconto máximo passa a respeitar este limite.">GPM% mínimo (alerta)<input type="number" id="p_gpmmin" value="0" step="0.5"></label>
+      <label class="f" data-why="Rateio de overhead/G&amp;A: % da receita líquida da proposta.">Overhead / G&amp;A (% da receita líq.)<input type="number" id="p_ovh" value="0" step="0.5"></label>
+      <label class="f" data-why="Comissão ou bônus de venda: % da receita líquida.">Comissão / bônus (% da receita líq.)<input type="number" id="p_comm" value="0" step="0.1"></label>
+      <label class="f" data-why="Custo do capital preso no recebível: valor com impostos × % ao mês × prazo de pagamento ÷ 30.">Custo financeiro (% a.m.)<input type="number" id="p_fin" value="0" step="0.1"></label>
+      <label class="f" data-why="Reserva de risco: % do custo direto (garantia, retrabalho, multas).">Reserva de risco (% do custo)<input type="number" id="p_risk" value="0" step="0.5"></label>
+      <label class="f" data-why="Usado só para sugerir o salário médio a partir do Cost/h (aba Perfis e taxas). Soma de encargos e benefícios sobre o salário: INSS patronal 20% + RAT 2% + Sistema S 5,8% + FGTS 8% + 13º 8,33% + férias 11,11% + multa FGTS 3,2% + benefícios 12% = 70,44%.">Encargos + benefícios sobre o salário — Brasil (%)<input type="number" id="p_enc" value="70.44" step="0.5"></label>
+    </div>
+    <p class="hint" style="margin:8px 0 0">O prazo de pagamento usado no custo financeiro é o da seção <i>Faturamento</i>. Todos os valores são por proposta e gravados no Excel.</p>
   </div>
 
   <div class="card" id="discCard">
@@ -276,7 +290,7 @@
           <button class="btn sec sm" data-act="rc-import">Importar perfis/taxas (.xlsx/.csv)</button>
           <input type="file" id="rcFile" accept=".xlsx,.xlsm,.xls,.csv" hidden>
         </span>
-        <button class="btn sec sm" data-act="rc-gm" id="btnRcGm">Calcular Rate/h = Custo/(1–GM%)</button>
+        <button class="btn sec sm" data-act="rc-gm" id="btnRcGm">Calcular Rate net/h = Cost/(1–GM%)</button>
       </div>
     </div>
     <div id="rcBar" class="catbar"></div>
@@ -291,8 +305,8 @@
       <label class="f">Perfil<input id="rcaRole" placeholder="Ex.: Scrum Master"></label>
       <label class="f" id="rcaLvlBox">Nível<input id="rcaLevel" placeholder="Ex.: Senior" style="max-width:120px"></label>
       <label class="f" id="rcaLocBox">Local<input id="rcaLoc" placeholder="Brazil" style="max-width:120px"></label>
-      <label class="f" id="rcaCostBox">Custo/h<input id="rcaCost" type="number" step="0.01" style="max-width:110px"></label>
-      <label class="f">Rate/h<input id="rcaRate" type="number" step="0.01" style="max-width:110px"></label>
+      <label class="f" id="rcaCostBox">Cost/h<input id="rcaCost" type="number" step="0.01" style="max-width:110px"></label>
+      <label class="f">Rate net/h<input id="rcaRate" type="number" step="0.01" style="max-width:110px"></label>
       <button class="btn sec" data-act="rc-add">＋ Adicionar perfil/nível</button>
     </div>
     <div class="row" style="margin-top:14px;justify-content:flex-end">
@@ -320,6 +334,22 @@
 <section class="tab" id="tab-ana" role="tabpanel" aria-labelledby="tabbtn-ana">
   <div class="checklist" id="checklist" aria-label="Verificações da proposta"></div>
   <div class="kpis" id="kpis"></div>
+  <div class="card" id="mgCard">
+    <h2>Painel de margens — GM e GPM <span class="hint" style="font-weight:400">(uso interno; passe o mouse nos valores para ver o cálculo)</span></h2>
+    <div id="mgKpis" class="kp-row"></div>
+    <div id="mgWf" class="wf"></div>
+    <div class="two" style="margin-top:14px"><div><h3 class="sub3">Margem por fase</h3><div class="scroll" style="max-height:none"><div id="mgPhase"></div></div></div>
+      <div><h3 class="sub3">Margem por perfil (GM)</h3><div class="scroll" style="max-height:none"><div id="mgRole"></div></div></div></div>
+    <h3 class="sub3" style="margin-top:14px">Calculadora reversa — qual margem você quer?</h3>
+    <div class="row" id="mgCalcForm" style="align-items:flex-end;gap:10px">
+      <label class="f">Fixar<select id="mgKind"><option value="gpm">GPM alvo</option><option value="gm">GM alvo</option></select></label>
+      <label class="f">Alvo (%)<input type="number" id="mgTarget" step="0.5" value="25" style="max-width:100px"></label>
+    </div>
+    <div id="mgCalc" class="sugg" style="margin-top:10px"></div>
+    <h3 class="sub3" style="margin-top:14px">Simulador: desconto × margens</h3>
+    <div class="row" style="gap:12px"><input type="range" id="mgSlide" min="0" max="20" step="0.5" value="0" style="flex:1;min-width:220px" aria-label="Desconto simulado"><b id="mgSlideV"></b></div>
+    <div id="mgSim"></div>
+  </div>
   <div class="two">
     <div class="card"><h2>Alocação (FTE) por período</h2><div class="chartbox"><canvas id="chFte" role="img" aria-label="Gráfico de alocação por período"></canvas></div><div id="chFteMsg"></div></div>
     <div class="card"><h2>Faturamento por mês (com impostos)</h2><div class="chartbox"><canvas id="chMonth" role="img" aria-label="Gráfico de faturamento mensal"></canvas></div><div id="chMonthMsg"></div></div>

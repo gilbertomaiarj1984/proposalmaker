@@ -1,7 +1,7 @@
 /* =====================================================================
    CATÁLOGO DE PERFIS E TAXAS (Excel) — um arquivo com UMA ABA POR CLIENTE.
    Cada aba pode ter o formato do próprio cliente (o padrão é
-   Role | Level | Location | Cost/h | Rate/h; abas com outros títulos também são lidas); as colunas são detectadas
+   Role | Level | Location | Cost/h | Rate net/h; abas com outros títulos também são lidas); as colunas são detectadas
    pelo cabeçalho. Alterações são aplicadas NA PLANILHA ORIGINAL (formatação,
    filtros e cores preservados): atualiza células, acrescenta linhas, remove linhas
    e cria abas de clientes novos (clonando a aba de outro cliente ou em branco).
@@ -94,7 +94,7 @@ const STD_COLS = {role: 1, level: 2, location: 3, cost: 4, rate: 5};
 const HEAD_FILL = {type: 'pattern', pattern: 'solid', fgColor: {argb: 'FFD9E5F3'}};
 function standardSheet(wb, name){
   const ws = wb.addWorksheet(name, {views: [{state: 'frozen', ySplit: 1}]});
-  ws.addRow(['Role', 'Level', 'Location', 'Cost/h', 'Rate/h']);
+  ws.addRow(['Role', 'Level', 'Location', 'Cost/h', 'Rate net/h']);
   ws.getRow(1).eachCell(c => { c.font = {bold: true}; c.fill = HEAD_FILL; });
   [30, 10, 14, 12, 12].forEach((w, i) => ws.getColumn(i + 1).width = w);
   ws.getColumn(4).numFmt = '#,##0.00'; ws.getColumn(5).numFmt = '#,##0.00';
@@ -180,14 +180,14 @@ function seed(ExcelJS){
   ro.getColumn(6).width = 46; ro.getCell('F1').value = 'Notes'; ro.getCell('F1').font = {bold: true}; ro.getCell('F1').fill = HEAD_FILL;
   ro.getCell('F2').value = 'Valores ilustrativos — substitua pelos oficiais da Roche';
   ro.autoFilter = 'A1:F1';
-  // JnJ: mesmo layout padrão de todos os clientes (Role | Level | Location | Cost/h | Rate/h); valores em BRL sem impostos
+  // JnJ: mesmo layout padrão de todos os clientes (Role | Level | Location | Cost/h | Rate net/h); valores em BRL sem impostos
   const jn = standardSheet(wb, 'JnJ');
   JNJ_ROWS.forEach(r => jn.addRow([r[0], r[1], null, null, r[2] === undefined ? null : r[2]]));
   jn.autoFilter = 'A1:E1';
   const ins = wb.addWorksheet('Instructions');
   ins.getColumn(1).width = 110;
   ['Catálogo de perfis e taxas — uma aba por cliente',
-   'Layout padrão de todos os clientes: Role | Level | Location | Cost/h | Rate/h. Os valores da JnJ são uma amostra (Rate/h em BRL, sem impostos): substitua pelos oficiais.',
+   'Layout padrão de todos os clientes: Role | Level | Location | Cost/h | Rate net/h. Os valores da JnJ são uma amostra (Rate net/h em BRL, sem impostos): substitua pelos oficiais.',
    'Cada aba nova (cliente) é criada pelo app a partir de outra aba ou em branco; o app lê as colunas pelo cabeçalho.',
    'Perfis sem taxa ficam em branco e aparecem como "sem taxa" nas propostas.'].forEach((t, i) => { const r = ins.addRow([t]); if (!i) r.font = {bold: true, size: 13}; });
   return wb;

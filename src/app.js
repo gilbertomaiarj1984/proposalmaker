@@ -29,6 +29,23 @@ const pad = n => String(n).padStart(2, '0');
 const hhmm = (d = new Date()) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const slug = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w]+/g, '_').replace(/^_+|_+$/g, '');
 const fileBase = () => `Proposta_${slug($('p_client').value) || 'Cliente'}_${slug($('p_project').value) || 'Projeto'}`;
+// racional do cálculo ao passar o mouse: atributo data-why (linhas separadas por \n; **negrito**)
+const why = t => !t ? '' : ` data-why="${String(t).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/\n/g, '&#10;')}"`;
+(() => {
+  const tip = document.createElement('div'); tip.id = 'whyTip'; tip.setAttribute('role', 'tooltip'); document.body.appendChild(tip);
+  let cur = null;
+  const show = (el, x, y) => {
+    const t = el.getAttribute('data-why'); if (!t) return;
+    tip.innerHTML = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+    tip.style.display = 'block';
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(8, Math.min(x + 14, innerWidth - w - 8)) + 'px';
+    tip.style.top = (y + 18 + h > innerHeight ? Math.max(8, y - h - 12) : y + 18) + 'px';
+  };
+  document.addEventListener('mouseover', e => { const el = e.target.closest && e.target.closest('[data-why]'); if (el !== cur){ cur = el; if (el) show(el, e.clientX, e.clientY); else tip.style.display = 'none'; } });
+  document.addEventListener('mousemove', e => { if (cur) show(cur, e.clientX, e.clientY); });
+  document.addEventListener('scroll', () => { tip.style.display = 'none'; cur = null; }, true);
+})();
 function msg(el, type, html){ const n = $(el); if (n) n.innerHTML = html ? `<div class="msg ${type}">${html}</div>` : ''; }
 
 function toast(text, type = 'info', ms = 6000, actions = []){
@@ -209,6 +226,20 @@ async function netCheck(){
 
 /* ---------------- identificação da proposta (barra superior) ---------------- */
 function safeCompute(){ try { return S.rows.length ? E.compute(model(), P(), {today: new Date()}) : null; } catch(e){ return null; } }
+/* ---------------- racional dos cálculos (textos dos tooltips) ---------------- */
+const pc = (v, d = 1) => nfPT(v * 100, d) + '%';
+function whyPrice(R){
+  const T = R.T, p = R.p, C = (v, d = 0) => curPT(v, p.cur, d);
+  return `**Preço com impostos**\nLista (taxa × horas × contingência): ${C(T.listNet)} líquido\n− desconto ${pc(T.discPct)}: ${C(T.discNet)}\n= líquido ${C(T.net)}\n÷ (1 − impostos ${pc(p.tax, 2)}) = **${C(T.gross)}**`;
+}
+function whyGm(R){
+  const T = R.T, C = v => curPT(v, R.p.cur, 0);
+  return `**GM = (líquido − custo direto) ÷ líquido**\n(${C(T.net)} − ${C(T.cost)}) ÷ ${C(T.net)} = **${pc(T.gm)}**\nLucro bruto: ${C(T.gp)}`;
+}
+function whyGpm(R){
+  const T = R.T, p = R.p, C = v => curPT(v, p.cur, 0), i = T.ind;
+  return `**GPM = (GM − custos indiretos) ÷ líquido**\nLucro bruto ${C(T.gp)}\n− overhead ${pc(p.ovh)} × líquido: ${C(i.ovh)}\n− comissão ${pc(p.comm)} × líquido: ${C(i.comm)}\n− custo financeiro ${pc(p.fin, 2)}/mês × ${p.terms} d ÷ 30 × bruto: ${C(i.fin)}\n− reserva de risco ${pc(p.risk)} × custo: ${C(i.risk)}\n= ${C(T.gpp)} ÷ ${C(T.net)} = **${pc(T.gpm)}**`;
+}
 function updateIdent(){
   const has = S.rows.length > 0;
   const client = $('p_client').value.trim(), project = $('p_project').value.trim(), ref = $('p_ref').value.trim(), vendor = $('p_vendor').value.trim();
@@ -222,7 +253,10 @@ function updateIdent(){
     if (vendor) parts.push(`<span>${esc(vendor)}</span>`);
     parts.push(S.handle ? `<span title="Arquivo onde a proposta é gravada">📄 ${esc(S.handle.name)}</span>` : (S.fileLabel ? `<span title="O arquivo original não é alterado">📂 origem: ${esc(S.fileLabel)}</span>` : '<span>📄 sem arquivo</span>'));
     const R = safeCompute();
-    if (R && R.T.gross > 0) parts.push(`<b title="Preço total com impostos">${esc(curPT(R.T.gross, R.p.cur))}</b>${R.T.cost ? `<span title="Margem bruta estimada">GM ${nfPT(R.T.gm * 100, 1)}%</span>` : ''}`);
+    if (R && R.T.gross > 0){
+      const T = R.T, C = (v, d = 0) => curPT(v, R.p.cur, d);
+      parts.push(`<b${why(whyPrice(R))}>${esc(C(T.gross))}</b>${T.cost ? `<span${why(whyGm(R))}>GM ${nfPT(T.gm * 100, 1)}%</span>` : ''}${T.cost && T.ind.total > 0 ? `<span${why(whyGpm(R))}>GPM ${nfPT(T.gpm * 100, 1)}%</span>` : ''}`);
+    }
     if (R && R.issues.some(i => i.level === 'err')) parts.push('<span class="pbwarn" title="Há alertas críticos na análise financeira">⛔ alertas</span>');
   }
   const st = has && S.saveText ? `<span class="st ${S.saveKind}">${esc(S.saveText)}</span>` : '';
@@ -341,7 +375,11 @@ async function loadBuffer(buf, name, handle){
     try { parsed = E.parseTimeline(aoa(n)); parsed.sheet = n; break; }
     catch(e){ errors.push(`${esc(n)}: ${esc(e.message)}`); }
   }
-  if (!parsed) throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
+  if (!parsed){
+    const looksCatalog = wb.SheetNames.some(n => { try { return E.parseRateRows(aoa(n)).length > 0; } catch(e){ return false; } });
+    if (looksCatalog) throw new Error('Este arquivo parece ser o <b>catálogo de perfis e taxas</b>, não uma proposta ou timeline. Use <b>📚 Catálogo</b> para abri-lo.');
+    throw new Error('Nenhuma aba reconhecida como timeline.<br>' + errors.join('<br>'));
+  }
   S.rows = parsed.rows; S.nPeriods = parsed.nPeriods; S.unit = parsed.unit; $('p_unit').value = S.unit; S.deliverables = []; resetScen();
   // um timeline "bruto" nunca é sobrescrito: a proposta só passa a ser gravada depois de "Salvar como…"
   S.fileName = name; S.fileLabel = name; S.handle = null; S.autoFile = false; $('autoFile').checked = false; S.edits = {}; S.phaseDisc = {}; S.snapRates = {}; S.catClient = '';
@@ -422,9 +460,12 @@ function renderDiscount(){
     return;
   }
   const p = R.p, T = R.T, C = (v, d = 0) => curPT(v, p.cur, d), kp = (b, t) => `<div class="kp"><b>${b}</b>${t}</div>`;
+  const kw = (b, t, w) => `<div class="kp"${why(w)}><b>${b}</b>${t}</div>`;
   $('discResult').innerHTML =
-    kp(C(T.listGross), 'preço de lista (c/ impostos)') + kp((T.discNet > 0.005 ? '−' : '') + C(T.discGross) + ` <small>(${nfPT(T.discPct * 100, 1)}%)</small>`, 'desconto efetivo') +
-    kp(C(T.gross), 'preço final (c/ impostos)') + kp(T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', 'GM% após o desconto');
+    kw(C(T.listGross), 'preço de lista (c/ impostos)', `**Preço de lista**\nTaxa × horas × contingência = ${C(T.listNet)} líquido ÷ (1 − impostos ${nfPT(p.tax * 100, 2)}%) = ${C(T.listGross)}`) +
+    kw((T.discNet > 0.005 ? '−' : '') + C(T.discGross) + ` <small>(${nfPT(T.discPct * 100, 1)}%)</small>`, 'desconto efetivo', `**Desconto efetivo**\nLista ${C(T.listGross)} − final ${C(T.gross)} = ${C(T.discGross)}\n= ${nfPT(T.discPct * 100, 2)}% do líquido de lista (inclui exceções por fase).`) +
+    kw(C(T.gross), 'preço final (c/ impostos)', whyPrice(R)) + kw(T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', 'GM% após o desconto', T.cost ? whyGm(R) : 'Preencha o Custo/h para ver o GM.') +
+    (T.cost && T.ind.total > 0 ? kw(nfPT(T.gpm * 100, 1) + '%', 'GPM% após o desconto', whyGpm(R)) : '');
 
   // por fase (modo percentual)
   const phases = R.phases.filter(ph => !ph.optional || p.inclOpt); discNames = phases.map(ph => ph.name);
@@ -549,6 +590,8 @@ async function writeCatalog(handle){
   if (S.cat.dirty && S.cat.handle){ clearTimeout(catTimer); catTimer = setTimeout(saveCatalog, 400); }
 }
 async function catalogLoad(buf, name, handle){
+  try { const X = await loadLib('xlsx'); if (Workbook.isProposalWorkbook(X, X.read(new Uint8Array(buf), {type: 'array'}))) throw new Error('este arquivo é uma PROPOSTA, não o catálogo de perfis e taxas — abra-o em “Abrir proposta”'); }
+  catch(e){ if (/PROPOSTA/.test(e.message)) throw e; }
   const Ex = await loadLib('exceljs');
   const parsed = await Catalog.parse(Ex, buf);
   if (!parsed.clients.length) throw new Error('nenhuma aba de cliente reconhecida (esperado: cabeçalho com “Role/Perfil” e a coluna de taxa)');
@@ -672,6 +715,11 @@ function addProfile(entry){
   return {entry: S.rates[k], existed};
 }
 function refreshAfterRatesLite(){ S.result = null; renderRateTable(); renderCatalogBar(); }
+function salaryWhy(p, r){
+  const c = E.num(r.cost); if (!(c > 0)) return 'Preencha o Cost/h deste perfil para ver o salário médio sugerido.';
+  const x = E.salaryFromCost(p, c), C = (v, d = 0) => curPT(v, p.rcur, d);
+  return `**Salário médio sugerido — ${r.role}${r.level ? ' ' + r.level : ''}**\n1) Horas por mês = ${p.hpd} h × ${p.dpw} dias × 52 semanas ÷ 12 = ${nfPT(x.hoursMonth, 1)} h\n2) Custo mensal da empresa = Cost/h ${C(c, 2)} × ${nfPT(x.hoursMonth, 1)} h = ${C(x.monthlyCost)}\n3) Fator de encargos e benefícios (Brasil/CLT) = 1 + ${nfPT(p.enc * 100, 2)}% = ${nfPT(x.factor, 4)}\n    (referência: ${E.BR_ENC.map(e => e[0] + ' ' + nfPT(e[1], 2) + '%').join(' + ')} = ${nfPT(E.BR_ENC_TOTAL, 2)}%; ajustável em Margens e custos indiretos)\n4) Salário bruto médio = ${C(x.monthlyCost)} ÷ ${nfPT(x.factor, 4)} = **${C(x.salary)}/mês**\nHipótese: Cost/h = custo total do profissional por hora faturável. Estimativa para referência, não substitui a folha.`;
+}
 function renderRateTable(){
   const p = P(), cl = boundClient();
   const q = $('rcFilter').value.trim().toLowerCase();
@@ -684,7 +732,7 @@ function renderRateTable(){
   $('btnRcGm').style.display = showCost ? '' : 'none';
   $('rcaLvlBox').style.display = showLvl ? '' : 'none'; $('rcaLocBox').style.display = showLoc ? '' : 'none'; $('rcaCostBox').style.display = showCost ? '' : 'none';
   const shown = keys.filter(k => { const r = S.rates[k]; return !q || `${r.role} ${r.level} ${r.location}`.toLowerCase().includes(q); });
-  let h = `<thead><tr><th>Perfil</th>${showLvl ? '<th>Nível</th>' : ''}${showLoc ? '<th>Local</th>' : ''}<th class="n">Horas (timeline)</th>${showCost ? '<th class="n">Custo/h</th>' : ''}<th class="n">Rate/h (${esc(p.rcur)})</th>${showCost ? '<th class="n">GM%</th>' : ''}${cl ? '<th></th>' : ''}</tr></thead><tbody>`;
+  let h = `<thead><tr><th>Perfil</th>${showLvl ? '<th>Nível</th>' : ''}${showLoc ? '<th>Local</th>' : ''}<th class="n">Horas (timeline)</th>${showCost ? '<th class="n">Cost/h</th>' : ''}<th class="n">Rate net/h (${esc(p.rcur)})</th>${showCost ? '<th class="n">GM%</th>' : ''}${showCost ? `<th class="n"${why('**Salário médio sugerido (mês, CLT Brasil)**\nSalário = Cost/h × horas por mês ÷ (1 + encargos e benefícios).\nPasse o mouse em cada valor para ver a conta do perfil.')}>Salário médio sugerido/mês</th>` : ''}${cl ? '<th></th>' : ''}</tr></thead><tbody>`;
   shown.forEach(k => {
     const r = S.rates[k], gm = r.rate && r.cost ? (1 - r.cost / r.rate) * 100 : null;
     const miss = v => (v === '' || v === 0 || v === null) ? 'style="border-color:var(--err);background:#FFF5F5"' : '';
@@ -692,7 +740,8 @@ function renderRateTable(){
     h += `<tr><td>${esc(r.role)}${r.notInCatalog ? ' <span class="tag warn" title="Está no timeline mas não no catálogo deste cliente">fora do catálogo</span>' : ''}</td>${showLvl ? `<td>${esc(r.level)}</td>` : ''}${showLoc ? `<td>${esc(r.location)}</td>` : ''}<td class="n">${nfPT(hrsBy[k] || 0)}</td>
       ${showCost ? `<td class="n"><input type="number" step="0.01" aria-label="Custo/h de ${esc(r.role)} ${esc(r.level)}" value="${esc(r.cost)}" data-k="${esc(k)}" data-f="cost" ${p.mode === 'gm' && used ? miss(r.cost) : ''}></td>` : ''}
       <td class="n"><input type="number" step="0.01" aria-label="Rate/h de ${esc(r.role)} ${esc(r.level)}" value="${esc(r.rate)}" data-k="${esc(k)}" data-f="rate" ${p.mode === 'rate' && used ? miss(r.rate) : ''}></td>
-      ${showCost ? `<td class="n" style="${gm !== null && gm < 0 ? 'color:var(--err)' : ''}">${gm === null ? '–' : nfPT(gm, 1) + '%'}</td>` : ''}
+      ${showCost ? `<td class="n" style="${gm !== null && gm < 0 ? 'color:var(--err)' : ''}"${why(gm === null ? 'Preencha Cost/h e Rate net/h para ver o GM do perfil.' : `**GM do perfil = 1 − Cost/h ÷ Rate net/h**\n1 − ${nfPT(r.cost, 2)} ÷ ${nfPT(r.rate, 2)} = ${nfPT(gm, 1)}%`)}>${gm === null ? '–' : nfPT(gm, 1) + '%'}</td>` : ''}
+      ${showCost ? `<td class="n"${why(salaryWhy(p, r))}>${E.num(r.cost) > 0 ? curPT(E.salaryFromCost(p, E.num(r.cost)).salary, p.rcur, 0) : '–'}</td>` : ''}
       ${cl ? `<td class="n">${r.notInCatalog ? `<button class="btn sec sm" data-act="rc-addcat" data-k="${esc(k)}" title="Grava este perfil no catálogo do cliente">＋ catálogo</button>` : `<button class="xbtn" data-act="rc-del" data-k="${esc(k)}" title="Remover do catálogo" aria-label="Remover ${esc(r.role)} ${esc(r.level)} do catálogo">🗑</button>`}</td>` : ''}</tr>`;
   });
   $('rcTable').innerHTML = h + '</tbody>';
@@ -748,7 +797,7 @@ function renderCatalogDialog(){
   if (C.loaded){
     h += `<table class="t"><thead><tr><th>Cliente (aba)</th><th class="n">Perfis/níveis</th><th>Moeda</th><th>Colunas</th><th></th></tr></thead><tbody>` +
       C.clients.map(c => {
-        const cols = [c.cols.role && 'Perfil', c.cols.level && 'Nível', c.cols.location && 'Local', c.cols.cost && 'Custo/h', c.cols.rate && 'Rate/h'].filter(Boolean).join(', ');
+        const cols = [c.cols.role && 'Perfil', c.cols.level && 'Nível', c.cols.location && 'Local', c.cols.cost && 'Cost/h', c.cols.rate && 'Rate net/h'].filter(Boolean).join(', ');
         return `<tr><td><b>${esc(c.name)}</b>${S.catClient === c.name ? ' <span class="st saved">nesta proposta</span>' : ''}${c.isNew ? ' <span class="st dirty">nova aba</span>' : ''}</td><td class="n">${liveEntries(c).length}</td><td>${esc(c.currency || '—')}</td><td class="hint">${esc(cols)}</td>
           <td class="n"><button class="btn sm" data-act="client-use" data-n="${esc(c.name)}">Usar nesta proposta</button> <button class="btn sec sm" data-act="client-new" data-base="${esc(c.name)}">Novo cliente a partir deste…</button></td></tr>`;
       }).join('') + `</tbody></table><div class="row" style="margin-top:10px"><button class="btn" data-act="client-new">＋ Novo cliente…</button></div>`;
@@ -797,6 +846,9 @@ function issueText(i, R){
     case 'missing_rates': return `Sem ${d.mode === 'rate' ? 'Rate/h' : 'Custo/h'} para: <b>${esc(d.list.join(', '))}</b>. Esses perfis entram com valor zero — preencha as taxas na aba 2 antes de enviar a proposta.`;
     case 'gm_negative': return `GM% negativo (${nfPT(d.gm * 100, 1)}%): o preço está abaixo do custo.`;
     case 'gm_below_min': return `GM% de ${nfPT(d.gm * 100, 1)}% está abaixo do mínimo configurado (${nfPT(d.min * 100, 1)}%).`;
+    case 'gpm_negative': return `GPM% negativo (${nfPT(d.gpm * 100, 1)}%): depois dos custos indiretos a proposta dá prejuízo.`;
+    case 'gpm_below_min': return `GPM% de ${nfPT(d.gpm * 100, 1)}% está abaixo do mínimo configurado (${nfPT(d.min * 100, 1)}%).`;
+    case 'phase_gpm_negative': return `Fase(s) com GPM% negativo: ${esc(d.list.join(', '))}.`;
     case 'no_cost': return 'Sem Custo/h informado: o GM% não pode ser calculado.';
     case 'price_below_cost': return `Preço abaixo do custo em: ${esc(d.list.join(', '))}.`;
     case 'start_adjusted': return `${esc(d.from)} não é dia útil (fim de semana ou feriado): o projeto começa em <b>${esc(d.to)}</b>.`;
@@ -816,14 +868,16 @@ function renderAnalysis(){
   $('checklist').innerHTML = (items.map(i => `<div class="it ${i.level}"><span aria-hidden="true">${icon[i.level]}</span><span>${issueText(i, R)}</span></div>`).join('')) +
     (hasBad ? '' : `<div class="it ok"><span aria-hidden="true">✅</span><span>Nenhum alerta crítico: taxas completas, margem dentro do esperado.</span></div>`);
 
-  const k = (l, v, s = '') => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const k = (l, v, s = '', w = '') => `<div class="kpi"${w ? why(w) : ''}><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const hpm = p.hpd * p.dpw * 52 / 12;
   $('kpis').innerHTML =
-    k('Preço total (c/ impostos)', C(T.gross), `Líquido: ${C(T.net)}` + (T.discNet > 0.5 ? ` · desconto ${nfPT(T.discPct * 100, 1)}% (lista ${C(T.listGross)})` : '')) +
-    k('Duração', `${T.nPer} ${U === 'SP' ? 'sprints' : 'semanas'}`, R.relative ? `${T.weeks} semanas · sem data de início` : `${T.weeks} semanas · ${E.iso(T.start)} → ${E.iso(T.end)}`) +
-    k('Esforço', `${nfPT(T.H)} h`, `${nfPT(T.H / (p.hpd * p.dpw * 52 / 12 || 1), 1)} FTE-mês`) +
-    k('Time', `pico ${nfPT(T.peak, 1)} FTE`, `média ${nfPT(T.avgFte, 1)} FTE`) +
-    k('Rate médio (blended)', C(T.blended, 2) + '/h', p.mode === 'rate' ? 'taxa do perfil' : 'custo + GM') +
-    k('GM% estimado', T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', T.cost ? `Custo: ${C(T.cost)}` : 'preencha Custo/h') +
+    k('Preço total (c/ impostos)', C(T.gross), `Líquido: ${C(T.net)}` + (T.discNet > 0.5 ? ` · desconto ${nfPT(T.discPct * 100, 1)}% (lista ${C(T.listGross)})` : ''), whyPrice(R)) +
+    k('Duração', `${T.nPer} ${U === 'SP' ? 'sprints' : 'semanas'}`, R.relative ? `${T.weeks} semanas · sem data de início` : `${T.weeks} semanas · ${E.iso(T.start)} → ${E.iso(T.end)}`, `**Duração**\n${T.nPer} períodos de ${R.pw} semana(s) entre o primeiro e o último período com alocação = ${T.weeks} semanas.`) +
+    k('Esforço', `${nfPT(T.H)} h`, `${nfPT(T.H / (hpm || 1), 1)} FTE-mês`, `**Esforço**\nΣ (FTE × horas por período) de todas as linhas no escopo.\nHoras por período por FTE = ${R.pw} sem × ${p.dpw} dias × ${p.hpd} h = ${nfPT(R.hpp)} h.\nFTE-mês = ${nfPT(T.H)} h ÷ ${nfPT(hpm, 1)} h/mês (${p.hpd} h × ${p.dpw} d × 52 ÷ 12).`) +
+    k('Time', `pico ${nfPT(T.peak, 1)} FTE`, `média ${nfPT(T.avgFte, 1)} FTE`, `**Time**\nPico = maior soma de FTE em um período.\nMédia = soma de FTE ÷ períodos com alocação.`) +
+    k('Rate médio (blended)', C(T.blended, 2) + '/h', p.mode === 'rate' ? 'taxa do perfil' : 'custo + GM', `**Rate médio**\nReceita líquida ÷ horas = ${C(T.net)} ÷ ${nfPT(T.H)} h = ${C(T.blended, 2)}/h.`) +
+    k('GM% estimado', T.cost ? nfPT(T.gm * 100, 1) + '%' : '–', T.cost ? `Custo: ${C(T.cost)}` : 'preencha Custo/h', T.cost ? whyGm(R) : 'Preencha o Custo/h dos perfis para calcular o GM.') +
+    (T.cost && T.ind.total > 0 ? k('GPM% (após indiretos)', nfPT(T.gpm * 100, 1) + '%', `Indiretos: ${C(T.ind.total)}`, whyGpm(R)) : '') +
     (T.netOpt ? k('Opcionais', C(T.grossOpt), p.inclOpt ? 'incluídos no total' : 'fora do total') : '');
 
   let h = `<table class="t"><thead><tr><th>Fase</th><th>Período</th><th>Datas</th><th class="n">Horas</th><th class="n">Líquido</th><th class="n">Com impostos</th><th class="n">% total</th></tr></thead><tbody>`;
@@ -859,7 +913,80 @@ function renderAnalysis(){
     }).join('') + '</tr>';
   });
   $('tbSens').innerHTML = h + '</tbody></table>';
+  renderMargins(R);
 }
+
+/* ---------------- painel de margens: GM e GPM ---------------- */
+const mCls = (v, min) => v < 0 ? 'merr' : (min > 0 && v < min ? 'mwarn' : 'mok');
+function renderMargins(R){
+  const T = R.T, p = R.p, C = (v, d = 0) => curPT(v, p.cur, d);
+  const card = $('mgCard');
+  if (!T.cost){ card.querySelectorAll('#mgKpis,#mgWf,#mgPhase,#mgRole,#mgCalc,#mgSim').forEach(n => { n.innerHTML = ''; }); $('mgKpis').innerHTML = '<p class="hint">Informe o <b>Custo/h</b> dos perfis (aba 2) para calcular GM e GPM.</p>'; return; }
+  const kc = (v, min) => v < 0 ? 'err' : (min > 0 && v < min ? 'warn' : 'ok');
+  const kpi = (cls, l, v, sub, w) => `<div class="kpi ${cls}"${why(w)}><div class="l">${l}</div><div class="v">${v}</div><div class="s">${sub}</div></div>`;
+  $('mgKpis').innerHTML =
+    kpi(kc(T.gm, p.gmMin), 'GM — margem bruta', pc(T.gm), p.gmMin > 0 ? `mínimo ${pc(p.gmMin)}` : 'sem mínimo definido', whyGm(R)) +
+    kpi(kc(T.gpm, p.gpmMin), 'GPM — após indiretos', pc(T.gpm), p.gpmMin > 0 ? `mínimo ${pc(p.gpmMin)}` : (T.ind.total > 0 ? 'sem mínimo definido' : 'sem indiretos configurados'), whyGpm(R)) +
+    kpi('', 'Lucro bruto (GM)', C(T.gp), `${C(T.net)} − ${C(T.cost)}`, `**Lucro bruto**\nReceita líquida − custo direto\n${C(T.net)} − ${C(T.cost)} = ${C(T.gp)}`) +
+    kpi('', 'Lucro após indiretos', C(T.gpp), `indiretos ${C(T.ind.total)}`, `**Lucro após indiretos**\nLucro bruto ${C(T.gp)} − indiretos ${C(T.ind.total)} = ${C(T.gpp)}`);
+  // cascata do preço ao GPM
+  const bar = (label, val, w, color, extra, wh) => `<div${why(wh)}><span>${label}</span><i style="width:${Math.max(0.5, Math.min(100, w))}%;background:${color}"></i><em>${extra || C(val)}</em></div>`;
+  const base = T.gross || 1, pct = v => v / base * 100, tax = T.gross - T.net;
+  $('mgWf').innerHTML =
+    bar('Preço com impostos', T.gross, 100, '#1B4F8C', null, whyPrice(R)) +
+    bar(`− Impostos (${pc(p.tax, 2)})`, -tax, pct(tax), '#9AA8B8', '−' + C(tax), `**Impostos**\nPreço com impostos − líquido\n${C(T.gross)} − ${C(T.net)} = ${C(tax)} (${pc(p.tax, 2)} do preço)`) +
+    bar('= Receita líquida', T.net, pct(T.net), '#2E86C1', null, `**Receita líquida**\nPreço ÷ (1 − impostos) invertido: ${C(T.gross)} × (1 − ${pc(p.tax, 2)}) = ${C(T.net)}`) +
+    bar('− Custo direto (equipe)', -T.cost, pct(T.cost), '#C0392B', '−' + C(T.cost), `**Custo direto**\nΣ horas × Cost/h × câmbio de cada linha.\nHoras: ${nfPT(T.H)} h · custo/h médio ${C(T.H ? T.cost / T.H : 0, 2)}`) +
+    bar('= GM', T.gp, pct(T.gp), '#13A89E', `${C(T.gp)} · ${pc(T.gm)}`, whyGm(R)) +
+    bar(`− Overhead ${pc(p.ovh)}`, -T.ind.ovh, pct(T.ind.ovh), '#E07A1F', '−' + C(T.ind.ovh), `**Overhead / G&A**\n${pc(p.ovh)} × receita líquida ${C(T.net)} = ${C(T.ind.ovh)}`) +
+    bar(`− Comissão ${pc(p.comm)}`, -T.ind.comm, pct(T.ind.comm), '#D4A017', '−' + C(T.ind.comm), `**Comissão / bônus**\n${pc(p.comm)} × receita líquida ${C(T.net)} = ${C(T.ind.comm)}`) +
+    bar(`− Custo financeiro (${p.terms} d)`, -T.ind.fin, pct(T.ind.fin), '#E0A81F', '−' + C(T.ind.fin), `**Custo financeiro**\nCapital preso no recebível: preço com impostos ${C(T.gross)} × ${pc(p.fin, 2)} a.m. × ${p.terms} d ÷ 30 = ${C(T.ind.fin)}`) +
+    bar(`− Reserva de risco ${pc(p.risk)}`, -T.ind.risk, pct(T.ind.risk), '#AD5A8C', '−' + C(T.ind.risk), `**Reserva de risco**\n${pc(p.risk)} × custo direto ${C(T.cost)} = ${C(T.ind.risk)}`) +
+    bar('= GPM', T.gpp, pct(Math.max(0, T.gpp)), '#14683A', `${C(T.gpp)} · ${pc(T.gpm)}`, whyGpm(R));
+  // por fase e por perfil
+  const sc = R.phases.filter(ph => !ph.optional || p.inclOpt);
+  $('mgPhase').innerHTML = `<table class="t"><thead><tr><th>Fase</th><th class="n">Líquido</th><th class="n">Custo</th><th class="n">GM</th><th class="n">GPM</th></tr></thead><tbody>${
+    sc.map(ph => `<tr><td>${esc(ph.name)}</td><td class="n">${C(ph.net)}</td><td class="n">${C(ph.cost)}</td>
+      <td class="n ${ph.cost ? mCls(ph.gm, p.gmMin) : ''}"${why(`**GM da fase ${ph.name}**\n(${C(ph.net)} − ${C(ph.cost)}) ÷ ${C(ph.net)} = ${pc(ph.gm)}`)}>${ph.cost ? pc(ph.gm) : '–'}</td>
+      <td class="n ${ph.cost ? mCls(ph.gpm, p.gpmMin) : ''}"${why(`**GPM da fase ${ph.name}**\nLucro bruto ${C(ph.net - ph.cost)} − indiretos da fase ${C(ph.ind.total)}\n(overhead e comissão sobre o líquido da fase; custo financeiro sobre o bruto da fase; risco sobre o custo da fase)\n= ${C(ph.gpp)} ÷ ${C(ph.net)} = ${pc(ph.gpm)}`)}>${ph.cost ? pc(ph.gpm) : '–'}</td></tr>`).join('')}</tbody></table>`;
+  $('mgRole').innerHTML = `<table class="t"><thead><tr><th>Perfil</th><th class="n">Líquido</th><th class="n">Custo</th><th class="n">GM</th></tr></thead><tbody>${
+    R.roles.filter(r => !r.optional || p.inclOpt).map(r => { const gm = r.net ? (r.net - r.cost) / r.net : 0; return `<tr><td>${esc(r.role)}${r.level ? ' · ' + esc(r.level) : ''}</td><td class="n">${C(r.net)}</td><td class="n">${C(r.cost)}</td>
+      <td class="n ${r.cost ? mCls(gm, p.gmMin) : ''}"${why(`**GM do perfil**\n(${C(r.net)} − ${C(r.cost)}) ÷ ${C(r.net)} = ${pc(gm)}\nRate aplicado ${C(r.rateH, 2)}/h`)}>${r.cost ? pc(gm) : '–'}</td></tr>`; }).join('')}</tbody></table>`;
+  renderMarginCalc(R); renderMarginSim(R);
+}
+function renderMarginCalc(R){
+  const T = R.T, p = R.p, C = (v, d = 0) => curPT(v, p.cur, d);
+  const kind = $('mgKind').value, tgt = E.num($('mgTarget').value) / 100, name = kind === 'gm' ? 'GM' : 'GPM';
+  const sol = E.solveMargin(p, T, kind, tgt), cur = kind === 'gm' ? T.gm : T.gpm;
+  if (!sol.feasible){ $('mgCalc').innerHTML = `<b>${name} de ${pc(tgt)} é inalcançável</b> com os indiretos atuais (indiretos já consomem ${pc(E.kIndirect(p, p.tax))} da receita). Reduza o alvo ou os indiretos.`; return; }
+  const ok = cur >= tgt - 1e-9, up = sol.needNet > T.listNet + 0.5;
+  const whyP = `**Preço necessário para ${name} = ${pc(tgt)}**\n` + (kind === 'gm' ? `Líquido = custo ÷ (1 − GM) = ${C(T.cost)} ÷ ${nfPT(1 - tgt, 4)} = ${C(sol.needNet)}` : `Líquido = custo × (1 + risco) ÷ (1 − indiretos% − GPM)\n= ${C(T.cost)} × ${nfPT(1 + p.risk, 3)} ÷ (1 − ${pc(E.kIndirect(p, p.tax))} − ${pc(tgt)}) = ${C(sol.needNet)}`) + `\nCom impostos: ${C(sol.needNet)} ÷ (1 − ${pc(p.tax, 2)}) = ${C(sol.needGross)}`;
+  const whyC = `**Custo necessário para ${name} = ${pc(tgt)}**\n` + (kind === 'gm' ? `Custo = líquido × (1 − GM) = ${C(T.net)} × ${nfPT(1 - tgt, 4)} = ${C(sol.needCost)}` : `Custo = líquido × (1 − indiretos% − GPM) ÷ (1 + risco) = ${C(T.net)} × ${nfPT(1 - E.kIndirect(p, p.tax) - tgt, 4)} ÷ ${nfPT(1 + p.risk, 3)} = ${C(sol.needCost)}`);
+  $('mgCalc').innerHTML = `<div><b>Hoje:</b> ${name} ${pc(cur)} ${ok ? '✅ já atende o alvo' : '→ alvo ' + pc(tgt)}.</div><ul style="margin:6px 0 0;padding-left:18px">
+    <li${why(whyP)}><b>Pelo preço:</b> preço final com impostos de <b>${C(sol.needGross)}</b> (${sol.priceDeltaPct >= 0 ? '+' : '−'}${pc(Math.abs(sol.priceDeltaPct))} vs. hoje ${C(T.gross)}).
+      ${up ? `Isso passa da lista (${C(T.listGross)}): não dá só com desconto — é preciso subir os rates ~${pc(sol.needNet / T.listNet - 1)}.` : (sol.needDiscPct >= 0 ? `Equivale a um desconto de ${pc(sol.needDiscPct)} sobre a lista.` : '')}
+      ${up ? '' : `<button class="btn sec sm" data-act="mg-apply" data-v="${Math.ceil(sol.needGross)}">Aplicar como preço alvo</button>`}</li>
+    <li${why(`**Pelos rates**\nMesma conta do preço, aplicada igualmente a todos os perfis: multiplicar os rates por ${nfPT(sol.needNet / T.net, 4)} (${sol.needNet >= T.net ? '+' : '−'}${pc(Math.abs(sol.needNet / T.net - 1))}) mantendo o desconto atual.`)}><b>Pelos rates:</b> ${sol.needNet >= T.net ? 'aumentar' : 'poderia reduzir'} todos os rates em <b>${pc(Math.abs(sol.needNet / T.net - 1))}</b>.</li>
+    <li${why(whyC)}><b>Pelo custo:</b> ${sol.costDelta > 0 ? `reduzir o custo direto em <b>${C(sol.costDelta)}</b> (de ${C(T.cost)} para ${C(sol.needCost)}), ex.: trocar níveis ou reduzir FTE.` : `há folga: o custo poderia subir até <b>${C(sol.needCost)}</b> (+${C(-sol.costDelta)}).`}</li></ul>`;
+}
+function renderMarginSim(R){
+  const p = R.p, T = R.T, C = (v, d = 0) => curPT(v, p.cur, d), model_ = model();
+  const at = d => { const x = E.compute(model_, {...p, discMode: 'pct', discPhase: {}, disc: d}, {today: new Date()}); return x ? {gross: x.T.gross, gm: x.T.gm, gpm: x.T.gpm} : null; };
+  const d = E.num($('mgSlide').value) / 100, cur = at(d);
+  $('mgSlideV').textContent = nfPT(d * 100, 1) + '%';
+  if (!cur) return;
+  const cell = (v, min) => `<td class="n ${mCls(v, min)}">${pc(v)}</td>`;
+  const steps = [0, 2.5, 5, 7.5, 10, 12.5, 15, 20];
+  $('mgSim').innerHTML = `<div class="kp-row"${why(`**Com ${nfPT(d * 100, 1)}% de desconto geral** (sem exceções por fase)\nLista ${C(T.listNet)} × (1 − ${pc(d)}) = ${C(T.listNet * (1 - d))} líquido → ${C(cur.gross)} com impostos.\nGM e GPM recalculados com o mesmo custo e indiretos.`)}>
+    <div class="kpi"><div class="l">Preço c/ impostos</div><div class="v">${C(cur.gross)}</div></div>
+    <div class="kpi ${kc2(cur.gm, p.gmMin)}"><div class="l">GM</div><div class="v">${pc(cur.gm)}</div></div>
+    <div class="kpi ${kc2(cur.gpm, p.gpmMin)}"><div class="l">GPM</div><div class="v">${pc(cur.gpm)}</div></div></div>
+    <table class="t"><thead><tr><th>Desconto</th><th class="n">Preço c/ impostos</th><th class="n">GM</th><th class="n">GPM</th></tr></thead><tbody>${
+    steps.map(x => { const t = at(x / 100); return t ? `<tr><td>${nfPT(x, 1)}%</td><td class="n">${C(t.gross)}</td>${cell(t.gm, p.gmMin)}${cell(t.gpm, p.gpmMin)}</tr>` : ''; }).join('')}</tbody></table>`;
+}
+const kc2 = (v, min) => v < 0 ? 'err' : (min > 0 && v < min ? 'warn' : 'ok');
+for (const id of ['mgKind', 'mgTarget']) $(id).addEventListener('input', () => { if (S.result) renderMarginCalc(S.result); });
+$('mgSlide').addEventListener('input', () => { if (S.result) renderMarginSim(S.result); });
 async function drawCharts(){
   if (!S.result) return;
   let Chart;
@@ -881,6 +1008,13 @@ async function drawCharts(){
 }
 
 /* ---------------- comparativo de cenários (aba 3) ---------------- */
+const WHY_ROW = {
+  'Duração': '**Duração**\nPeríodos entre o primeiro e o último com alocação × semanas por período.', 'Esforço (horas)': '**Esforço**\nΣ FTE × horas por período de todas as linhas no escopo.',
+  'Pico da equipe (FTE)': '**Pico**\nMaior soma de FTE em um único período.', 'FTE médio': '**FTE médio**\nSoma de FTE ÷ períodos com alocação.',
+  '<b>Preço final (c/ impostos)</b>': '**Preço final**\nLista − desconto = líquido; líquido ÷ (1 − impostos) = preço com impostos.',
+  'GM% (margem bruta)': '**GM**\n(líquido − custo direto) ÷ líquido.', 'GPM% (após indiretos)': '**GPM**\n(líquido − custo direto − overhead − comissão − custo financeiro − reserva de risco) ÷ líquido.',
+  'Rate médio /h (líquido)': '**Rate médio**\nReceita líquida ÷ horas.', 'Desconto': '**Desconto**\n1 − líquido ÷ líquido de lista.'
+};
 const SC_COLORS = ['#1B4F8C', '#13A89E', '#E07A1F'];
 const cenCharts = {};
 function renderCompare(){
@@ -896,7 +1030,7 @@ function renderCompare(){
     if (!m) return `<div class="sccard ${on ? 'on' : ''}">${head}<p class="hint">Cenário sem alocação: monte o timeline (escolha perfis e preencha o FTE).</p>${on ? '' : `<button class="btn sm" data-act="sc-use" data-i="${i}">Editar este cenário</button>`}</div>`;
     const mx = Math.max(...m.fte, 1);
     return `<div class="sccard ${on ? 'on' : ''}">${head}
-      <div class="big">${C(m.gross)}</div><div class="hint">preço final com impostos${m.hasCost ? ` · GM ${nfPT(m.gm * 100, 1)}%` : ''}</div>
+      <div class="big">${C(m.gross)}</div><div class="hint">preço final com impostos${m.hasCost ? ` · GM ${nfPT(m.gm * 100, 1)}%${m.gpm !== m.gm ? ` · GPM ${nfPT(m.gpm * 100, 1)}%` : ''}` : ''}</div>
       <div class="mini" aria-hidden="true">${m.fte.map(v => `<i style="height:${Math.max(2, v / mx * 100)}%;background:${SC_COLORS[i]}" title="${nfPT(v, 1)} FTE"></i>`).join('')}</div>
       <div>${m.nPer} ${m.unit === 'SP' ? 'sprints' : 'semanas'} (${nfPT(m.weeks)} sem.) · pico ${nfPT(m.peak, 1)} FTE · ${nfPT(m.H)} h</div>
       <div class="hint">${m.relative ? 'datas relativas' : `${fdate(m.start)} → ${fdate(m.end)}`} · ${m.nPhases} fase(s) · ${m.nDeliv} entregável(is)</div>
@@ -911,7 +1045,7 @@ function renderCompare(){
       const v = get(m), isBest = bestKey && best[bestKey] && best[bestKey].includes(i), b = base && i !== S.active ? get(base) : undefined;
       return `<td class="${isBest ? 'best' : ''}">${fmt(v, m)}${dm && b !== undefined && typeof v === 'number' ? delta(v, b, dm.f, dm.pct) : ''}</td>`;
     }).join('');
-    return `<tr><td>${label}</td>${cells}</tr>`;
+    return `<tr><td${why(WHY_ROW[label] || '')}>${label}</td>${cells}</tr>`;
   };
   $('cenTable').innerHTML = `<table class="cmp"><thead><tr><th></th>${S.scen.map((sc, i) => `<th>${esc(sc.name)}${i === S.active ? ' ●' : ''}</th>`).join('')}</tr></thead><tbody>` + [
     row('Duração', m => m.weeks, (v, m) => `${m.nPer} ${m.unit === 'SP' ? 'sprints' : 'sem.'} · ${nfPT(v)} sem.`, 'weeks', {f: v => nfPT(v) + ' sem.'}),
@@ -921,6 +1055,7 @@ function renderCompare(){
     row('Fases', m => m.nPhases, v => v), row('Entregáveis', m => m.nDeliv, v => v),
     row('Preço de lista (c/ impostos)', m => m.listGross, v => C(v)), row('Desconto', m => m.discPct, v => nfPT(v * 100, 1) + '%'),
     row('<b>Preço final (c/ impostos)</b>', m => m.gross, v => '<b>' + C(v) + '</b>', 'gross', {f: v => C(v), pct: true}),
+    row('GPM% (após indiretos)', m => m.gpm, (v, m) => m.hasCost ? nfPT(v * 100, 1) + '%' : '—', 'gpm', {f: v => nfPT(v * 100, 1) + ' p.p.'}),
     row('GM% (margem bruta)', m => m.gm, (v, m) => m.hasCost ? nfPT(v * 100, 1) + '%' : '—', 'gm', {f: v => nfPT(v * 100, 1) + ' p.p.'}),
     row('Rate médio /h (líquido)', m => m.blended, v => C(v, 2), 'blended', {f: v => C(v, 2)}),
     row('Alertas', m => m.errs + m.warns, (v, m) => v ? `${m.errs ? m.errs + ' crítico(s) ' : ''}${m.warns ? m.warns + ' aviso(s)' : ''}` : 'nenhum')
@@ -1082,11 +1217,12 @@ async function renderLibrary(){
   body.innerHTML = `<div class="row" style="margin-bottom:10px"><b>📁 ${esc(LIB.dir.name)}</b>
     <button class="btn sec sm" data-act="lib-pick">Trocar pasta</button>
     <button class="btn sm" data-act="lib-here">💾 Salvar a proposta atual aqui</button>
-    <button class="btn sec sm" data-act="lib-refresh">Atualizar</button></div><div id="libList">Carregando…</div><div id="libCmp"></div>`;
+    <button class="btn sec sm" data-act="lib-refresh">Atualizar</button></div><div id="libList">Carregando…</div><div id="libHidden" class="hint" style="margin-top:6px"></div><div id="libCmp"></div>`;
   if (!(await Store.fs.perm(LIB.dir, true))){
     $('libList').innerHTML = `<div class="msg warn">O navegador precisa da sua permissão para acessar esta pasta. <button class="btn sm" data-act="lib-refresh">Permitir acesso</button></div>`;
     return;
   }
+  LIB.hidden = 0;
   try { LIB.files = await Store.fs.list(LIB.dir); } catch(e){ $('libList').innerHTML = `<div class="msg err">Não foi possível ler a pasta: ${esc(e.message)}</div>`; return; }
   if (!LIB.files.length){ $('libList').innerHTML = '<p class="hint">Nenhum arquivo .xlsx nesta pasta ainda. Use “Salvar a proposta atual aqui”.</p>'; return; }
   $('libList').innerHTML = `<table class="t"><thead><tr><th></th><th>Arquivo</th><th>Cliente / Projeto</th><th class="n">Preço c/ impostos</th><th class="n">GM%</th><th>Modificado</th><th></th></tr></thead><tbody>${
@@ -1096,7 +1232,7 @@ async function renderLibrary(){
     const s = await libSummary(f);
     if (!$('lc' + i)) return;
     if (s.error){ $('lc' + i).textContent = 'ilegível: ' + s.error; return; }
-    if (s.other){ $('lc' + i).textContent = 'não é uma proposta do app'; return; }
+    if (s.other){ const tr = $('lc' + i).closest('tr'); if (tr) tr.remove(); LIB.hidden = (LIB.hidden || 0) + 1; const n = $('libHidden'); if (n) n.textContent = `${LIB.hidden} arquivo(s) que não são propostas (ex.: catálogo de perfis e taxas) ficam ocultos.`; return; }
     $('lc' + i).textContent = `${s.client} — ${s.project}`;
     $('lp' + i).textContent = curPT(s.gross, s.cur);
     $('lg' + i).textContent = s.hasCost ? nfPT(s.gm * 100, 1) + '%' : '–';
@@ -1142,6 +1278,7 @@ const actions = {
   library: () => { const d = $('dlgLib'); if (!d.open) d.showModal(); renderLibrary(); },
   'lib-close': () => $('dlgLib').close(), 'lib-pick': libPick, 'lib-here': libHere, 'lib-refresh': () => { LIB.cache.clear(); renderLibrary(); },
   'lib-open': b => libOpen(+b.dataset.i), 'lib-compare': libCompare,
+  'mg-apply': b => { const set = (id, v) => { $(id).value = v; $(id).dispatchEvent(new Event('change', {bubbles: true})); }; set('p_discmode', 'target'); set('p_disctarget', b.dataset.v); toast(`Preço final alvo de ${curPT(+b.dataset.v, P().cur)} aplicado em Parâmetros › Desconto.`, 'ok', 6000); },
   'go-par': () => goTab('par'), 'go-cen': () => goTab('cen'), 'go-ana': () => { if (recalc(false)) goTab('ana'); },
   'sc-new': () => addScen(false), 'sc-dup': () => addScen(true), 'sc-del': () => delScen(S.active),
   'sc-ren': () => { const n = prompt('Nome do cenário:', S.scen[S.active].name); if (n !== null) renameScen(S.active, n); },
