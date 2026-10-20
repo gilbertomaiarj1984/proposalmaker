@@ -23,8 +23,9 @@ margem (GM) e o status de gravação.
 
 ## Catálogo de perfis e taxas (segundo arquivo Excel)
 Perfis e taxas **não ficam mais no arquivo da proposta**: vêm de um **catálogo** (`Perfis_e_Taxas.xlsx`) com **uma aba por
-cliente** (inicialmente `Roche` e `JnJ`). O app lê cada aba pelos títulos das colunas, então clientes podem ter layouts
-diferentes — ex.: JnJ tem só *Role*, *Experience level* e *rate sem impostos (BRL)*; Roche tem também local e custo.
+cliente** (inicialmente `Roche` e `JnJ`), todas no **layout padrão** `Role | Level | Location | Cost/h | Rate/h`
+(JnJ também; Local e Custo/h podem ficar em branco). Abas com outros títulos de coluna continuam sendo lidas pelo
+cabeçalho, e clientes novos em branco já nascem nesse padrão.
 * **📚 Catálogo** (topo): abre o arquivo (Chrome/Edge lembram dele e gravam direto; outros navegadores baixam o `.xlsx`).
 * Em *Dados da proposta* (aba 2, ou no seletor da aba 1) **escolha o cliente** ou crie um novo com **＋ Novo**: o app
   **pergunta em qual cliente basear** (copia perfis, níveis e formatação) ou cria uma aba em branco; cada cliente novo
@@ -34,7 +35,7 @@ diferentes — ex.: JnJ tem só *Role*, *Experience level* e *rate sem impostos 
 * A proposta guarda apenas uma **cópia das taxas usadas** (colunas `Cost/h (catálogo)` e `Rate/h (catálogo)` na aba
   `Modelo`) para recalcular sem o catálogo. Ao reabrir com o catálogo carregado, o **catálogo prevalece** e o app avisa
   se as taxas mudaram, com o impacto no preço (antes → depois).
-* `npm run catalog` regenera o arquivo de exemplo (os dados de Roche são ilustrativos; JnJ usa as linhas do print).
+* `npm run catalog` regenera o arquivo de exemplo (Roche é ilustrativo; JnJ traz as linhas da amostra, com Rate/h em BRL sem impostos).
 
 Na timeline, cada linha escolhe o **perfil** por uma combo e o **nível** por outra; níveis novos podem ser adicionados na
 hora. Um perfil só exige taxa se estiver realmente alocado.

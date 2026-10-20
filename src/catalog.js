@@ -1,7 +1,7 @@
 /* =====================================================================
    CATÁLOGO DE PERFIS E TAXAS (Excel) — um arquivo com UMA ABA POR CLIENTE.
-   Cada aba pode ter o formato do próprio cliente (ex.: JnJ traz só
-   "Roles | Experience level | taxa sem impostos BRL"); as colunas são detectadas
+   Cada aba pode ter o formato do próprio cliente (o padrão é
+   Role | Level | Location | Cost/h | Rate/h; abas com outros títulos também são lidas); as colunas são detectadas
    pelo cabeçalho. Alterações são aplicadas NA PLANILHA ORIGINAL (formatação,
    filtros e cores preservados): atualiza células, acrescenta linhas, remove linhas
    e cria abas de clientes novos (clonando a aba de outro cliente ou em branco).
@@ -180,20 +180,14 @@ function seed(ExcelJS){
   ro.getColumn(6).width = 46; ro.getCell('F1').value = 'Notes'; ro.getCell('F1').font = {bold: true}; ro.getCell('F1').fill = HEAD_FILL;
   ro.getCell('F2').value = 'Valores ilustrativos — substitua pelos oficiais da Roche';
   ro.autoFilter = 'A1:F1';
-  // JnJ: no formato do cliente (Roles | Experience level | taxa sem impostos BRL)
-  const jn = wb.addWorksheet('JnJ', {views: [{state: 'frozen', ySplit: 1}]});
-  jn.addRow(['Roles', 'Experience level\n(See instructions tab for experience level definitions)', 'TCS without\ntaxes 2026 BRL']);
-  const hf = argb => ({type: 'pattern', pattern: 'solid', fgColor: {argb}});
-  jn.getCell('A1').fill = hf('FFB4C7E7'); jn.getCell('B1').fill = hf('FFB4C7E7'); jn.getCell('C1').fill = hf('FFF8CBAD');
-  jn.getRow(1).eachCell(c => { c.font = {bold: true}; c.alignment = {wrapText: true, vertical: 'middle', horizontal: 'center'}; });
-  jn.getRow(1).height = 48;
-  JNJ_ROWS.forEach(r => { const row = jn.addRow([r[0], r[1], r[2] === undefined ? null : r[2]]); row.getCell(3).numFmt = '"R$" #,##0.00'; });
-  [44, 26, 22].forEach((w, i) => jn.getColumn(i + 1).width = w);
-  jn.autoFilter = 'A1:C1';
+  // JnJ: mesmo layout padrão de todos os clientes (Role | Level | Location | Cost/h | Rate/h); valores em BRL sem impostos
+  const jn = standardSheet(wb, 'JnJ');
+  JNJ_ROWS.forEach(r => jn.addRow([r[0], r[1], null, null, r[2] === undefined ? null : r[2]]));
+  jn.autoFilter = 'A1:E1';
   const ins = wb.addWorksheet('Instructions');
   ins.getColumn(1).width = 110;
   ['Catálogo de perfis e taxas — uma aba por cliente',
-   'A aba JnJ vem do arquivo do cliente (amostra): substitua pelos dados oficiais mantendo o cabeçalho (Roles, Experience level, taxa sem impostos).',
+   'Layout padrão de todos os clientes: Role | Level | Location | Cost/h | Rate/h. Os valores da JnJ são uma amostra (Rate/h em BRL, sem impostos): substitua pelos oficiais.',
    'Cada aba nova (cliente) é criada pelo app a partir de outra aba ou em branco; o app lê as colunas pelo cabeçalho.',
    'Perfis sem taxa ficam em branco e aparecem como "sem taxa" nas propostas.'].forEach((t, i) => { const r = ins.addRow([t]); if (!i) r.font = {bold: true, size: 13}; });
   return wb;
